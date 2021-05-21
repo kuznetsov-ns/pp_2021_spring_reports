@@ -1,0 +1,554 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{indentfirst}
+\usepackage{pgfplots}
+\usepackage{amsmath}
+\usepackage{mathtools}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+%Переименовываем Оглавление в Содержание
+\addto\captionsrussian{\renewcommand \contentsname {\LARGE Содержание}}
+\DeclareUnicodeCharacter{2212}{-}
+\DeclareUnicodeCharacter{2217}{+}
+\DeclareUnicodeCharacter{22C5}{+}
+\begin{document}
+\begin{titlepage}
+\begin{center}
+Министерство образования и науки Российской федерации \\
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского \\
+Институт информационных технологий, математики и механики \\
+Направление подготовки: «Фундаментальная информатика и информационные технологии»
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\Large Отчет по лабораторной работе}
+\end{center}
+\begin{center}
+\textbf{\Large «Выделение ребер на изображении с использованием оператора Собеля}
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\textbf{Выполнил:} \\ 
+студент группы 381806-1 \\ 
+Лютова Т.С.\\
+\\
+\textbf{Проверил:}\\ 
+доцент кафедры МОСТ, \\ 
+кандидат технических наук \\ 
+Сысоев А. В.\\ }
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Одним из наиболее важных операторов в обнаружении краев пиксельных изображений является оператор Собеля. Он играет ключевую роль в таких областях информационных технологий, как машинное обучение, цифровые носители и компьютерное зрение. Технически это дискретный оператор разности первого порядка, который используется для вычисления приблизительного значения шага функции яркости изображения. Использование этого оператора в любой точке изображения сгенерирует вектор градиента, соответствующий этой точке или ее вектору нормали.
+\par Как уже было сказано, оператор Собеля вычисляет градиент яркости изображения в каждой точке. То есть находится направление наибольшего увеличения яркости и величина её изменения в этом направлении. Результат показывает, насколько «резко» или «плавно» меняется яркость изображения в каждой точке.
+
+Математически, градиент функции двух переменных для каждой точки изображения  — двумерный вектор, компонентами которого являются производные яркости изображения по горизонтали и вертикали. В каждой точке изображения градиентный вектор ориентирован в направлении наибольшего увеличения яркости, а его длина соответствует величине изменения яркости. Это означает, что результатом оператора Собеля в точке области постоянной яркости будет нулевой вектор, а в точке, лежащей на границе областей различной яркости — вектор, пересекающий границу в направлении увеличения яркости.
+
+\par В пространственной области оператор Собеля легко реализовать, имеет высокую скорость выполнения, сглаживает некоторые шумы и может предоставить более точную информацию о направлении кромки. Недостатком является недостаточная точность позиционирования кромок. Край относится к границе между объектом и другим объектом. Как правило, значения серого внутри и снаружи края будут различаться. Оператор Собеля вычисляется с помощью операции взвешивания по шкале серого соседних точек пиксельного пространства вверх и вниз, влево и вправо.
+
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы необходимо реализовать последовательный и параллельный алгоритмы выделения ребер на изображении с использованием оператора Собеля.Реализацию парааллельного алгоритма необходимо выполнить с помощью технологий OpenMP и TBB. Кроме того, необходимо  проверить корректность выполения работы алгоритмов, а также оценить их эффективность и сделать выводы на основе полученных результатов.
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+Оператор Собеля основан на свёртке изображения небольшими сепарабельными целочисленными фильтрами в вертикальном и горизонтальном направлениях, поэтому его относительно легко вычислять. С другой стороны, используемая им аппроксимация градиента достаточно грубая,что особенно сказывается на высокочастотных колебаниях изображения. 
+
+\par  Оператор использует ядра 3×3, с которыми свёртывают исходное изображение для вычисления приближенных значений производных по горизонтали и по вертикали.\\
+\par Пусть A исходное изображение, а $G_x и G_y$ — два изображения, где каждая точка содержит приближенные производные по x и по y. Они вычисляются следующим образом (матрицы могут заполняться рандомно): \\
+$G_x$ = A *  
+$
+\begin{bmatrix}
+    -1 & -2 & -1\\
+     0 & 0 & 0\\
+    +1 & +2 & +1
+\end{bmatrix}
+$
+  $G_y$ = A * 
+$
+\begin{bmatrix}
+    -1 & 0 & +1\\
+    -2 & 0 & +2\\
+    -1 & 0 & +1
+\end{bmatrix} \\
+$
+
+где * обозначает двумерную операцию свёртки.
+\par  Операция свёртки (по опредениею) -  операция над парой матриц A (размера $n_x$ × $n_y$) и B (размера  $m_x$ × $m_y$), результатом которой является матрица C = A ∗ B размера ($n_x$ - $m_x$ + 1) × ($n_y$ − $m_y$ + 1). Каждый элемент результата вычисляется как скалярное произведение матрицы B и некоторой подматрицы A такого же размера.\\ 
+\par Координата х в нашем примере возрастает «направо», а y — «вниз». В каждой точке изображения приближённое значение градиента можно посчитать, используя приближенные значения производных:
+G = $\sqrt {G_x^2 + G_y^2} $ \\
+Все описанные операции выполняются за O(M⋅N) на одном изображении
+
+\newpage
+
+% Описание схемы распараллеливания
+\section*{Описание схемы распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Данная задача реализует достаточно простой алгоритм, но при этом работает с большим изображением, поэтому распараллеливание было осуществлено с помощью
+декомпозиции по данным. Для этого общее количество строк изображения разбивалось на требуемое
+количество потоков, и каждый поток получал свои граничные значения, исходя из которых и производил обработку.
+
+\newpage
+
+\newpage
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+
+Для начала мы создаем структуру, в которой задаём наше изображение и перегружаем некоторые операции, необходимые нам для дальнейшей реализации.
+\begin{lstlisting}
+ struct Image {...}
+\end{lstlisting}
+
+Для того, чтобы не вводить значения матриц строк и столбцов вручную, была реализована функция рандомного заполнения:
+\begin{lstlisting}
+Image createRandomImage(int rows, int cols);
+\end{lstlisting}
+ В качестве входных параметров передаются соответсвенно строки и столбцы\\
+ 
+ Алгоритм последовательной реализации выделения границ на изображении с помощью оператора Собеля вызывается с помощью функции:
+ \begin{lstlisting}
+Image sobel(const Image &image);
+\end{lstlisting}
+В качестве входного параметра передается изображение, на котором необходимо реализовать оператор Собеля.\\
+
+Алгоритм параллельной реализации вызывается с помощью функции:
+ \begin{lstlisting}
+Image sobelParallel(const Image &image);
+\end{lstlisting}
+Аналогично функции для последовательной реализации в качестве аргумента передается изображение.
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью использования Google C++ Testing Framework.
+\par Набор представляет из себя тесты, которые проверяют корректность входных данных: Например, если была некорректно задача матрица (с нулевой размерностью, прямоугольного вида и т.д.), то срабатывает исключение, а также эффективность выполнения последовательной и параллельной реализаций программы.
+\par Успешное прохождение всех тестов доказывает корректность работы программного комплекса.
+\newpage
+
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельной быстрой сортировки проводились на оборудовании со следующей аппаратной конфигурацией:
+\begin{itemize}
+\item Процессор:Intel(R) Core(TM) i5-8250 CPU, тактовая частота 1.60GHz и 1.80GHz, ядер:4;
+\item Оперативная память: 8 ГБ (DDR4);
+\item ОС: Microsoft Windows $10$
+\end{itemize}
+\par Чтобы сравнить скорость выполнения различных реализаций программы, была выбрана матрица размера 5000 * 5000
+
+Результаты экспериментов представлены в Таблице 1.
+
+\begin{table}[h]
+    \begin{tabular}{ | p{4cm} | p{4cm} | p{4cm} | p{4cm} | }
+    \hline
+    Реализация & Последовательная реализация, сек & Параллельная \par реализация, сек & Ускорение\\ \hline
+    OpenMP & 1.35  & 0.57  & 2.37 \\ \hline
+    Tbb    & 1.18  & 0.35  & 3.37 \\ \hline 
+   
+    \end{tabular}
+    \caption{Результаты экспериментов}
+\end{table}
+\par По данным, полученным в результате экспериментов, можно сделать вывод о том, что параллельная реализация работает быстрее, чем последовательная. Это можно увидеть из таблицы по ускорению. Паларрельная реализация оказалась быстрее последовательной почти в 3 раза.
+\newpage
+ 
+ % Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате лабораторной работы были разработаны последовательная и параллельная реализации выделения границ на изображении с помощью оператора Собеля.
+\par Основной задачей данной лабораторной работы была реализация параллельной версии, которая должна была быть эффективнее последовательной. Эта задача была успешно достигнута, о чем говорят результаты экспериментов, проведенных в ходе работы. 
+\par Кроме того, были разработаны и доведены до успешного выполнения тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Algorithm} 
+Алгоритмы выделения контуров изображений URL: https://habr.com/ru/post/114452/
+\bibitem{Gergel} 
+Гергель В. П. Теория и практика параллельных вычислений. – 2007.
+\bibitem{Gergel} 
+Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\bibitem{Korneev} 
+Корнеев В. Д. Параллельное программирование в MPI //Новосибирск: Изд-во СО РАН. – 2000.
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В данном разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\par Реализация OpenMP
+\begin{lstlisting}
+//lyutova_t_sobel.h
+
+// Copyright 2021 Lyutova Tanya
+#ifndef MODULES_TASK_2_LYUTOVA_T_SOBEL_LYUTOVA_T_SOBEL_H_
+#define MODULES_TASK_2_LYUTOVA_T_SOBEL_LYUTOVA_T_SOBEL_H_
+
+#include <cmath>
+#include <vector>
+
+struct Image {
+  std::vector<int> pixels;
+  int rows = 0;
+  int cols = 0;
+
+  Image(const std::vector<int> &pixels, int rows, int cols)
+      : pixels(pixels), rows(rows), cols(cols) {}
+
+  Image(int rows, int cols) : pixels(rows * cols, 0), rows(rows), cols(cols) {}
+  const int &operator()(int x, int y) const { return pixels[x * cols + y]; }
+  int &operator()(int x, int y) { return pixels[x * cols + y]; }
+
+  bool operator==(const Image &_img) const {
+    if (rows == _img.rows && cols == _img.cols)
+      return true;
+    return false;
+  }
+};
+
+Image createRandomImage(int rows, int cols);
+Image sobel(const Image &image);
+Image sobelParallel(const Image &image);
+
+#endif  // MODULES_TASK_2_LYUTOVA_T_SOBEL_LYUTOVA_T_SOBEL_H_
+
+//lyutova_t_sobel.cpp
+
+// Copyright 2021 Lyutova Tanya
+#include <random>
+#include <vector>
+#include "../../modules/task_2/lyutova_t_sobel/lyutova_t_sobel.h"
+
+inline int clamp(int value, int min, int max) {
+  if (value > max)
+    return max;
+  if (value < min)
+    return min;
+  return value;
+}
+
+Image sobel(const Image &image) {
+  static const std::vector<int> matrixX = {-1, 2, -1, 0, 0, 0, 1, 2, 1};
+  static const std::vector<int> matrixY = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
+  static const int matrixSize = 3;
+  static const int matrixRadius = 1;
+  Image filteredImage(image.rows, image.cols);
+  for (int x = 0; x < image.rows; x++)
+    for (int y = 0; y < image.cols; y++) {
+      int valX = 0, valY = 0;
+      for (int i = -matrixRadius; i <= matrixRadius; i++)
+        for (int j = -matrixRadius; j <= matrixRadius; j++) {
+          int index = (i + matrixRadius) * matrixSize + j + matrixRadius;
+          int nearX = clamp(x + j, 0, image.rows - 1);
+          int nearY = clamp(y + i, 0, image.cols - 1);
+          valX += image(nearX, nearY) * matrixX[index];
+          valY += image(nearX, nearY) * matrixY[index];
+        }
+      filteredImage(x, y) =
+          clamp(static_cast<int>(std::sqrt(valX * valX + valY * valY)), 0, 255);
+    }
+  return filteredImage;
+}
+
+Image sobelParallel(const Image &image) {
+  static const std::vector<int> matrixX = {-1, 2, -1, 0, 0, 0, 1, 2, 1};
+  static const std::vector<int> matrixY = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
+  static const int matrixSize = 3;
+  static const int matrixRadius = 1;
+  Image filteredImage(image.rows, image.cols);
+#pragma omp parallel for
+  for (int x = 0; x < image.rows; x++)
+    for (int y = 0; y < image.cols; y++) {
+      int valX = 0, valY = 0;
+      for (int i = -matrixRadius; i <= matrixRadius; i++)
+        for (int j = -matrixRadius; j <= matrixRadius; j++) {
+          int index = (i + matrixRadius) * matrixSize + j + matrixRadius;
+          int nearX = clamp(x + j, 0, image.rows - 1);
+          int nearY = clamp(y + i, 0, image.cols - 1);
+          valX += image(nearX, nearY) * matrixX[index];
+          valY += image(nearX, nearY) * matrixY[index];
+        }
+      filteredImage(x, y) =
+          clamp(static_cast<int>(std::sqrt(valX * valX + valY * valY)), 0, 255);
+    }
+  return filteredImage;
+}
+
+Image createRandomImage(int rows, int cols) {
+  Image image(rows, cols);
+  std::random_device rd;
+  std::mt19937 generator(rd());
+  for (size_t i = 0; i < image.pixels.size(); i++)
+    image.pixels[i] = std::abs(static_cast<int>(generator())) % 256;
+  return image;
+}
+
+//main.cpp
+// Copyright 2020 Lyutova Tanya
+#include <gtest/gtest.h>
+#include <omp.h>
+#include "../../modules/task_2/lyutova_t_sobel/lyutova_t_sobel.h"
+
+TEST(OMP_Sobel, RandomImage) {
+    Image image = createRandomImage(100, 100);
+    ASSERT_EQ(image.cols, 100);
+    ASSERT_EQ(image.rows, 100);
+}
+
+TEST(OMP_Sobel, SameAsSequential) {
+  Image image = createRandomImage(100, 100);
+  Image seq = sobel(image);
+  Image par = sobelParallel(image);
+  ASSERT_EQ(seq, par);
+}
+
+TEST(OMP_Sobel, DifferentImages) {
+    Image image = createRandomImage(100, 100);
+    Image res = sobelParallel(image);
+    ASSERT_NE(image.pixels, res.pixels);
+}
+
+TEST(OMP_Sobel, SameResult) {
+    Image image(4, 4);
+    Image seq = sobel(image);
+    Image par = sobelParallel(image);
+    ASSERT_EQ(seq, par);
+}
+
+TEST(OMP_Sobel, Different) {
+    Image image = createRandomImage(100, 100);
+    Image image2(100, 100);
+    ASSERT_NE(image.pixels, image2.pixels);
+}
+
+
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\par Рефлизация TBB
+\begin{lstlisting}
+// lyutova_t_sobel.h
+// Copyright 2021 Lyutova Tanya
+#ifndef MODULES_TASK_3_LYUTOVA_T_SOBEL_LYUTOVA_T_SOBEL_H_
+#define MODULES_TASK_3_LYUTOVA_T_SOBEL_LYUTOVA_T_SOBEL_H_
+
+#include <cmath>
+#include <vector>
+
+struct Image {
+  std::vector<int> pixels;
+  int rows = 0;
+  int cols = 0;
+
+  Image(const std::vector<int> &pixels, int rows, int cols)
+      : pixels(pixels), rows(rows), cols(cols) {}
+
+  Image(int rows, int cols) : pixels(rows * cols, 0), rows(rows), cols(cols) {}
+  const int &operator()(int x, int y) const { return pixels[x * cols + y]; }
+  int &operator()(int x, int y) { return pixels[x * cols + y]; }
+
+  bool operator==(const Image &_img) const {
+    if (rows == _img.rows && cols == _img.cols)
+      return true;
+    return false;
+  }
+};
+
+Image createRandomImage(int rows, int cols);
+Image sobel(const Image &image);
+Image sobelParallel(const Image &image);
+
+#endif  // MODULES_TASK_3_LYUTOVA_T_SOBEL_LYUTOVA_T_SOBEL_H_
+
+//lyutova_t_sobel.cpp
+// Copyright 2021 Lyutova Tanya
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <random>
+#include <cmath>
+#include <vector>
+#include "../../modules/task_3/lyutova_t_sobel/lyutova_t_sobel.h"
+
+inline int clamp(int value, int min, int max) {
+    if (value > max)
+        return max;
+    if (value < min)
+        return min;
+    return value;
+}
+
+Image sobel(const Image &image) {
+    static const std::vector<int> matrixX = { -1, 2, -1, 0, 0, 0, 1, 2, 1 };
+    static const std::vector<int> matrixY = { -1, 0, 1, -2, 0, 2, -1, 0, 1 };
+    static const int matrixSize = 3;
+    static const int matrixRadius = 1;
+    Image filteredImage(image.rows, image.cols);
+    for (int x = 0; x < image.rows; x++)
+        for (int y = 0; y < image.cols; y++) {
+            int valX = 0, valY = 0;
+            for (int i = -matrixRadius; i <= matrixRadius; i++)
+                for (int j = -matrixRadius; j <= matrixRadius; j++) {
+                    int index = (i + matrixRadius) * matrixSize + j +
+                        matrixRadius;
+                    int nearX = clamp(x + j, 0, image.rows - 1);
+                    int nearY = clamp(y + i, 0, image.cols - 1);
+                    valX += image(nearX, nearY) * matrixX[index];
+                    valY += image(nearX, nearY) * matrixY[index];
+                }
+            filteredImage(x, y) =
+                clamp(static_cast<int>(std::sqrt(valX * valX +
+                    valY * valY)), 0, 255);
+        }
+    return filteredImage;
+}
+
+Image sobelParallel(const Image &image) {
+    static const std::vector<int> matrixX = { -1, 2, -1, 0, 0, 0, 1, 2, 1 };
+    static const std::vector<int> matrixY = { -1, 0, 1, -2, 0, 2, -1, 0, 1 };
+    static const int matrixSize = 3;
+    static const int matrixRadius = 1;
+    Image filteredImage(image.rows, image.cols);
+    tbb::parallel_for(tbb::blocked_range<int>(0, image.rows),
+        [&](const tbb::blocked_range<int>& r) {
+        for (int x = r.begin(); x < r.end(); x++)
+            for (int y = 0; y < image.cols; y++) {
+                int valX = 0, valY = 0;
+                for (int i = -matrixRadius; i <= matrixRadius; i++)
+                    for (int j = -matrixRadius; j <= matrixRadius; j++) {
+                        int index = (i + matrixRadius) * matrixSize + j +
+                            matrixRadius;
+                        int nearX = clamp(x + j, 0, image.rows - 1);
+                        int nearY = clamp(y + i, 0, image.cols - 1);
+                        valX += image(nearX, nearY) * matrixX[index];
+                        valY += image(nearX, nearY) * matrixY[index];
+                    }
+                filteredImage(x, y) = clamp(
+                    static_cast<int>(std::sqrt(valX * valX +
+                        valY * valY)), 0, 255);
+            }
+        });
+    return filteredImage;
+}
+
+Image createRandomImage(int rows, int cols) {
+    Image image(rows, cols);
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    for (size_t i = 0; i < image.pixels.size(); i++)
+        image.pixels[i] = std::abs(static_cast<int>(generator())) % 256;
+    return image;
+}
+
+//main.cpp
+// Copyright 2021 Lyutova Tanya
+#include <gtest/gtest.h>
+#include <tbb/tick_count.h>
+#include "../../modules/task_3/lyutova_t_sobel/lyutova_t_sobel.h"
+
+TEST(TBB_Sobel, Performance) {
+    Image image = createRandomImage(5000, 5000);
+    tbb::tick_count t1, t2;
+    t1 = tbb::tick_count::now();
+    Image seq = sobel(image);
+    t2 = tbb::tick_count::now();
+    std::cout << "seq " << (t2 - t1).seconds() << std::endl;
+    t1 = tbb::tick_count::now();
+    Image par = sobelParallel(image);
+    t2 = tbb::tick_count::now();
+    std::cout << "par " << (t2 - t1).seconds() << std::endl;
+    ASSERT_EQ(seq, par);
+}
+
+TEST(TBB_Sobel, RandomImage) {
+    Image image = createRandomImage(100, 100);
+    ASSERT_EQ(image.cols, 100);
+    ASSERT_EQ(image.rows, 100);
+}
+
+TEST(TBB_Sobel, SameAsSequential) {
+  Image image = createRandomImage(100, 100);
+  Image seq = sobel(image);
+  Image par = sobelParallel(image);
+  ASSERT_EQ(seq, par);
+}
+
+TEST(TBB_Sobel, DifferentImages) {
+    Image image = createRandomImage(100, 100);
+    Image res = sobelParallel(image);
+    ASSERT_NE(image.pixels, res.pixels);
+}
+
+TEST(TBB_Sobel, SameResult) {
+    Image image(4, 4);
+    Image seq = sobel(image);
+    Image par = sobelParallel(image);
+    ASSERT_EQ(seq, par);
+}
+
+TEST(TBB_Sobel, Different) {
+    Image image = createRandomImage(100, 100);
+    Image image2(100, 100);
+    ASSERT_NE(image.pixels, image2.pixels);
+}
+
+
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\end{document}
