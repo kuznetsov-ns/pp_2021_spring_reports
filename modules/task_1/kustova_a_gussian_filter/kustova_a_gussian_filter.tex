@@ -1,0 +1,718 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Линейная фильтрация изображений (блочное разбиение). Ядро Гаусса 3*3»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-1 \\ Кустова Анастасия\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А.В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+В электронике и обработке сигналов, фильтром Гаусса называют фильтр, чья импульсная характеристика является функцией Гаусса. Фильтр Гаусса обычно используется в цифровом виде для обработки двумерных сигналов с целью снижения уровня шума. Визуально данных эффект представляет собой лёгкое размытие, как при наблюдении через мутное стекло. 
+\par
+Стоит отметить весьма ограниченную скорость фильтра Гаусса при реализации с помощью явного метода, особенно заметную на больших объёмах данных. Поэтому имеет смысл разделять обработку изображения между процессами или потоками.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В данной работе необходимо реализовать линейную фильтрацию изображений «Фильтр Гаусса» с блочным разбиением. Данная работа должна содержать последовательную и несколько параллельных версий, с использованием следующих технологий: OpenMP, TBB, API std::thread. 
+\par
+На основе разработанной программы необходимо провести вычислительные эксперименты, сравнив время работы последовательного и параллельных алгоритмов на разных входных данных, затем сделать вывод об эффективности параллельных версий.
+\par
+Также следует экспериментально проверить корректность разработанных версий алгоритма с помощью Google тестов и проиллюстрировать работу на реальных изображениях.
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+Алгоритм фильтрации Гаусса состоит из двух этапов.
+\par
+На первом шаге необходимо создать ядро Гаусса, в создании которого участвуют два параметра: радиус и сигма. При помощи формулы инициализируем ячейки ядра Гаусса. Затем это ядро необходимо нормировать.
+\par
+На втором шаге необходимо применить ядро, полученное на первом шаге к каждому пикселю изображения:
+\par
+    1) Для каждого пикселя исходного изображения рассматривается область соседних пикселей. Размер этой области зависит от размера ядра Гаусса.
+\par 
+
+    2) Далее мы обходим все значения из этой области. Значение каждого соседнего пикселя умножается на значение из соответствующей ячейки в ядре Гаусса, и полученный результат от произведения прибавляется к результирующему значению цвета пикселя.
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Для начала необходимо распределить какому потоку какие пиксели достанутся для обработки. Для этого исходя из количества потоков, на котором планируется запустить программу вычисляется оптимальный размер блока. Пусть n – количество потоков, которые будут участвовать в обработке изображения. Тогда оптимальный размер блока будет вычисляться как квадратный корень из n, округлённый в большую сторону.
+\par
+Затем создаётся вектор векторов “array”, в котором будут храниться координаты начала очередного блока, длина и ширина блока. И в цикле по длине и ширине изображения эти координаты вычисляются.
+\par
+Затем этот вектор векторов передаётся в цикл, который распараллеливается различными способами (OpenMP, TBB, API std::thread). В этом цикле определяется, какому потоку какой блок нужно обрабатывать.
+\begin{itemize}
+\item В случае OpenMP реализации распараллеливание происходит с помощью 
+ \begin{lstlisting}
+ #pragma omp parallel for schedule(dynamic)
+\end{lstlisting}
+\item В случае TBB реализации сначала инициализируется объект:
+\begin{lstlisting}
+tbb::task_scheduler_init init(count_thread);
+\end{lstlisting}
+Затем такие параметры, как исходное изображение, ссылка на результирующее изображение, ядро Гаусса, ширина изображения, высота изображения, радиус и размеры блока передаются в класс GaussianParallel:
+\begin{lstlisting}
+GaussianParallel tmp(img, &res, kernel, array1, width, height, radius, block_width, block_height);
+\end{lstlisting}
+Распараллеливание происходит с помощью функции
+\begin{lstlisting}
+tbb::parallel_for(tbb::blocked_range<int>(0, static_cast<int>(array1.size())), tmp);
+\end{lstlisting}
+\item В API std::thread реализации в цикле создаются потоки с помощью функции std::thread.
+\end{itemize}
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+В программе имеются следующие функции:
+
+\begin{itemize}
+\item Функция, реализующая TBB версию, в которой вычисляются координаты и размеры блоков, а также вызываются функции создания ядра и распараллеливания: 
+\end{itemize}
+\begin{lstlisting}
+	std::vector<int> gaussianFilterTbb(const std::vector<int> & img, int width,
+    int height, int radius, float sigma, int count_thread));
+\end{lstlisting}
+\begin{itemize}
+\item Функция, реализующая OpenMP версию, в которой вычисляются координаты и размеры блоков, а также вызываются функции создания ядра и распараллеливания: 
+\end{itemize}
+\begin{lstlisting}
+	std::vector<int> gaussianFilterOmp(const std::vector<int> & img, int width, int height, int radius, float sigma, int count_thread);
+\end{lstlisting}
+\begin{itemize}
+\item Функция, реализующая API std::thread версию, в которой вычисляются координаты и размеры блоков, а также вызываются функции создания ядра и распараллеливания: 
+\end{itemize}
+\begin{lstlisting}
+	std::vector<int> gaussianFilterStd(const std::vector<int> & img, int width, int height, int radius, float sigma, int count_thread);
+\end{lstlisting}
+\begin{itemize}
+\item Функция, вызываемая при создании нового потока в API std::thread реализации: 
+\end{itemize}
+\begin{lstlisting}
+	void threadFunction(std::vector<std::vector<int>> array, int i, int count_thread, int width, int height, const std::vector<int> & img, const std::vector<float> & kernel, int radius);
+\end{lstlisting}
+
+\begin{itemize}
+\item Функция, реализующая последовательную версию, в которой вычисляются координаты и размеры блоков, а также вызываются функции создания ядра и распараллеливания: 
+\end{itemize}
+\begin{lstlisting}
+	std::vector<int> gaussianFilterSeq(const std::vector<int> & img, int width, int height, int radius, float sigma);
+\end{lstlisting}
+
+\begin{itemize}
+\item Функция, которая создаёт ядро Гаусса :
+\end{itemize}
+\begin{lstlisting}
+	std::vector<float> createGaussianKernel(int radius, float sigma);
+\end{lstlisting}
+\begin{itemize}
+\item Функция, которая вычисляет цвет пикселя: 
+\end{itemize}
+\begin{lstlisting}
+	int calculateNewPixelColor(std::vector<int> img, int width, int height,
+    int x, int y, int radius, std::vector<float> kernel);
+\end{lstlisting}
+\newpage
+
+% Описание экспериментов
+\section*{Описание экспериментов}
+\addcontentsline{toc}{section}{Описание экспериментов}
+Эксперименты проводились на 4-х ядерном компьютере с операционной системой – Windows 10, который имеет 8 логических процессоров. Результаты экспериментов приведены в таблице:
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов}
+\centering
+\begin{tabular}{llllll}
+Размер & Количество потоков & OpenMp & TBB & Std & Послед. \\
+600x400 & 4 & 3.202 & 3.110 & 3.3 & 12.06\\
+600x400 & 2 & 6.5 & 6.421 & 6.53 & 12.568\\
+\end{tabular}
+\end{table}
+\par
+По результатам эксперимента, можно сделать вывод о том, что параллельнык версии работают быстрее последовательной. Самой быстрой оказалась TBB версия, на втором месте OpenMp версия, и затем идёт API std::thread реализация.
+\par
+Kорректность работы программы могут результаты гугл-тестов и наглядный пример картинки.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения работы была успешна реализована фильтрация изображения методом Гаусса в последовательном и параллельных вариантах. 
+\par 
+Основной задачей лабораторной работы была реализация эффективной параллельной версии. Эта цель была успешно достигнута, что подтверждается результатами экспериментов, проведенных в ходе работы. 
+\par 
+Работоспособность программы была проверена с помощью библиотеки для модульного тестирования и с помощью реального изображения.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Gergel}
+Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\bibitem{Gaussian}
+Фильтр Гаусса: URL: https://habr.com/ru/post/142818/
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\begin{lstlisting}
+							// main.cpp
+// Copyright 2021 Kustova Anastasiya
+#include <gtest/gtest.h>
+#include <math.h>
+#include <tbb/tbb.h>
+#include <omp.h>
+#include<vector>
+#include<ctime>
+#include<iostream>
+#include"./filter_gaussa_block.h"
+
+TEST(Gaussian_Method, Test_can_gaussian_filter) {
+    int radius = 1;
+    float sigma = 5.0;
+    int height = 8;
+    int count_thread = 3;
+    int width = 8;
+    std::vector<int> image1_decimal(height * width);
+    image1_decimal[0] = 61; image1_decimal[1] = 2; image1_decimal[2] = 3; image1_decimal[3] = 4;
+    image1_decimal[4] = 6; image1_decimal[5] = 8; image1_decimal[6] = 240; image1_decimal[7] = 2;
+    image1_decimal[8] = 84; image1_decimal[9] = 6; image1_decimal[10] = 250; image1_decimal[11] = 3;
+    image1_decimal[12] = 2; image1_decimal[13] = 8; image1_decimal[14] = 7; image1_decimal[15] = 3;
+    image1_decimal[16] = 6;    image1_decimal[17] = 68; image1_decimal[18] = 2; image1_decimal[19] = 4;
+    image1_decimal[20] = 3;    image1_decimal[21] = 9; image1_decimal[22] = 1; image1_decimal[23] = 4;
+    image1_decimal[24] = 6;    image1_decimal[25] = 68; image1_decimal[26] = 2; image1_decimal[27] = 4;
+    image1_decimal[28] = 3;    image1_decimal[29] = 9; image1_decimal[30] = 1; image1_decimal[31] = 4;
+    image1_decimal[32] = 250;    image1_decimal[33] = 182; image1_decimal[34] = 90; image1_decimal[35] = 30;
+    image1_decimal[36] = 23;    image1_decimal[37] = 4; image1_decimal[38] = 24; image1_decimal[39] = 1;
+    image1_decimal[40] = 6;    image1_decimal[41] = 68; image1_decimal[42] = 2; image1_decimal[43] = 4;
+    image1_decimal[44] = 3;    image1_decimal[45] = 9; image1_decimal[46] = 1; image1_decimal[47] = 4;
+    image1_decimal[48] = 89;    image1_decimal[49] = 68; image1_decimal[50] = 5; image1_decimal[51] = 4;
+    image1_decimal[52] = 3;    image1_decimal[53] = 9; image1_decimal[54] = 1; image1_decimal[55] = 4;
+    image1_decimal[56] = 6;    image1_decimal[57] = 50; image1_decimal[58] = 2; image1_decimal[59] = 4;
+    image1_decimal[60] = 3;    image1_decimal[61] = 9; image1_decimal[62] = 1; image1_decimal[63] = 4;
+    ASSERT_NO_THROW(gaussianFilterTbb(image1_decimal, width, height, radius, sigma, count_thread));
+}
+TEST(Gaussian_Method, Test_big_matrix) {
+    int radius = 1;
+    float sigma = 5.0;
+    int count_thread = 4;
+    int height = 400;
+    int width = 400;
+    std::vector<int> image1_decimal(height * width);
+    std::vector<int> image2_seq(height * width);
+    std::vector<int> image2_omp(height * width);
+    std::vector<int> image2_tbb(height * width);
+    std::vector<int> image2_std(height * width);
+    for (int i = 0; i < width * height; i++) {
+        image1_decimal[i] = 25;
+    }
+    double t1, t2;
+    t1 = omp_get_wtime();
+    image2_seq = gaussianFilterSeq(image1_decimal, width, height, radius, sigma);
+    t2 = omp_get_wtime();
+    std::cout << "Seq: " << t2 - t1 << std::endl;
+    double t3, t4;
+    t3 = omp_get_wtime();
+    image2_omp = gaussianFilterOmp(image1_decimal, width, height, radius, sigma, count_thread);
+    t4 = omp_get_wtime();
+    std::cout << "Omp: " << t4 - t3 << std::endl;
+    tbb::tick_count t5, t6;
+    t5 = tbb::tick_count::now();
+    image2_tbb = gaussianFilterTbb(image1_decimal, width, height, radius, sigma, count_thread);
+    t6 = tbb::tick_count::now();
+    std::cout << "Tbb: " << (t6 - t5).seconds() << std::endl;
+    double t7, t8;
+    t7 = omp_get_wtime();
+    image2_std = gaussianFilterStd(image1_decimal, width, height, radius, sigma, count_thread);
+    t8 = omp_get_wtime();
+    std::cout << "Std: " << t8 - t7 << std::endl;
+}
+TEST(Gaussian_Method, Test_check_work_with_rectangle_matrix) {
+    int radius = 1;
+    float sigma = 5.0;
+    int count_thread = 8;
+    int height = 8;
+    int width = 9;
+    std::vector<int> image1_decimal(height * width);
+    std::vector<int> image2_decimal(height * width);
+    std::vector<int> check(height * width);
+    image1_decimal[0] = 61; image1_decimal[1] = 2; image1_decimal[2] = 3; image1_decimal[3] = 4;
+    image1_decimal[4] = 6; image1_decimal[5] = 8; image1_decimal[6] = 240; image1_decimal[7] = 2;
+    image1_decimal[8] = 84; image1_decimal[9] = 6; image1_decimal[10] = 250; image1_decimal[11] = 3;
+    image1_decimal[12] = 2; image1_decimal[13] = 8; image1_decimal[14] = 7; image1_decimal[15] = 3;
+    image1_decimal[16] = 6;    image1_decimal[17] = 68; image1_decimal[18] = 2; image1_decimal[19] = 4;
+    image1_decimal[20] = 3;    image1_decimal[21] = 9; image1_decimal[22] = 1; image1_decimal[23] = 4;
+    image1_decimal[24] = 6;    image1_decimal[25] = 68; image1_decimal[26] = 2; image1_decimal[27] = 4;
+    image1_decimal[28] = 3;    image1_decimal[29] = 9; image1_decimal[30] = 1; image1_decimal[31] = 4;
+    image1_decimal[32] = 250;    image1_decimal[33] = 182; image1_decimal[34] = 90; image1_decimal[35] = 30;
+    image1_decimal[36] = 23;    image1_decimal[37] = 4; image1_decimal[38] = 24; image1_decimal[39] = 1;
+    image1_decimal[40] = 6;    image1_decimal[41] = 68; image1_decimal[42] = 2; image1_decimal[43] = 4;
+    image1_decimal[44] = 3;    image1_decimal[45] = 9; image1_decimal[46] = 1; image1_decimal[47] = 4;
+    image1_decimal[48] = 89;    image1_decimal[49] = 68; image1_decimal[50] = 5; image1_decimal[51] = 4;
+    image1_decimal[52] = 3;    image1_decimal[53] = 9; image1_decimal[54] = 1; image1_decimal[55] = 4;
+    image1_decimal[56] = 6;    image1_decimal[57] = 50; image1_decimal[58] = 2; image1_decimal[59] = 4;
+    image1_decimal[60] = 3;    image1_decimal[61] = 9; image1_decimal[62] = 1; image1_decimal[63] = 4;
+    image1_decimal[64] = 6;    image1_decimal[65] = 50; image1_decimal[66] = 2; image1_decimal[67] = 4;
+    image1_decimal[68] = 3;    image1_decimal[69] = 9; image1_decimal[70] = 1; image1_decimal[71] = 4;
+    image2_decimal = gaussianFilterTbb(image1_decimal, width, height, radius, sigma, count_thread);
+    check[0] = 56; check[1] = 43; check[2] = 29; check[3] = 4;
+    check[4] = 5; check[5] = 58; check[6] = 58; check[7] = 80;
+    check[8] = 53; check[9] = 43; check[10] = 37; check[11] = 31;
+    check[12] = 4; check[13] = 5; check[14] = 31; check[15] = 38;
+    check[16] = 52;    check[17] = 42; check[18] = 30; check[19] = 31;
+    check[20] = 31;    check[21] = 4; check[22] = 31; check[23] = 51;
+    check[24] = 68;    check[25] = 50; check[26] = 40; check[27] = 7;
+    check[28] = 8;    check[29] = 6; check[30] = 6; check[31] = 38;
+    check[32] = 59;    check[33] = 75; check[34] = 43; check[35] = 25;
+    check[36] = 8;    check[37] = 9; check[38] = 15; check[39] = 22;
+    check[40] = 54;    check[41] = 65; check[42] = 67; check[43] = 36;
+    check[44] = 19;    check[45] = 8; check[46] = 8; check[47] = 20;
+    check[48] = 28;    check[49] = 32; check[50] = 18; check[51] = 11;
+    check[52] = 4;    check[53] = 4; check[54] = 4; check[55] = 9;
+    check[56] = 23;    check[57] = 30; check[58] = 25; check[59] = 11;
+    check[60] = 4;    check[61] = 4; check[62] = 4; check[63] = 3;
+    check[64] = 14;    check[65] = 19; check[66] = 18; check[67] = 8;
+    check[68] = 4;    check[69] = 4; check[70] = 4; check[71] = 3;
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            ASSERT_EQ(image2_decimal[i * width + j], check[i * width + j]);
+        }
+    }
+}
+
+TEST(Gaussian_Method, Test_check_gaussian_filter) {
+    int radius = 1;
+    float sigma = 5.0;
+    int count_thread = 3;
+    int height = 8;
+    int width = 8;
+    std::vector<int> image1_decimal(height * width);
+    std::vector<int> image2_decimal(height * width);
+    std::vector<int> check(height * width);
+    image1_decimal[0] = 61; image1_decimal[1] = 2; image1_decimal[2] = 3; image1_decimal[3] = 4;
+    image1_decimal[4] = 6; image1_decimal[5] = 8; image1_decimal[6] = 240; image1_decimal[7] = 2;
+    image1_decimal[8] = 84; image1_decimal[9] = 6; image1_decimal[10] = 250; image1_decimal[11] = 3;
+    image1_decimal[12] = 2; image1_decimal[13] = 8; image1_decimal[14] = 7; image1_decimal[15] = 3;
+    image1_decimal[16] = 6;    image1_decimal[17] = 68; image1_decimal[18] = 2; image1_decimal[19] = 4;
+    image1_decimal[20] = 3;    image1_decimal[21] = 9; image1_decimal[22] = 1; image1_decimal[23] = 4;
+    image1_decimal[24] = 6;    image1_decimal[25] = 68; image1_decimal[26] = 2; image1_decimal[27] = 4;
+    image1_decimal[28] = 3;    image1_decimal[29] = 9; image1_decimal[30] = 1; image1_decimal[31] = 4;
+    image1_decimal[32] = 250;    image1_decimal[33] = 182; image1_decimal[34] = 90; image1_decimal[35] = 30;
+    image1_decimal[36] = 23;    image1_decimal[37] = 4; image1_decimal[38] = 24; image1_decimal[39] = 1;
+    image1_decimal[40] = 6;    image1_decimal[41] = 68; image1_decimal[42] = 2; image1_decimal[43] = 4;
+    image1_decimal[44] = 3;    image1_decimal[45] = 9; image1_decimal[46] = 1; image1_decimal[47] = 4;
+    image1_decimal[48] = 89;    image1_decimal[49] = 68; image1_decimal[50] = 5; image1_decimal[51] = 4;
+    image1_decimal[52] = 3;    image1_decimal[53] = 9; image1_decimal[54] = 1; image1_decimal[55] = 4;
+    image1_decimal[56] = 6;    image1_decimal[57] = 50; image1_decimal[58] = 2; image1_decimal[59] = 4;
+    image1_decimal[60] = 3;    image1_decimal[61] = 9; image1_decimal[62] = 1; image1_decimal[63] = 4;
+    // double t1, t2, dt;
+    // t1 = omp_get_wtime();
+    image2_decimal = gaussianFilterTbb(image1_decimal, width, height, radius, sigma, count_thread);
+    // t2 = omp_get_wtime();
+    // dt = t2 - t1;
+    // std::cout << dt;
+    check[0] = 46; check[1] = 51; check[2] = 30; check[3] = 30;
+    check[4] = 5; check[5] = 58; check[6] = 58; check[7] = 55;
+    check[8] = 42; check[9] = 53; check[10] = 38; check[11] = 30;
+    check[12] = 5; check[13] = 31; check[14] = 31; check[15] = 29;
+    check[16] = 37;    check[17] = 54; check[18] = 45; check[19] = 29;
+    check[20] = 4;    check[21] = 4; check[22] = 5; check[23] = 3;
+    check[24] = 93;    check[25] = 74; check[26] = 49; check[27] = 17;
+    check[28] = 9;    check[29] = 8; check[30] = 6; check[31] = 4;
+    check[32] = 94;    check[33] = 75; check[34] = 50; check[35] = 18;
+    check[36] = 9;    check[37] = 8; check[38] = 6; check[39] = 4;
+    check[40] = 111;    check[41] = 84; check[42] = 50; check[43] = 18;
+    check[44] = 9;    check[45] = 8; check[46] = 6; check[47] = 4;
+    check[48] = 43;    check[49] = 33; check[50] = 22; check[51] = 3;
+    check[52] = 5;    check[53] = 4; check[54] = 4; check[55] = 3;
+    check[56] = 40;    check[57] = 30; check[58] = 20; check[59] = 3;
+    check[60] = 5;    check[61] = 4; check[62] = 4; check[63] = 3;
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            ASSERT_EQ(image2_decimal[i * width + j], check[i * width + j]);
+        }
+    }
+}
+TEST(Gaussian_Method, Test_can_Clamp) {
+    int val1 = -1;
+    ASSERT_NO_THROW(Clamp(val1, 0, 255));
+}
+TEST(Gaussian_Method, Test_check_Clamp) {
+    int val1 = -1;
+    ASSERT_EQ(Clamp(val1, 0, 255), 0);
+    ASSERT_EQ(Clamp(val1, -5, 30), -1);
+    ASSERT_EQ(Clamp(val1, -5, -3), -3);
+}
+
+TEST(Gaussian_Method, Can_creating_Gaussian_Kernel) {
+    int radius = 1;
+    float sigma = 5.0;
+    ASSERT_NO_THROW(createGaussianKernel(radius, sigma));
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+							//filter_gaussa_block.cpp
+// Copyright 2021 Kustova Anastasiya
+#include <math.h>
+#include <tbb/tbb.h>
+#include <omp.h>
+#include <iostream>
+#include <vector>
+#include <tuple>
+#include "../../../modules/task_3/kustova_a_gauss_tbb/filter_gaussa_block.h"
+
+std::vector<int> resultImage1;
+
+class GaussianParallel {
+ private:
+    const std::vector<int> &img;
+    std::vector<int> *res;
+    const std::vector<float> &kernel;
+    const std::vector<std::vector<int>> &array;
+    int width, height, radius, block_width, block_height;
+
+ public:
+    void operator()(const tbb::blocked_range<int> &r) const {
+        for (int i = r.begin(); i != r.end(); ++i) {
+            int j_start = array[i][0];
+            int j_finish = array[i][0] + array[i][2];
+            int i_start = array[i][1];
+            int i_finish = array[i][1] + array[i][3];
+            for (int i = i_start; i < i_finish && i < width; i++) {
+                for (int j = j_start; j < j_finish && j < height; j++) {
+                    int color = calculateNewPixelColor(img, width, height, i, j, radius, kernel);
+                    res->at(j * width + i) = color;
+                }
+            }
+        }
+    }
+
+    GaussianParallel(const std::vector<int> &img, std::vector<int> *res, const std::vector<float> &kernel,
+        const std::vector<std::vector<int>> &array, int width, int height, int radius,
+        int block_width, int block_height) :
+        img(img),
+        res(res),
+        kernel(kernel),
+        array(array),
+        width(width),
+        height(height),
+        radius(radius),
+        block_width(block_width),
+        block_height(block_height){}
+};
+std::vector<int> gaussianFilterTbb(const std::vector<int> & img, int width,
+    int height, int radius, float sigma, int count_thread) {
+    std::vector<int> res(img);
+    int size = 2 * radius + 1;
+    std::vector<float> kernel(size * size);
+    int l = 0;
+    int k = 0;
+    kernel = createGaussianKernel(radius, sigma);
+    std::vector<std::vector<int>> array1;
+    int grid_size = ceil(static_cast<double>(sqrt(count_thread)));
+    int block_height = height / grid_size;
+    int block_width = width / grid_size;
+    while (l < height) {
+        k = 0;
+        int block_w = block_width;
+        int block_h = block_height;
+        while (k < width) {
+            if (width - k < block_width + block_width / 2) {
+                block_w = width - k;
+            } else {
+                block_w = block_width;
+            }
+            if (height - l < block_height / 2) {
+                block_h = height - l;
+            } else {
+                block_h = block_height;
+            }
+            std::vector<int> tup = { l, k , block_h, block_w };
+            array1.push_back(tup);
+            k += block_w;
+        }
+        l += block_h;
+    }
+    tbb::task_scheduler_init init(count_thread);
+    GaussianParallel tmp(img, &res, kernel, array1, width, height, radius, block_width, block_height);
+    tbb::parallel_for(tbb::blocked_range<int>(0, static_cast<int>(array1.size())), tmp);
+    return res;
+}
+std::vector<int> gaussianFilterOmp(const std::vector<int> & img, int width, int height, int radius, float sigma, int count_thread) {
+    std::vector<int> resultImage(height * width);
+    int size = 2 * radius + 1;
+    int color = 0;
+    int l = 0;
+    int k = 0;
+    std::vector<float> kernel(size * size);
+    kernel = createGaussianKernel(radius, sigma);
+    std::vector<std::vector<int>> array;
+    int grid_size = ceil(static_cast<double>(sqrt(count_thread)));
+    int block_height = height / grid_size;
+    int block_width = width / grid_size;
+    while (l < height) {
+        k = 0;
+        int block_w = block_width;
+        int block_h = block_height;
+        while (k < width) {
+            if (width - k < block_width + block_width / 2) {
+                block_w = width - k;
+
+            }
+            else {
+                block_w = block_width;
+            }
+            if (height - l < block_height / 2) {
+                block_h = height - l;
+
+            }
+            else {
+                block_h = block_height;
+            }
+            std::vector<int> tup = { l, k , block_h, block_w };
+            array.push_back(tup);
+            k += block_w;
+
+        }
+        l += block_h;
+    }
+
+    omp_set_num_threads(count_thread);
+#pragma omp parallel for schedule(dynamic) shared(img, width, height, radius, kernel, array, resultImage)
+    for (int t = 0; t < array.size(); t++) {
+        int j_start = array[t][0];
+        int j_finish = array[t][0] + array[t][2];
+        int i_start = array[t][1];
+        int i_finish = array[t][1] + array[t][3];
+        for (int i = i_start; i < i_finish && i < width; i++) {
+            for (int j = j_start; j < j_finish && j < height; j++) {
+                int color = calculateNewPixelColor(img, width, height, i, j, radius, kernel);
+                resultImage[j * width + i] = color;
+            }
+        }
+    }
+    return resultImage;
+}
+std::vector<int> gaussianFilterSeq(const std::vector<int> & img, int width, int height, int radius, float sigma) {
+    std::vector<int> resultImage(height * width);
+    int size = 2 * radius + 1;
+    std::vector<float> kernel(size * size);
+    kernel = createGaussianKernel(radius, sigma);
+    for (int i = 0; i < width; i++) {
+        for (int j = 0; j < height; j++) {
+            int color = calculateNewPixelColor(img, width, height, i, j, radius, kernel);
+            resultImage[j * width + i] = color;
+        }
+    }
+    return resultImage;
+}
+
+std::vector<float> createGaussianKernel(int radius, float sigma) {
+    int size = 2 * radius + 1;
+    std::vector<float> kernel(size * size);
+    float norm = 0;
+    for (int i = -radius; i <= radius; i++) {
+        for (int j = -radius; j <= radius; j++) {
+            kernel[(i + radius)* size + j + radius] = static_cast<float>(exp(-(i * i + j * j) / (2 * sigma * sigma)));
+            norm = norm + kernel[(i + radius) * size + j + radius];
+        }
+    }
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            kernel[i * size + j] = kernel[i * size + j] / norm;
+        }
+    }
+    return kernel;
+}
+
+int calculateNewPixelColor(std::vector<int> img, int width, int height,
+    int x, int y, int radius, std::vector<float> kernel) {
+    int size = radius * 2 + 1;
+    double sumColor = 0;
+    for (int l = -radius; l <= radius; l++) {
+        for (int k = -radius; k <= radius; k++) {
+            int idX = Clamp(x + k, 0, width - 1);
+            int idY = Clamp(y + l, 0, height - 1);
+            int neighborColor = img[idY * width + idX];
+            sumColor += neighborColor * kernel[(k + radius) * size + l + radius];
+        }
+    }
+    return Clamp(static_cast<int>(sumColor), 0, 255);
+}
+int Clamp(int value, int min, int max) {
+    if (value < min) {
+        return min;
+    }
+    if (value > max) {
+        return max;
+    }
+    return value;
+}
+void threadFunction(std::vector<std::vector<int>> array, int i, int count_thread, int width, int height, const std::vector<int> & img, const std::vector<float> & kernel, int radius) {
+    for (int t = i; t < static_cast<int>(array.size()); t++) {
+        if ((t % count_thread) == i) {
+            int j_start = array[t][0];
+            int j_finish = array[t][0] + array[t][2];
+            int i_start = array[t][1];
+            int i_finish = array[t][1] + array[t][3];
+            for (int i = i_start; i < i_finish && i < width; i++) {
+                for (int j = j_start; j < j_finish && j < height; j++) {
+                    int color = calculateNewPixelColor(img, width, height, i, j, radius, kernel);
+                    resultImage1[j * width + i] = color;
+                }
+            }
+            t += count_thread - 1;
+        }
+    }
+}
+
+std::vector<int> gaussianFilterStd(const std::vector<int> & img, int width, int height,
+    int radius, float sigma, int count_thread) {
+    resultImage1 = img;
+    int size = 2 * radius + 1;
+    int l = 0;
+    int k = 0;
+    std::vector<float> kernel(size * size);
+    kernel = createGaussianKernel(radius, sigma);
+    std::vector<std::vector<int>> array;
+    int grid_size = ceil(static_cast<double>(sqrt(count_thread)));
+    int block_height = height / grid_size;
+    int block_width = width / grid_size;
+    while (l < height) {
+        k = 0;
+        int block_w = block_width;
+        int block_h = block_height;
+        while (k < width) {
+            if (width - k < block_width + block_width / 2) {
+                block_w = width - k;
+            } else {
+                block_w = block_width;
+            }
+            if (height - l < block_height / 2) {
+                block_h = height - l;
+            } else {
+                block_h = block_height;
+            }
+            std::vector<int> tup = { l, k , block_h, block_w };
+            array.push_back(tup);
+            k += block_w;
+        }
+        l += block_h;
+    }
+    std::vector<std::thread> threads;
+    for (int i = 0; i < count_thread; i++) {
+        threads.push_back(std::thread(threadFunction, array, i, count_thread,
+            width, height, std::ref(img), std::ref(kernel), radius));
+    }
+    for (int i = 0; i < count_thread; i++) {
+        threads[i].join();
+    }
+    return resultImage1;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+							// filter_gaussa_block.h
+// Copyright 2021 Kustova Anastasiya
+#ifndef MODULES_TASK_3_KUSTOVA_A_GAUSS_TBB_FILTER_GAUSSA_BLOCK_H_
+#define MODULES_TASK_3_KUSTOVA_A_GAUSS_TBB_FILTER_GAUSSA_BLOCK_H_
+#include <vector>
+
+std::vector<int> gaussianFilterTbb(const std::vector<int> & img, int width,
+    int height, int radius, float sigma, int count_thread);
+std::vector<int> gaussianFilterOmp(const std::vector<int> & img, int width,
+    int height, int radius, float sigma, int count_thread);
+std::vector<int> gaussianFilterSeq(const std::vector<int> & img, int width,
+    int height, int radius, float sigma);
+std::vector<int> gaussianFilterStd(const std::vector<int> & img, int width, int height,
+    int radius, float sigma, int count_thread);
+void threadFunction(std::vector<std::vector<int>> array, int i, int count_thread, int width, int height, const std::vector<int> & img, const std::vector<float> & kernel, int radius);
+std::vector<float> createGaussianKernel(int radius, float sigma);
+int calculateNewPixelColor(std::vector<int> img, int width, int height,
+    int x, int y, int radius, std::vector<float> kernel);
+int Clamp(int value, int min, int max);
+#endif  // MODULES_TASK_3_KUSTOVA_A_GAUSS_TBB_FILTER_GAUSSA_BLOCK_H_
+
+\end{lstlisting}
+\end{document}
