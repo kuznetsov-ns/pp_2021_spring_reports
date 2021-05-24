@@ -879,7 +879,7 @@ TEST(Test_Omp, Test_Equality_Seq_Par_3000) {
 
 TEST(Test_Omp, Test_Equality_Seq_Par_4000) {
   int size = 4000;
-  int thr = 5;
+  int thr = 6;
   std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
   std::vector<double> v2 = v1;
   double t1 = omp_get_wtime();
