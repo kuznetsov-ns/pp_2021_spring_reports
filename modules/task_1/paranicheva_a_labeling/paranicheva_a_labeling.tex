@@ -1,0 +1,1211 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+	basicstyle=\footnotesize,
+	keywordstyle=\color{blue}\ttfamily,
+	stringstyle=\color{red}\ttfamily,
+	commentstyle=\color{green}\ttfamily,
+	morecomment=[l][\color{magenta}]{\#}, 
+	tabsize=4,
+	breaklines=true,
+	breakatwhitespace=true,
+	title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+
+\begin{document}
+
+	\begin{titlepage}
+
+		\begin{center}
+			Министерство науки и высшего образования Российской Федерации
+		\end{center}
+
+		\begin{center}
+			Федеральное государственное автономное образовательное учреждение высшего образования \\
+			Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+		\end{center}
+
+		\begin{center}
+			Институт информационных технологий, математики и механики
+		\end{center}
+
+		\vspace{4em}
+
+		\begin{center}
+			\textbf{\LargeОтчет по лабораторной работе} \\
+		\end{center}
+		\begin{center}
+			\textbf{\Large«Маркировка компонент на бинарном изображении»} \\
+		\end{center}
+
+		\vspace{4em}
+
+		\newbox{\lbox}
+		\savebox{\lbox}{\hbox{text}}
+		\newlength{\maxl}
+		\setlength{\maxl}{\wd\lbox}
+		\hfill\parbox{7cm}{
+			\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-1 \\ Параничева А. В.\\
+			\\
+			\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+		}
+		\vspace{\fill}
+
+		\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+	\end{titlepage}
+
+	\setcounter{page}{2}
+
+
+	% Содержание
+	\tableofcontents
+	\newpage
+
+
+	% Введение
+	\section*{Введение}
+	\addcontentsline{toc}{section}{Введение}
+		\par Поиск и маркировка связных компонентов в бинарных изображениях — один из базовых алгоритмов анализа и обработки изображений. В частности, этот алгоритм может быть использован в машинном зрении для поиска и подсчета единых структур в изображении, с последующим их анализом.
+		\par Под выделением связных компонент понимают присвоение уникальной метки каждому объекту изображения. При последующем анализе данные метки служат в качестве идентификаторов при обращении к объектам. Это делает операцию выделения связных компонент неотъемлемой частью почти всех приложений распознавания образов и компьютерного зрения. Например, перед тем как компьютер может определить или классифицировать любой объект изображения (автомобиль, человека, внутренний орган) группы смежных пикселей должны быть идентифицированы и промаркированы. Каждая выделенная группа пикселей соответствует объекту на изображении. Такая группировка смежных пикселей позволяет исследователю получить необходимые для последующего анализа свойства объектов, такие как высота, ширина, периметр, площадь.
+		\par Очевидно, что задача выделения связных компонент является фундаментальной задачей обработки изображений. Однако следует отметить, что для многих приложений данная операция является наиболее затратной по времени. Поэтому разумно для такой задачи использовать распараллеливание по потокам для достижения минимальных временных затрат.
+		\par В данной работе будет рассмотрены последовательная и несколько параллельных реализаций данного алгоритма и их сравнение.
+	\newpage
+
+
+	% Постановка задачи
+	\section*{Постановка задачи}
+	\addcontentsline{toc}{section}{Постановка задачи}
+		\par В лабораторной работе требуется реализовать последовательную и несколько параллельных версий алгоритма маркировки связных компонент на бинарном изображении.
+		\par Необходимо нужно провести тесты для подтверждения правильности работы программы. Для их написания требуется использовать Google C++ Testing Framework.
+		\par Cделать временную оценку последовательной и паралаллельных частей. На основе полученных результатов сделать выводы.
+	\newpage
+
+
+	% Описание алгоритма
+	\section*{Описание алгоритма}
+	\addcontentsline{toc}{section}{Описание алгоритма}
+		\par Для маркировки будем использовать двухпроходный алгоритм маркировки. Данный алгоритм использует как основу - возможность работы с системой разделённых множеств. По всему изображению мы проходим лишь два раза. Поэтому данный алгоритм можно разбить на первый проход и второй проход. Результатом первого прохода является карта временных меток, именно с ней мы работаем во время второго прохода.
+		\par Пусть I - изображение, N - количество пикселей на изображении, а I(x, y) - значение пикселя с координатами (x, y). Значением пикселя может быть либо 0, либо 1.
+		\par Обозначим: A - метка левого пикселя в карте временных меток, B - метка верхнего пикселя в карте временных меток.
+		\begin{itemize}
+			\item Алгоритм первого прохода:
+			\begin{itemize}
+				\item Так как алгоритм работает с СРМ, необходимо создать N синглетонов, по одному на каждый пиксель.
+				\item Проходим в цикле по всем пикселям, для которых I(x, y) не равно 0, и рассматриваем значения пикселей с позициями (x - 1, y) и (x, y - 1), т.е. левый и верхний пиксели соответственно. Рассмотрим все возможные ситуации:
+				\begin{enumerate}
+					\item Если A равно 0 и B равно 0, то текущий пиксель принадлежит непомеченной компоненте, поэтому мы помечаем данный пиксель в карте временных меток значением равным индексу.
+					\item Если A равно 0, а B не равно 0, то считаем, что текущий пиксель принадлежит уже помеченной компоненте, в которую входит пиксель B (верхний пиксель), поэтому в карте временных меток текущему пикселю также ставим значение B, соответствующее значению в карте временных меток верхнего пикселя.
+					\item Если A не равно 0, а B равно 0, то считаем, что текущий пиксель принадлежит уже помеченной компоненте, в которую входит пиксель A (левый пиксель), поэтому в карте временных меток текущему пикселю также ставим значение A, соответствующее значению в карте временных меток левого пикселя.
+					\item Если A не равно 0, B не равно 0 и A равно B, то считаем, что текущий пиксель принадлежит уже помеченной компоненте, в которую входят и пиксель A (левый пиксель), и пиксель B (верхний пиксель), поэтому в карте временных меток текущему пикселю также ставим значение A (можно поставить B, потому что они равны).
+					\item Если A не равно 0, B не равно 0 и A не равно B, то считаем, что текущий пиксель является связующим для двух частей одной и той же компоненты, одной части которой принадлежит левый пиксель A, а другой - верхний пиксель B. Поэтому необходимо первым делом узнать не принадлежат ли A и B одному и тому же множеству в СРМ. 
+					\par Если они принадлежат одному множеству, то мы ставим для данного пикселя в карте временных меток метку, соответствующую названию множества. 
+					\par Если они принадлежат разным множествам, то нужно их объединить в одно, затем мы ставим для данного пикселя в карте временных меток метку, соответствующую названию объединённого множества.
+				\end{enumerate}
+				\item В конце первого прохода мы имеем: карту временных меток и систему разделенных множеств, на основе которы будет происходить второй проход.
+			\end{itemize}
+			\item Алгоритм второго прохода.
+			\begin{itemize}
+				\item Проходим в цикле по всем меткам в карте временных меток и записываем в результирующее изображение в соответствующую позицию название множества в СРМ, которому принадлежит данная метка.
+				\item После прохода по циклу у нас будет финальное промаркированное изображение, которое и будет итоговым результатом работы алгоритма.
+			\end{itemize}
+		\end{itemize}
+	\newpage
+
+
+	% Описание схемы распараллеливания
+	\section*{Описание схемы распараллеливания}
+	\addcontentsline{toc}{section}{Описание схемы распараллеливания}
+		\par Для начала нужно разбить изображение на группы из нескольких строк, число строк, которое достанется каждому потоку, напрямую зависит от количества потоков (строки разделяются поровну, а остаток достается последнему потоку).
+		\par Далее алгоритм первого прохода отрабатывает на каждом потоке и таким образом мы получаем карту временных меток. Именно на этом шаге и будет происходить ускорение за счет распараллеливания данного алгоритма.
+		\par Следующим шагом мы восстанавливаем потерянные в результате разделения исходного изображения связь компонент, например, несколько потоков отработали разные части одного объекта, поэтому в результате единый объект разбит на несколько частей. Число разрывов будет на единицу меньше числа потоков. Нам всего лишь нужно пройти по стыкам частей изображения и соединить разделенные части объектов.
+		\par Последним шагом является второй проход, где изображение по карте временных меток получает финальные маркировки.
+	\newpage
+
+
+	% Описание программной реализации
+	\section*{Описание программной реализации}
+	\addcontentsline{toc}{section}{Описание программной реализации}
+		\par Для решения поставленных задач используется приведённый ниже функционал:
+
+		\begin{itemize}
+			\item Функция, генерирующая матрицу состоящую только из 0 и 1 (бинарное изображение).
+			\par На входе принимает число строк и столбцов в будущей матрице(изображении). 
+			\begin{lstlisting}
+		std::vector<int> getRandomMatrix(int rows, int cols);
+			\end{lstlisting}
+
+			\item Функция, реализующая алгоритм первого маркировочного прохода.
+			\par На входе принимает изображение, количество строк и столбцов.
+			\par Последовательная:
+			\begin{lstlisting}
+		std::pair<std::vector<int>, std::vector<int> > firstMark(std::vector<int> arr, int rows, int cols);
+			\end{lstlisting}
+		    \par OpenMP реализация:
+		    \begin{lstlisting}
+		    	std::pair<std::vector<int>, std::vector<int> > firstMarkOmp(std::vector<int> arr, int rows, int cols);
+		    \end{lstlisting}
+		    \par TBB реализация:
+		    \begin{lstlisting}
+		    	std::pair<std::vector<int>, std::vector<int> > firstMarkTBB(std::vector<int> arr, int rows, int cols);
+		    \end{lstlisting}
+		    \par Threads реализация:
+		    \begin{lstlisting}
+		    	std::pair<std::vector<int>, std::vector<int> > firstMarkThr(std::vector<int> arr, int rows, int cols);
+		    \end{lstlisting}
+
+			\item Функция, реализующая второй (итоговый) маркировочный проход, одинаковый и для последовательной, и для параллельных функций.
+			\par На входе принимает изображение, количество строк и столбцов, матрица с СРМ.
+			\begin{lstlisting}
+		std::vector<int> secondMark(std::vector<int> arr, int rows, int cols, std::vector<int> sets);
+			\end{lstlisting}
+
+			\item Функция маркировки компонент бинарного изображения:
+			\par На входе принимает изображение, количество строк и столбцов.
+			\par Последовательная:
+			\begin{lstlisting}
+				std::vector<int> CLabeling(const std::vector<int>& array, int rows, int cols);
+			\end{lstlisting}
+			\par OpenMP реализация:
+			\begin{lstlisting}
+				std::vector<int> CLabelingOmp(const std::vector<int>& array, int rows, int cols);
+			\end{lstlisting}
+			\par TBB реализация:
+			\begin{lstlisting}
+				std::vector<int> CLabelingTBB(const std::vector<int>& array, int rows, int cols);
+			\end{lstlisting}
+			\par Threads реализация:
+			\begin{lstlisting}
+				std::vector<int> CLabelingThr(const std::vector<int>& array, int rows, int cols);
+			\end{lstlisting}
+		\end{itemize}
+	\newpage
+
+
+	% Подтверждение корректности
+	\section*{Подтверждение корректности}
+	\addcontentsline{toc}{section}{Подтверждение корректности}
+	Для подтверждения корректности в программе содержится набор тестов(5 штук), разработанных с помощью использования Google C++ Testing Framework.
+	\par Данные тесты проверяют работу последовательной и параллельных реализаций, срабатывание исключений и эффективность распараллеливания.
+	\par Успешное прохождение всех тестов доказывает корректность работы всей программы.
+	\newpage
+
+
+	% Результаты экспериментов
+	\section*{Результаты экспериментов}
+	\addcontentsline{toc}{section}{Результаты экспериментов}
+	\par Для проведения тестов было использовано оборудование со следующими аппаратными характеристиками:
+	\begin{itemize}
+		\item Процессор: Intel Core i7-7500U (2 ядра, 4 логических процессора);
+		\item Оперативная память: 8 ГБ;
+		\item ОС: Microsoft Windows 10 Home 64-bit Build 18363.1256.
+	\end{itemize}
+    \par Эксперименты будут проводиться на четырех потоках.
+	\begin{table}[!h]
+		\caption{Результаты экспериментов для изображения размером 1000 x 1000}
+		\centering
+		\begin{tabular}{|c|c|c|c|}
+            \hline
+			Реализация & Время (последовательно) & Время (параллельно) \\
+            \hline
+			OpenMP         & 0.118           & 0.062  \\
+			TBB            & 0.112           & 0.051  \\
+			Threads        & 0.150           & 0.079  \\
+            \hline
+		\end{tabular}
+	\end{table}
+	\begin{table}[!h]
+		\caption{Результаты экспериментов для изображения размером 10000 x 10000}
+		\centering
+		\begin{tabular}{|c|c|c|c|}
+            \hline
+            Реализация & Время (последовательно) & Время (параллельно) \\
+            \hline
+            OpenMP         & 7.540           & 4.138  \\
+            TBB            & 7.311           & 3.818  \\
+            Threads        & 8.481           & 5.160  \\
+            \hline
+		\end{tabular}
+	\end{table}
+	
+	\par По результатам тестов, можно сделать вывод, что параллельные реализации маркировки связных компонент на бинарном изображении действительно работают быстрее, чем последовательная, однако ускорение небольшое и заметно лишь на достаточно больших изображениях. Причин тому две: не слишком большая доля параллельных вычислений и большие расходы на менеджмент ресурсов (переключение между потоками, расчет частичных данных итераций).
+	\newpage
+
+
+	% Заключение
+	\section*{Заключение}
+	\addcontentsline{toc}{section}{Заключение}
+		\par В результате лабораторной работы были разработаны последовательная и несколько параллельных реализаций алгоритма маркировки компонент на бинарном изображении. Показана эффективность параллельных версий. Были разработаныя тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework необходимые для подтверждения корректности работы программы и для демонстрации функционала.
+		\par Таким образом, все цели, поставленные в данной лабораторной работе, были успешно достигнуты.
+	\newpage
+
+
+	% Список литературы
+	\begin{thebibliography}{1}
+	\addcontentsline{toc}{section}{Список литературы}
+	    \bibitem{1} Баркалов К.А., Сысоев А.В., Гергель В.П. «Решение задач глобальной оптимизации на гетерогенных кластерных системах». Нижний Новгород, 2015. 
+	    \bibitem{2} Гонсалес Р., Вудс Р., «Цифровая обработка изображений», 2005.
+	    \bibitem{3} Журавель И.М., «Краткий курс теории обработки изображений», 2009.
+	    \bibitem{robot_vision} Horn, Berthold K.P. Robot Vision //MIT Press. - 1986. - C. 69–71. ISBN 978-0-262-08159-7.
+		\bibitem{wiki_eng} Wikipedia: Connected-component\_labeling [Электронный ресурс] // URL: \url {https://en.wikipedia.org/wiki/Connected-component_labeling}
+	\end{thebibliography}
+	\newpage
+
+
+	% Приложение
+	\section*{Приложение}
+	\addcontentsline{toc}{section}{Приложение}
+	\par В текущем разделе находится листинг всего кода, написанного в рамках данной лабораторной работы.
+	\par Последовательная реализация и OpenMP
+	\begin{lstlisting}
+		main.cpp
+	    // Copyright 2021 Paranicheva Alyona
+	    #include <gtest/gtest.h>
+	    #include <omp.h>
+	    #include <iostream>
+	    #include <vector>
+	    #include "./labeling.h"
+	    
+	    TEST(CLabeling_Omp, 7x11) {
+	    	int rows = 7;
+	    	int cols = 21;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingOmp(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(CLabeling_Omp, 15x17) {
+	    	int rows = 15;
+	    	int cols = 17;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingOmp(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(CLabeling_Omp, 21x8) {
+	    	int rows = 21;
+	    	int cols = 8;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingOmp(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(CLabeling_Omp, 23x15) {
+	    	int rows = 21;
+	    	int cols = 8;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingOmp(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(Clabeling_Matrix_gen, Invalid_size) {
+	    	int rows = -5;
+	    	int cols = 7;
+	    	ASSERT_ANY_THROW(getRandomMatrix(rows, cols));
+	    }
+	    
+	    int main(int argc, char** argv) {
+	    	::testing::InitGoogleTest(&argc, argv);
+	    	return RUN_ALL_TESTS();
+	    }
+    
+	    labeling.cpp
+	    // Copyright 2021 Paranicheva Alyona
+	    #include <omp.h>
+	    #include <iostream>
+	    #include <random>
+	    #include <ctime>
+	    #include <vector>
+	    #include <algorithm>
+	    #include <utility>
+	    #include "../../../modules/task_2/paranicheva_a_omplabeling/labeling.h"
+	    
+	    std::vector<int> getRandomMatrix(int rows, int cols) {
+	    	if ((rows <= 0) || (cols <= 0))
+	    	throw std::invalid_argument("Matrix can't be created");
+	    	std::mt19937 gen;
+	    	gen.seed(static_cast<unsigned int>(time(0)));
+	    	std::vector<int> array(rows * cols);
+	    	for (int i = 0; i < cols; i++)
+	    	array[i] = 0;
+	    	for (int i = 1; i < rows - 1; i++)
+	    	for (int j = 0; j < cols; j++) {
+	    		if ((j == 0) || (j == cols - 1))
+	    		array[i * cols + j] = 0;
+	    		else
+	    		array[i * cols + j] = static_cast<int>(gen() % 2);
+	    	}
+	    	for (int i = 0; i < cols; i++)
+	    	array[(rows - 1) * cols + i] = 0;
+	    	return array;
+	    }
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMark(std::vector<int> arr, int rows, int cols) {
+	    	std::vector<int> sets(rows * cols);
+	    	for (int i = 0; i < rows * cols; i++)
+	    	sets[i] = i;
+	    	for (int i = 1; i < rows - 1; i++)
+	    	for (int j = 1; j < cols - 1; j++) {
+	    		if (arr[i * cols + j] == 0)
+	    		continue;
+	    		if ((arr[i * cols + j - 1] == 0) && (arr[(i - 1) * cols + j] == 0)) {
+	    			arr[i * cols + j] = i * cols + j + 1;
+	    			continue;
+	    		}
+	    		if ((arr[i * cols + j - 1] != 0) && (arr[(i - 1) * cols + j] == 0)) {
+	    			arr[i * cols + j] = arr[i * cols + j - 1];
+	    			continue;
+	    		}
+	    		if ((arr[i * cols + j - 1] == 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    			arr[i * cols + j] = arr[(i - 1) * cols + j];
+	    			continue;
+	    		}
+	    		if ((arr[i * cols + j - 1] != 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    			int max, min;
+	    			if (arr[i * cols + j - 1] < arr[(i - 1) * cols + j]) {
+	    				max = arr[(i - 1) * cols + j];
+	    				min = arr[i * cols + j - 1];
+	    			} else {
+	    				max = arr[i * cols + j - 1];
+	    				min = arr[(i - 1) * cols + j];
+	    			}
+	    			while (sets[max] != max) {
+	    				max = sets[max];
+	    			}
+	    			while (sets[min] != min)
+	    			min = sets[min];
+	    			if (min != max)
+	    			sets[max] = min;
+	    			arr[i * cols + j] = min;
+	    		}
+	    	}
+	    	return { arr, sets };
+	    }
+	    
+	    std::vector<int> secondMark(std::vector<int> arr, int rows, int cols, std::vector<int> sets) {
+	    	std::vector<int> res(rows * cols);
+	    	for (int i = 0; i < rows * cols; i++)
+	    	res[i] = arr[i];
+	    	for (int i = cols; i < (rows - 1) * cols; i++) {
+	    		if (arr[i] == 0)
+	    		continue;
+	    		if (sets[arr[i]] == arr[i]) {
+	    			res[i] = arr[i];
+	    		} else {
+	    			while (sets[arr[i]] != arr[i])
+	    			arr[i] = sets[arr[i]];
+	    			res[i] = arr[i];
+	    		}
+	    	}
+	    	return res;
+	    }
+	    
+	    std::vector<int> CLabeling(const std::vector<int>& array, int rows, int cols) {
+	    	std::vector<int> res(rows * cols);
+	    	std::pair<std::vector<int>, std::vector<int> > firstm = firstMark(array, rows, cols);
+	    	std::vector<int> arr = firstm.first;
+	    	std::vector<int> sets = firstm.second;
+	    	res = secondMark(arr, rows, cols, sets);
+	    	return Transform(res, rows, cols);
+	    }
+	    
+	    std::vector<int> CLabelingOmp(const std::vector<int>& array, int rows, int cols) {
+	    	std::vector<int> res(rows * cols);
+	    	std::pair<std::vector<int>, std::vector<int> > firstm = firstMarkOmp(array, rows, cols);
+	    	std::vector<int> arr = firstm.first;
+	    	std::vector<int> sets = firstm.second;
+	    	res = secondMark(arr, rows, cols, sets);
+	    	return Transform(res, rows, cols);
+	    }
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMarkOmp(std::vector<int> arr, int rows, int cols) {
+	    	int threads = 4;
+	    	std::vector<int> sets(rows * cols);
+	    	std::vector<int> strbeg(threads);
+	    	int num = (rows - 2) / threads;
+	    	int rem = (rows - 2) % threads;
+	    	for (int i = 0; i < threads; i++) {
+	    		strbeg[i] = i * num + 1;
+	    	}
+	    	std::vector<int> kolvo(threads);
+	    	for (int i = 0; i < threads; i++) {
+	    		if (i == threads - 1)
+	    		kolvo[i] = num + rem;
+	    		else
+	    		kolvo[i] = num;
+	    	}
+	    	for (int i = 0; i < rows * cols; i++)
+	    	sets[i] = i;
+	    	
+	    	#pragma omp parallel for shared(sets, arr) num_threads(threads)
+	    	for (int th = 0; th < threads; th++) {
+	    		for (int i = strbeg[th]; i < strbeg[th] + kolvo[th]; i++) {
+	    			for (int j = 1; j < cols - 1; j++) {
+	    				if (arr[i * cols + j] == 0)
+	    				continue;
+	    				if ((arr[i * cols + j - 1] == 0) && ((arr[(i - 1) * cols + j] == 0) || (i == strbeg[th]))) {
+	    					arr[i * cols + j] = i * cols + j + 1;
+	    					continue;
+	    				}
+	    				if ((arr[i * cols + j - 1] != 0) && ((arr[(i - 1) * cols + j] == 0) || (i == strbeg[th]))) {
+	    					arr[i * cols + j] = arr[i * cols + j - 1];
+	    					continue;
+	    				}
+	    				if ((arr[i * cols + j - 1] == 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    					arr[i * cols + j] = arr[(i - 1) * cols + j];
+	    					continue;
+	    				}
+	    				if ((arr[i * cols + j - 1] != 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    					int max, min;
+	    					if (arr[i * cols + j - 1] < arr[(i - 1) * cols + j]) {
+	    						max = arr[(i - 1) * cols + j];
+	    						min = arr[i * cols + j - 1];
+	    					} else {
+	    						max = arr[i * cols + j - 1];
+	    						min = arr[(i - 1) * cols + j];
+	    					}
+	    					while (sets[max] != max) {
+	    						max = sets[max];
+	    					}
+	    					while (sets[min] != min)
+	    					min = sets[min];
+	    					if (min != max)
+	    					sets[max] = min;
+	    					arr[i * cols + j] = min;
+	    				}
+	    			}
+	    		}
+	    	}
+	    	for (int i = 1; i < threads; i++) {
+	    		int str = strbeg[i];
+	    		for (int j = 0; j < cols; j++) {
+	    			if ((arr[(str - 1) * cols + j] != 0) && (arr[str * cols + j] != 0)) {
+	    				int first = sets[arr[(str - 1) * cols + j]];
+	    				int second = sets[arr[str * cols + j]];
+	    				if (first != second) {
+	    					int max;
+	    					if (first > second)
+	    					max = first;
+	    					else
+	    					max = second;
+	    					while (sets[max] != max)
+	    					max = sets[max];
+	    					int min;
+	    					if (first < second)
+	    					min = first;
+	    					else
+	    					min = second;
+	    					while (sets[min] != min)
+	    					min = sets[min];
+	    					if (max != min)
+	    					sets[max] = min;
+	    				}
+	    			}
+	    		}
+	    	}
+	    	return { arr, sets };
+	    }
+	    
+	    std::vector<int> Transform(const std::vector<int>& array, int rows, int cols) {
+	    	std::vector<int> res(rows * cols, 0);
+	    	std::vector<int> count;
+	    	for (int i = 0; i < rows * cols; i++) {
+	    		if (array[i] != 0) {
+	    			bool flag = true;
+	    			for (uint32_t j = 0; j < count.size(); j++)
+	    			if (count[j] == array[i])
+	    			flag = false;
+	    			if (flag)
+	    			count.push_back(array[i]);
+	    		}
+	    	}
+	    	for (int i = 0; i < rows * cols; i++) {
+	    		if (array[i] != 0) {
+	    			int flag = 0;
+	    			for (uint32_t j = 0; j < count.size(); j++)
+	    			if (count[j] == array[i])
+	    			flag = j + 1;
+	    			res[i] = flag;
+	    		}
+	    	}
+	    	return res;
+	    }
+    
+	    labeling.h
+	      
+	    // Copyright 2021 Paranicheva Alyona
+	    #ifndef MODULES_TASK_2_PARANICHEVA_A_OMPLABELING_LABELING_H_
+	    #define MODULES_TASK_2_PARANICHEVA_A_OMPLABELING_LABELING_H_
+	    
+	    #include <omp.h>
+	    #include <vector>
+	    #include <utility>
+	    
+	    std::vector<int> getRandomMatrix(int rows, int cols);
+	    std::pair<std::vector<int>, std::vector<int> > firstMark(std::vector<int>, int, int);
+	    std::vector<int> secondMark(std::vector<int>, int, int, std::vector<int>);
+	    std::vector<int> CLabeling(const std::vector<int>&, int, int);
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMarkOmp(std::vector<int>, int, int);
+	    std::vector<int> CLabelingOmp(const std::vector<int>& array, int rows, int cols);
+	    std::vector<int> Transform(const std::vector<int>& array, int rows, int cols);
+	    
+	    #endif  // MODULES_TASK_2_PARANICHEVA_A_OMPLABELING_LABELING_H_
+	\end{lstlisting}
+
+	    \par Последовательная реализация и TBB
+	\begin{lstlisting}
+	    main.cpp
+	    // Copyright 2021 Paranicheva Alyona
+	    #include <gtest/gtest.h>
+	    #include <iostream>
+	    #include <vector>
+	    #include <ctime>
+	    #include "./labeling.h"
+	    
+	    TEST(CLabeling_TBB, 7x10) {
+	    	int rows = 15;
+	    	int cols = 17;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingTBB(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(CLabeling_TBB, 15x17) {
+	    	int rows = 15;
+	    	int cols = 17;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingTBB(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(CLabeling_TBB, 21x8) {
+	    	int rows = 21;
+	    	int cols = 8;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingTBB(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(CLabeling_TBB, 23x15) {
+	    	int rows = 21;
+	    	int cols = 8;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingTBB(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(Clabeling_Matrix_gen, Invalid_size) {
+	    	int rows = -5;
+	    	int cols = 7;
+	    	ASSERT_ANY_THROW(getRandomMatrix(rows, cols));
+	    }
+	    
+	    int main(int argc, char** argv) {
+	    	::testing::InitGoogleTest(&argc, argv);
+	    	return RUN_ALL_TESTS();
+	    }
+	    
+	    labeling.cpp
+	    // Copyright 2021 Paranicheva Alyona
+	    #include <iostream>
+	    #include <random>
+	    #include <ctime>
+	    #include <vector>
+	    #include "../../../modules/task_3/paranicheva_a_tbblabeling/labeling.h"
+	    
+	    std::vector<int> getRandomMatrix(int rows, int cols) {
+	    	if ((rows <= 0) || (cols <= 0))
+	    	throw std::invalid_argument("Matrix can't be created");
+	    	std::mt19937 gen;
+	    	gen.seed(static_cast<unsigned int>(time(0)));
+	    	std::vector<int> array(rows * cols);
+	    	for (int i = 0; i < cols; i++)
+	    	array[i] = 0;
+	    	for (int i = 1; i < rows - 1; i++)
+	    	for (int j = 0; j < cols; j++) {
+	    		if ((j == 0) || (j == cols - 1))
+	    		array[i * cols + j] = 0;
+	    		else
+	    		array[i * cols + j] = static_cast<int>(gen() % 2);
+	    	}
+	    	for (int i = 0; i < cols; i++)
+	    	array[(rows - 1) * cols + i] = 0;
+	    	return array;
+	    }
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMark(std::vector<int> arr, int rows, int cols) {
+	    	std::vector<int> sets(rows * cols);
+	    	for (int i = 0; i < rows * cols; i++)
+	    	sets[i] = i;
+	    	for (int i = 1; i < rows - 1; i++)
+	    	for (int j = 1; j < cols - 1; j++) {
+	    		if (arr[i * cols + j] == 0)
+	    		continue;
+	    		if ((arr[i * cols + j - 1] == 0) && (arr[(i - 1) * cols + j] == 0)) {
+	    			arr[i * cols + j] = i * cols + j + 1;
+	    			continue;
+	    		}
+	    		if ((arr[i * cols + j - 1] != 0) && (arr[(i - 1) * cols + j] == 0)) {
+	    			arr[i * cols + j] = arr[i * cols + j - 1];
+	    			continue;
+	    		}
+	    		if ((arr[i * cols + j - 1] == 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    			arr[i * cols + j] = arr[(i - 1) * cols + j];
+	    			continue;
+	    		}
+	    		if ((arr[i * cols + j - 1] != 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    			int max, min;
+	    			if (arr[i * cols + j - 1] < arr[(i - 1) * cols + j]) {
+	    				max = arr[(i - 1) * cols + j];
+	    				min = arr[i * cols + j - 1];
+	    			} else {
+	    				max = arr[i * cols + j - 1];
+	    				min = arr[(i - 1) * cols + j];
+	    			}
+	    			while (sets[max] != max) {
+	    				max = sets[max];
+	    			}
+	    			while (sets[min] != min)
+	    			min = sets[min];
+	    			if (min != max)
+	    			sets[max] = min;
+	    			arr[i * cols + j] = min;
+	    		}
+	    	}
+	    	for (int i = 1; i < rows - 1; i++)
+	    	for (int j = 1; j < cols - 1; j++) {
+	    		int min = j;
+	    		while (sets[min] != min)
+	    		min = sets[min];
+	    	}
+	    	return { arr, sets };
+	    }
+	    
+	    std::vector<int> CLabeling(const std::vector<int>& array, int rows, int cols) {
+	    	std::vector<int> res(rows * cols);
+	    	std::pair<std::vector<int>, std::vector<int> > firstm = firstMark(array, rows, cols);
+	    	std::vector<int> arr = firstm.first;
+	    	std::vector<int> sets = firstm.second;
+	    	res = secondMark(arr, rows, cols, sets);
+	    	return Transform(res, rows, cols);
+	    }
+	    
+	    std::vector<int> secondMark(std::vector<int> arr, int rows, int cols, std::vector<int> sets) {
+	    	std::vector<int> res(rows * cols);
+	    	for (int i = 0; i < rows * cols; i++)
+	    	res[i] = arr[i];
+	    	for (int i = cols; i < (rows - 1) * cols; i++) {
+	    		if (arr[i] == 0)
+	    		continue;
+	    		if (sets[arr[i]] == arr[i]) {
+	    			res[i] = arr[i];
+	    		} else {
+	    			while (sets[arr[i]] != arr[i])
+	    			arr[i] = sets[arr[i]];
+	    			res[i] = arr[i];
+	    		}
+	    	}
+	    	return res;
+	    }
+	    
+	    std::vector<int> CLabelingTBB(const std::vector<int>& array, int rows, int cols) {
+	    	std::vector<int> res(rows * cols);
+	    	std::pair<std::vector<int>, std::vector<int> > firstm = firstMarkTBB(array, rows, cols);
+	    	std::vector<int> arr = firstm.first;
+	    	std::vector<int> sets = firstm.second;
+	    	res = secondMark(arr, rows, cols, sets);
+	    	return Transform(res, rows, cols);
+	    }
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMarkTBB(std::vector<int> arr, int rows, int cols) {
+	    	int threads = 4;
+	    	tbb::task_scheduler_init init(threads);
+	    	
+	    	std::vector<int> sets(rows * cols);
+	    	std::vector<int> strbeg(threads);
+	    	int num = (rows - 2) / threads;
+	    	int rem = (rows - 2) % threads;
+	    	for (int i = 0; i < threads; i++) {
+	    		strbeg[i] = i * num + 1;
+	    	}
+	    	std::vector<int> kolvo(threads);
+	    	for (int i = 0; i < threads; i++) {
+	    		if (i == threads - 1)
+	    		kolvo[i] = num + rem;
+	    		else
+	    		kolvo[i] = num;
+	    	}
+	    	for (int i = 0; i < rows * cols; i++)
+	    	sets[i] = i;
+	    	
+	    	FirstMarkTBB tbb(&arr, &sets, strbeg, kolvo, cols);
+	    	tbb::parallel_for(tbb::blocked_range<int>(0, threads, 1), tbb);
+	    	
+	    	for (int i = 1; i < threads; i++) {
+	    		int str = strbeg[i];
+	    		for (int j = 0; j < cols; j++) {
+	    			if ((arr[(str - 1) * cols + j] != 0) && (arr[str * cols + j] != 0)) {
+	    				int first = sets[arr[(str - 1) * cols + j]];
+	    				int second = sets[arr[str * cols + j]];
+	    				if (first != second) {
+	    					int max;
+	    					if (first > second)
+	    					max = first;
+	    					else
+	    					max = second;
+	    					while (sets[max] != max)
+	    					max = sets[max];
+	    					int min;
+	    					if (first < second)
+	    					min = first;
+	    					else
+	    					min = second;
+	    					while (sets[min] != min)
+	    					min = sets[min];
+	    					if (max != min)
+	    					sets[max] = min;
+	    				}
+	    			}
+	    		}
+	    	}
+	    	
+	    	return { arr, sets };
+	    }
+	    
+	    std::vector<int> Transform(const std::vector<int>& array, int rows, int cols) {
+	    	std::vector<int> res(rows * cols, 0);
+	    	std::vector<int> count;
+	    	for (int i = 0; i < rows * cols; i++) {
+	    		if (array[i] != 0) {
+	    			bool flag = true;
+	    			for (uint32_t j = 0; j < count.size(); j++)
+	    			if (count[j] == array[i])
+	    			flag = false;
+	    			if (flag)
+	    			count.push_back(array[i]);
+	    		}
+	    	}
+	    	for (int i = 0; i < rows * cols; i++) {
+	    		if (array[i] != 0) {
+	    			int flag = 0;
+	    			for (uint32_t j = 0; j < count.size(); j++)
+	    			if (count[j] == array[i])
+	    			flag = j + 1;
+	    			res[i] = flag;
+	    		}
+	    	}
+	    	return res;
+	    }
+	    
+	    labeling.h
+	    // Copyright 2021 Paranicheva Alyona
+	    #ifndef MODULES_TASK_3_PARANICHEVA_A_TBBLABELING_LABELING_H_
+	    #define MODULES_TASK_3_PARANICHEVA_A_TBBLABELING_LABELING_H_
+	    
+	    #include <tbb/tbb.h>
+	    #include <vector>
+	    #include <utility>
+	    #include "tbb/parallel_for.h"
+	    
+	    std::vector<int> getRandomMatrix(int rows, int cols);
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMark(std::vector<int>, int, int);
+	    std::vector<int> secondMark(std::vector<int>, int, int, std::vector<int>);
+	    std::vector<int> CLabeling(const std::vector<int>&, int, int);
+	    std::vector<int> Transform(const std::vector<int>& array, int rows, int cols);
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMarkTBB(std::vector<int> arr, int rows, int cols);
+	    std::vector<int> CLabelingTBB(const std::vector<int>&, int, int);
+	    
+	    class FirstMarkTBB {
+	    	std::vector<int>* arr;
+	    	std::vector<int>* sets;
+	    	std::vector<int> strbeg;
+	    	std::vector<int> kolvo;
+	    	int cols;
+	    	
+	    	public:
+	    	FirstMarkTBB(std::vector<int>* _arr, std::vector<int>* _sets, const std::vector<int>& _strbeg,
+	    	const std::vector<int>& _kolvo, int _cols) :
+	    	arr(_arr), sets(_sets), strbeg(_strbeg), kolvo(_kolvo), cols(_cols) {}
+	    	
+	    	void operator() (const tbb::blocked_range<int>& range) const {
+	    		for (int i = strbeg[range.begin()]; i < strbeg[range.begin()] + kolvo[range.begin()]; i++) {
+	    			for (int j = 1; j < cols - 1; j++) {
+	    				if ((*arr)[i * cols + j] == 0)
+	    				continue;
+	    				if (((*arr)[i * cols + j - 1] == 0) && (((*arr)[(i - 1) * cols + j] == 0) ||
+	    				(i == strbeg[range.begin()]))) {
+	    					(*arr)[i * cols + j] = i * cols + j + 1;
+	    					continue;
+	    				}
+	    				if (((*arr)[i * cols + j - 1] != 0) && (((*arr)[(i - 1) * cols + j] == 0) ||
+	    				(i == strbeg[range.begin()]))) {
+	    					(*arr)[i * cols + j] = (*arr)[i * cols + j - 1];
+	    					continue;
+	    				}
+	    				if (((*arr)[i * cols + j - 1] == 0) && ((*arr)[(i - 1) * cols + j] != 0)) {
+	    					(*arr)[i * cols + j] = (*arr)[(i - 1) * cols + j];
+	    					continue;
+	    				}
+	    				if (((*arr)[i * cols + j - 1] != 0) && ((*arr)[(i - 1) * cols + j] != 0)) {
+	    					int max, min;
+	    					if ((*arr)[i * cols + j - 1] < (*arr)[(i - 1) * cols + j]) {
+	    						max = (*arr)[(i - 1) * cols + j];
+	    						min = (*arr)[i * cols + j - 1];
+	    					} else {
+	    						max = (*arr)[i * cols + j - 1];
+	    						min = (*arr)[(i - 1) * cols + j];
+	    					}
+	    					while ((*sets)[max] != max) {
+	    						max = (*sets)[max];
+	    					}
+	    					while ((*sets)[min] != min)
+	    					min = (*sets)[min];
+	    					if (min != max)
+	    					(*sets)[max] = min;
+	    					(*arr)[i * cols + j] = min;
+	    				}
+	    			}
+	    		}
+	    	}
+	    };
+	    
+	    #endif  // MODULES_TASK_3_PARANICHEVA_A_TBBLABELING_LABELING_H_
+	\end{lstlisting}
+
+	    \par Последовательная реализация и Threads
+	\begin{lstlisting}
+	    main.cpp
+	    // Copyright 2021 Paranicheva Alyona
+	    #include <gtest/gtest.h>
+	    #include <iostream>
+	    #include <vector>
+	    #include "./labeling.h"
+	    
+	    TEST(CLabeling_Thr, 7x11) {
+	    	int rows = 7;
+	    	int cols = 21;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingThr(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(CLabeling_Thr, 15x17) {
+	    	int rows = 15;
+	    	int cols = 17;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingThr(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(CLabeling_Thr, 21x8) {
+	    	int rows = 21;
+	    	int cols = 8;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingThr(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(CLabeling_Thr, 23x15) {
+	    	int rows = 21;
+	    	int cols = 8;
+	    	std::vector<int> img = getRandomMatrix(rows, cols);
+	    	std::vector<int> expres = CLabeling(img, rows, cols);
+	    	std::vector<int> res = CLabelingThr(img, rows, cols);
+	    	ASSERT_EQ(expres, res);
+	    }
+	    
+	    TEST(Clabeling_Matrix_gen, Invalid_size) {
+	    	int rows = -5;
+	    	int cols = 7;
+	    	ASSERT_ANY_THROW(getRandomMatrix(rows, cols));
+	    }
+	    
+	    int main(int argc, char** argv) {
+	    	::testing::InitGoogleTest(&argc, argv);
+	    	return RUN_ALL_TESTS();
+	    }
+	    
+	    labeling.cpp
+	    // Copyright 2021 Paranicheva Alyona
+	    #include <omp.h>
+	    #include <iostream>
+	    #include <random>
+	    #include <ctime>
+	    #include <vector>
+	    #include <algorithm>
+	    #include <utility>
+	    #include "../../../modules/task_4/paranicheva_a_thrlabeling/labeling.h"
+	    #include "../../../3rdparty/unapproved/unapproved.h"
+	    
+	    std::vector<int> getRandomMatrix(int rows, int cols) {
+	    	if ((rows <= 0) || (cols <= 0))
+	    	throw std::invalid_argument("Matrix can't be created");
+	    	std::mt19937 gen;
+	    	gen.seed(static_cast<unsigned int>(time(0)));
+	    	std::vector<int> array(rows * cols);
+	    	for (int i = 0; i < cols; i++)
+	    	array[i] = 0;
+	    	for (int i = 1; i < rows - 1; i++)
+	    	for (int j = 0; j < cols; j++) {
+	    		if ((j == 0) || (j == cols - 1))
+	    		array[i * cols + j] = 0;
+	    		else
+	    		array[i * cols + j] = static_cast<int>(gen() % 2);
+	    	}
+	    	for (int i = 0; i < cols; i++)
+	    	array[(rows - 1) * cols + i] = 0;
+	    	return array;
+	    }
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMark(std::vector<int> arr, int rows, int cols) {
+	    	std::vector<int> sets(rows * cols);
+	    	for (int i = 0; i < rows * cols; i++)
+	    	sets[i] = i;
+	    	for (int i = 1; i < rows - 1; i++)
+	    	for (int j = 1; j < cols - 1; j++) {
+	    		if (arr[i * cols + j] == 0)
+	    		continue;
+	    		if ((arr[i * cols + j - 1] == 0) && (arr[(i - 1) * cols + j] == 0)) {
+	    			arr[i * cols + j] = i * cols + j + 1;
+	    			continue;
+	    		}
+	    		if ((arr[i * cols + j - 1] != 0) && (arr[(i - 1) * cols + j] == 0)) {
+	    			arr[i * cols + j] = arr[i * cols + j - 1];
+	    			continue;
+	    		}
+	    		if ((arr[i * cols + j - 1] == 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    			arr[i * cols + j] = arr[(i - 1) * cols + j];
+	    			continue;
+	    		}
+	    		if ((arr[i * cols + j - 1] != 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    			int max, min;
+	    			if (arr[i * cols + j - 1] < arr[(i - 1) * cols + j]) {
+	    				max = arr[(i - 1) * cols + j];
+	    				min = arr[i * cols + j - 1];
+	    			} else {
+	    				max = arr[i * cols + j - 1];
+	    				min = arr[(i - 1) * cols + j];
+	    			}
+	    			while (sets[max] != max) {
+	    				max = sets[max];
+	    			}
+	    			while (sets[min] != min)
+	    			min = sets[min];
+	    			if (min != max)
+	    			sets[max] = min;
+	    			arr[i * cols + j] = min;
+	    		}
+	    	}
+	    	return { arr, sets };
+	    }
+	    
+	    std::vector<int> secondMark(std::vector<int> arr, int rows, int cols, std::vector<int> sets) {
+	    	std::vector<int> res(rows * cols);
+	    	for (int i = 0; i < rows * cols; i++)
+	    	res[i] = arr[i];
+	    	for (int i = cols; i < (rows - 1) * cols; i++) {
+	    		if (arr[i] == 0)
+	    		continue;
+	    		if (sets[arr[i]] == arr[i]) {
+	    			res[i] = arr[i];
+	    		} else {
+	    			while (sets[arr[i]] != arr[i])
+	    			arr[i] = sets[arr[i]];
+	    			res[i] = arr[i];
+	    		}
+	    	}
+	    	return res;
+	    }
+	    
+	    std::vector<int> CLabeling(const std::vector<int>& array, int rows, int cols) {
+	    	std::vector<int> res(rows * cols);
+	    	std::pair<std::vector<int>, std::vector<int> > firstm = firstMark(array, rows, cols);
+	    	std::vector<int> arr = firstm.first;
+	    	std::vector<int> sets = firstm.second;
+	    	res = secondMark(arr, rows, cols, sets);
+	    	return Transform(res, rows, cols);
+	    }
+	    
+	    std::vector<int> CLabelingThr(const std::vector<int>& array, int rows, int cols) {
+	    	std::vector<int> res(rows * cols);
+	    	std::pair<std::vector<int>, std::vector<int> > firstm = firstMarkThr(array, rows, cols);
+	    	std::vector<int> arr = firstm.first;
+	    	std::vector<int> sets = firstm.second;
+	    	res = secondMark(arr, rows, cols, sets);
+	    	return Transform(res, rows, cols);
+	    }
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMarkThr(std::vector<int> arr, int rows, int cols) {
+	    	int threads = 4;
+	    	std::vector<int> sets(rows * cols);
+	    	std::vector<int> strbeg(threads);
+	    	int num = (rows - 2) / threads;
+	    	int rem = (rows - 2) % threads;
+	    	for (int i = 0; i < threads; i++) {
+	    		strbeg[i] = i * num + 1;
+	    	}
+	    	std::vector<int> kolvo(threads);
+	    	for (int i = 0; i < threads; i++) {
+	    		if (i == threads - 1)
+	    		kolvo[i] = num + rem;
+	    		else
+	    		kolvo[i] = num;
+	    	}
+	    	for (int i = 0; i < rows * cols; i++)
+	    	sets[i] = i;
+	    	
+	    	std::vector<std::thread> threads_std;
+	    	for (int th = 0; th < threads; th++) {
+	    		threads_std.push_back(std::thread([th, &arr, &sets, &strbeg, &kolvo, &cols]() {
+	    			for (int i = strbeg[th]; i < strbeg[th] + kolvo[th]; i++) {
+	    				for (int j = 1; j < cols - 1; j++) {
+	    					if (arr[i * cols + j] == 0)
+	    					continue;
+	    					if ((arr[i * cols + j - 1] == 0) && ((arr[(i - 1) * cols + j] == 0) || (i == strbeg[th]))) {
+	    						arr[i * cols + j] = i * cols + j + 1;
+	    						continue;
+	    					}
+	    					if ((arr[i * cols + j - 1] != 0) && ((arr[(i - 1) * cols + j] == 0) || (i == strbeg[th]))) {
+	    						arr[i * cols + j] = arr[i * cols + j - 1];
+	    						continue;
+	    					}
+	    					if ((arr[i * cols + j - 1] == 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    						arr[i * cols + j] = arr[(i - 1) * cols + j];
+	    						continue;
+	    					}
+	    					if ((arr[i * cols + j - 1] != 0) && (arr[(i - 1) * cols + j] != 0)) {
+	    						int max, min;
+	    						if (arr[i * cols + j - 1] < arr[(i - 1) * cols + j]) {
+	    							max = arr[(i - 1) * cols + j];
+	    							min = arr[i * cols + j - 1];
+	    						} else {
+	    							max = arr[i * cols + j - 1];
+	    							min = arr[(i - 1) * cols + j];
+	    						}
+	    						while (sets[max] != max) {
+	    							max = sets[max];
+	    						}
+	    						while (sets[min] != min)
+	    						min = sets[min];
+	    						if (min != max)
+	    						sets[max] = min;
+	    						arr[i * cols + j] = min;
+	    					}
+	    				}
+	    			}
+	    		}));
+	    	}
+	    	for (auto& t : threads_std)
+	    	t.join();
+	    	for (int i = 1; i < threads; i++) {
+	    		int str = strbeg[i];
+	    		for (int j = 0; j < cols; j++) {
+	    			if ((arr[(str - 1) * cols + j] != 0) && (arr[str * cols + j] != 0)) {
+	    				int first = sets[arr[(str - 1) * cols + j]];
+	    				int second = sets[arr[str * cols + j]];
+	    				if (first != second) {
+	    					int max;
+	    					if (first > second)
+	    					max = first;
+	    					else
+	    					max = second;
+	    					while (sets[max] != max)
+	    					max = sets[max];
+	    					int min;
+	    					if (first < second)
+	    					min = first;
+	    					else
+	    					min = second;
+	    					while (sets[min] != min)
+	    					min = sets[min];
+	    					if (max != min)
+	    					sets[max] = min;
+	    				}
+	    			}
+	    		}
+	    	}
+	    	return { arr, sets };
+	    }
+	    
+	    std::vector<int> Transform(const std::vector<int>& array, int rows, int cols) {
+	    	std::vector<int> res(rows * cols, 0);
+	    	std::vector<int> count;
+	    	for (int i = 0; i < rows * cols; i++) {
+	    		if (array[i] != 0) {
+	    			bool flag = true;
+	    			for (uint32_t j = 0; j < count.size(); j++)
+	    			if (count[j] == array[i])
+	    			flag = false;
+	    			if (flag)
+	    			count.push_back(array[i]);
+	    		}
+	    	}
+	    	for (int i = 0; i < rows * cols; i++) {
+	    		if (array[i] != 0) {
+	    			int flag = 0;
+	    			for (uint32_t j = 0; j < count.size(); j++)
+	    			if (count[j] == array[i])
+	    			flag = j + 1;
+	    			res[i] = flag;
+	    		}
+	    	}
+	    	return res;
+	    }
+	    
+	    labeling.h
+	    #ifndef MODULES_TASK_4_PARANICHEVA_A_THRLABELING_LABELING_H_
+	    #define MODULES_TASK_4_PARANICHEVA_A_THRLABELING_LABELING_H_
+	    
+	    #include <vector>
+	    #include <utility>
+	    
+	    std::vector<int> getRandomMatrix(int rows, int cols);
+	    std::pair<std::vector<int>, std::vector<int> > firstMark(std::vector<int>, int, int);
+	    std::vector<int> secondMark(std::vector<int>, int, int, std::vector<int>);
+	    std::vector<int> CLabeling(const std::vector<int>&, int, int);
+	    
+	    std::pair<std::vector<int>, std::vector<int> > firstMarkThr(std::vector<int>, int, int);
+	    std::vector<int> CLabelingThr(const std::vector<int>& array, int rows, int cols);
+	    std::vector<int> Transform(const std::vector<int>& array, int rows, int cols);
+	    
+	    #endif  // MODULES_TASK_4_PARANICHEVA_A_THRLABELING_LABELING_H_
+	\end{lstlisting}
+
+\end{document}
