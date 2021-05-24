@@ -1,0 +1,437 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{indentfirst}
+\usepackage{pgfplots}
+
+\geometry{a4paper,top=2cm,bottom=2cm,left=2.5cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{green}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{red}]{\#}, 
+		tabsize=2,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\begin{document}
+
+\begin{titlepage}
+\begin{center}
+Министерство образования и науки Российской Федерации
+\end{center}
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского(ННГУ)
+\end{center}
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+\begin{center}
+Направление подготовки: «Фундаментальная информатика и информационные технологии»
+\end{center}
+
+\vspace{2em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} 
+\end{center}
+\begin{center}
+\textbf{\Large«Вычисление многомерных интегралов с использованием многошаговой схемы (метод прямоугольников)»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\textbf{Выполнил:} \\ студент группы 381806-3 \\ Булычев В. Д.\\
+\\
+\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Оглавление
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Численное интегрирование — приближенное вычисление значения определенного интеграла. Допустим, нам дана функция f(x), определенная на отрезке или многомерном кубе, и возможность получать ее численное значение в любой из точек области определения за фиксированное время. Задача — вычислить определенный интеграл данной функции по заданной области и дать оценку погрешности вычисления.
+\par Большинство методов численного интегрирования, объединенны общим принципом: область интегрирования разбивается по каждой из осей на равное количество частей. В каждой из полученных маленьких областей интеграл приближается простой функцией (например, линейной), значение которой вычисляется явно (путем вычисления подынтегрального выражения в одной или нескольких точках). Ввиду линейности оператора интегрирования по областям полученные значения суммируются и представляют собой результат интегрирования.
+\par К данному типу относятся одномерные метод прямоугольников, метод трапеций, метод парабол (метод Симпсона). Перечисленные методы обобщается и для многомерного случая. Обобщенно все эти методы называются квадратурными. Также говорится, что перечисленные методы используют квадратурные формулы.
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+Цель работы – реализовать параллельные алгоритмы метода прямоугольников
+и сравнить его с последовательным алгоритмом.
+\par Необходимо выполнить работу для вычисления интегралов:
+$$\int\limits_a^b 
+\int\limits_c^d 
+\int\limits_e^f \,f(x,y,z)\,dx\,dy\,dz
+$$
+\par Данная цель предполагает решение следующих основных задач:
+\begin{enumerate}
+\item Изучение и реализация общей схемы численного интегрирования для многомерных
+случаев.
+\item Написание последовательной версии этого алгоритма.
+\item Написание паралленых версий этого алгоритма.
+\item Тестирование работоспособности написанных алгоритмов посредствам тестов, написанных с использованием Google C++ Testing Framework.
+\item Оценить результаты всех верссий.
+\end{enumerate}
+\newpage
+
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+Пусть функция $y = f(x)$ непрерывна на отрезке $[a; b]$. Нам требуется вычислить определенный
+интеграл $\int\limits_a^b\,f(x)\,dx$.
+\par Обратимся к понятию определенного интеграла. Разобьем отрезок $[a; b]$ на $n$ частей $[x_{i-1}; x_{i}]$, $i = 1, 2, ..., n$ точками $a = x0 < x1 < x2 < … < x_{n-1} < x_{n} = b$. Внутри каждого отрезка $[x_{i-1}; x_{i}]$, $i =1, 2,…,n$ выберем точку $\xi{i}$. Так как по определению определенный интеграл есть предел интегральных сумм при бесконечном уменьшении длины элементарного отрезка разбиения $\lambda = \max_{i = 1,2,...,n} x_{i} - x_{i-1} \rightarrow 0$, то любая из интегральных сумм является приближенным значением интеграла $\int\limits_a^b\,f(x)\,dx\approx\sum_{i=1}^n f(\xi_{i})(x_{i}-x_{i-1})$.
+\par Если разбить интегрируемый отрезок $[a; b]$ на одинаковые части точкой $h$, то получим $a = x0$, $x1=x0+h$, $x2=x0+2h$, $...$, $x_{n-1}=x0+(n-1)h$, $x_{n}=x0+nh$, то есть $h = x_{i}- x_{i-1} = (b-a)/n$, $i=1, 2, ..., n$. Серединами точек $\xi{i}$ выбираются элементарные отрезки $[x_{i-1}; x_{i}]$, $i = 1, 2, ..., n$ , значит $\xi{i}=xi-1 + h/2$, $i=1, 2,..., n$.
+\par Тогда приближенное значение $\int\limits_a^b\,f(x)\,dx\approx\sum_{i=1}^n f(\xi_{i}) (x_{i}-x_{i-1})$ записывается таким образом  $\int\limits_a^b\,f(x)\,dx\approx h \times \sum_{i=1}^n f(\xi_{i}) (x_{i-1} - \frac{h}{2})$. Данная формула называется формулой метода средних прямоугольников.
+\par Такое название метод получает из-за характера выбора точек $\xi{i}$, где $h=\frac{b-a}{n}$ называют шагом разбиения отрезка $[a; b]$.
+\par Основная cуть метода прямоугольников заключается в том, что в качестве приближенного значения определенного интеграла берут интегральную сумму.
+\newpage
+
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+В работе осуществляется распараллеливание интеграла на заданное число процессов. В начале имеется область интегрирование, заданная отрезками $[a_{i}; b_{i}]$, $i = 1, 2, ..., n$, количество которых совпадает с количеством интегралов n в многомерном интеграле. Также изначально задаётся шаг разбиения данного отрезка, так как для каждого примера имеется своё индивидуальное значение.
+\par Один из наиболее простых подходов распараллеливания метода прямоугольников является геометрическая декомпозиция данных. Данный подход предполагает разделение данных на части и применение к ним одного и того же алгоритма. В численном интегрировании мы имеем дело с прямоугольной сеткой, в каждом узле которой вычисляется функция и умножается на квадрат шага. Вычисление функции в одном узле сетки не зависит от соседних узлов, таким образом, поделив сетку между процессами, можно получить параллельную версию.
+\newpage
+
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\textbf{Последовательная версия}
+\par Функция, которая считает интеграл, представляет собой циклы и в последовательной версии выглядит так:
+\vspace{10pt}
+\begin{lstlisting}
+double Calculation(std::vector<double> a, std::vector<double> b,
+    int n, double(*f)(std::vector<double>)) {
+    int size_a = a.size();
+    std::vector<double> h;
+    double result = 0.0;
+    std::vector <double> p(size_a);
+    int num = pow(n, size_a);
+
+    for (int i = 0; i < size_a; i++) {
+        double t1 = b[i] - a[i];
+        double t2 = t1 / n;
+        h.push_back(t2);
+    }
+
+    for (int i = 0; i < num; i++) {
+        for (int j = 0; j < size_a; j++) {
+            double t3 = h[j] * 0.5;
+            p[j] = (i % n) * h[j] + a[j] + t3;
+        }
+        result += f(p);
+    }
+
+    int t4 = size_a;
+    double t5 = 1;
+    for (int i = 0; i < t4; i++) {
+        t5 = t5 * h[i];
+    }
+
+    result = result * t5;
+
+    return result;
+}
+\end{lstlisting}
+\par На каждой итерации цикла происходит вычисление серединных координат, после чего от них берется значение подынтегральной функции.
+\par Поскольку площадь прямоугольника является общим множителем, то после накопления суммы значений функции от серединных координат мы можем умножить на него общий результат. Результат будет представлять собой не что иное, как искомый интеграл с заданной точностью.
+\newpage
+\textbf{OpenMP}
+\par Для OpenMP реализации распараллеливание цикла происходит при помощи следующей директивы компилятора:
+\vspace{10pt}
+\begin{lstlisting}
+#pragma omp parallel for reduction(+ : r)
+\end{lstlisting}
+\par Функция выглядит так:
+\vspace{10pt}
+\begin{lstlisting}
+double Calculation_Omp(std::vector<double> a, std::vector<double> b,
+    int n, double(*f)(std::vector<double>)) {
+    int size_a = a.size();
+    std::vector<double> h;
+    int num = pow(n, size_a);
+
+    for (int i = 0; i < size_a; i++) {
+        double t1 = b[i] - a[i];
+        double t2 = t1 / n;
+        h.push_back(t2);
+    }
+
+    double result = 0.0;
+    double r = 0.0;
+    std::vector <double> p(size_a);
+
+#pragma omp parallel for reduction(+ : r)
+    for (int i = 0; i < num; i++) {
+        for (int j = 0; j < size_a; j++) {
+            double t3 = h[j] * 0.5;
+            p[j] = (i % n) * h[j] + a[j] + t3;
+        }
+        r += f(p);
+    }
+
+    int t4 = size_a;
+    double t5 = 1;
+    for (int i = 0; i < t4; i++) {
+        t5 = t5 * h[i];
+    }
+
+    result = r * t5;
+
+    return result;
+}
+\end{lstlisting}
+\newpage
+\textbf{TBB}
+\par Библиотека TBB даёт нам функцию \verb|parallel_reduce|, осуществляющего распараллеливание цикла.
+\par В качестве аргументов \verb|tbb::parallel_reduce| принимает итерационное пространство (в данном случае двумерное), в котором происходят основные вычисления, и ещё одно, выполняющее операцию редукции.
+\vspace{10pt}
+\begin{lstlisting}
+double Calculation_Tbb(std::vector<double> a, std::vector<double> b,
+    int n, double(*f)(double, double)) {
+    int size_a = a.size();
+    std::vector<double> h;
+    double result = 0.0;
+    std::vector <double> p(size_a);
+    int num = pow(n, size_a);
+
+    for (int i = 0; i < size_a; i++) {
+        double t1 = b[i] - a[i];
+        double t2 = t1 / n;
+        h.push_back(t2);
+    }
+
+    result = tbb::parallel_reduce(
+        tbb::blocked_range<int> {0, num}, 0.f,
+        [&](const tbb::blocked_range<int>& r, double l_result)->double {
+            int begin = r.begin();
+            int end = r.end();
+            for (int i = begin; i < end; i++) {
+                for (int j = 0; j < size_a; j++) {
+                    p[j] = (i % n) * h[j] + a[j] + h[j] * 0.5;
+                }
+                l_result += f(p[0], p[1]);
+            }
+            return l_result;
+        }, std::plus<double>());
+
+    int t4 = size_a;
+    double t5 = 1;
+    for (int i = 0; i < t4; i++) {
+        t5 = t5 * h[i];
+    }
+
+    result = result * t5;
+
+    return result;
+}
+\end{lstlisting}
+\newpage
+
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+\par Для подтверждения корректности в программе реализован набор тестов с использованием библиотеки для модульного тестирования Google C++ Testing Framework:
+\par Правильность получаемых результатов проверяется на различных функциях разной сложности.
+\par Примеры подынтегральных функций некоторых из них:
+\begin{itemize}
+\item $(z - (5 * x + 2 * y)$
+\item $x * 10 - x * y + cos(y)$
+\item $x * x + y * y$
+\end{itemize}
+\par Все тесты проходят проверку, что является доказательством корректной работы программы
+\newpage
+
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Эксперименты проводились на разном числе процессов для вычисления трехмерного интеграла для функции 
+$F = x * y + x - x * y$ по области $x\in[0,57$], $y\in[50,152]$, c числом разбиений равным $5000$ для каждой переменной.
+\par Вычисления проводились на ПК со следующими характеристиками:
+\begin{itemize}
+\item Процессор: Intel(R) Core(TM) i5-4690K 3.50GHz, ядер: 4, логических процессоров: 4;
+\item Оперативная память: 8 ГБ DDR3;
+\item ОС: Microsoft Windows 10;
+\end{itemize}
+\par
+\begin{table}[!h]
+\centering
+\begin{tabular}{lllll}
+Версия & Время (сек) & Ускорение  \\
+Последовательно   & 3.144 & -  \\
+OpenMP  & 1.288 & 2.440  \\
+TBB  & 1.409 & 2.231  \\
+\end{tabular}
+\caption{Результаты вычислительных экспериментов}
+\end{table}
+\par Полученные данные демонстрируют разность во времени работы при последовательном и параллельном вычислениях. По результатам можно сделать вывод, что параллельные выполнения программы выигрывает во времени у последовательного во всех случаях.
+\newpage
+
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате выполнения лабораторной работы была разработана библиотека, реализующая параллельные методы интегрирования прямоугольниками.
+\par Для подтверждения корректности работы программы разработан и доведен до успешного выполнения набор тестов с использованием библиотеки модульного тестирования Google C++ Testing Framework.
+\par По данным экспериментов удалось сравнить время работы параллельного и последовательных алгоритмов. Выявлено, что параллельный алгоритм интегрирования показывает более высокую эффективность на большем числе процессов.
+\newpage
+
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Самарский} Самарский А.А., Гулин А.В. Численные методы. М.: Наука,1989. 432 с.
+\bibitem{Сысоев} А.В. Сысоев. «Параллельное программирование с использованием OpenMP», презентация.
+\bibitem{Сиднев} А.А. Сиднев, А.В. Сысоев, И.Б. Мееров. Учебный курс «Технологии разработки параллельных программ», раздел «Создание параллельной программы», «Библиотека Intel Threading Building Blocks~--- краткое описание». Нижний Новгород, ННГУ, 2007, 29 с.
+\bibitem{Гергель} Гергель В.П., Национальный Открытый Университет «ИНТУИТ». Академия: ИнтернетУниверситет Суперкомпьютерных Технологий. Курс: Теория и практика параллельных вычислений. ISBN: 978-5-9556-0096-3.
+\end{thebibliography}
+\newpage
+
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\begin{lstlisting}
+// calculation.h
+
+double Calculation_Seq(std::vector<double> a, std::vector<double> b,
+    int n, double(*f)(double, double));
+    
+double Calculation_Tbb(std::vector<double> a, std::vector<double> b,
+    int n, double(*f)(double, double));
+    
+double Calculation_Omp(std::vector<double> a, std::vector<double> b,
+    int n, double(*f)(double, double));
+\end{lstlisting}
+
+\begin{lstlisting}
+// calculation.cpp
+
+double Calculation_Seq(std::vector<double> a, std::vector<double> b,
+    int n, double(*f)(double, double)) {
+    int size_a = a.size();
+    std::vector<double> h;
+    double result = 0.0;
+    std::vector <double> p(size_a);
+    int num = pow(n, size_a);
+
+    for (int i = 0; i < size_a; i++) {
+        double t1 = b[i] - a[i];
+        double t2 = t1 / n;
+        h.push_back(t2);
+    }
+
+    for (int i = 0; i < num; i++) {
+        for (int j = 0; j < size_a; j++) {
+            double t3 = h[j] * 0.5;
+            p[j] = (i % n) * h[j] + a[j] + t3;
+        }
+        result += f(p[0], p[1]);
+    }
+
+    int t4 = size_a;
+    double t5 = 1;
+    for (int i = 0; i < t4; i++) {
+        t5 = t5 * h[i];
+    }
+
+    result = result * t5;
+
+    return result;
+}
+
+double Calculation_Omp(std::vector<double> a, std::vector<double> b,
+    int n, double(*f)(double, double)) {
+    int size_a = a.size();
+    std::vector<double> h;
+    int num = pow(n, size_a);
+
+    for (int i = 0; i < size_a; i++) {
+        double t1 = b[i] - a[i];
+        double t2 = t1 / n;
+        h.push_back(t2);
+    }
+
+    double result = 0.0;
+    double r = 0.0;
+    std::vector <double> p(size_a);
+
+#pragma omp parallel for reduction(+ : r)
+    for (int i = 0; i < num; i++) {
+        for (int j = 0; j < size_a; j++) {
+            double t3 = h[j] * 0.5;
+            p[j] = (i % n) * h[j] + a[j] + t3;
+        }
+        r += f(p[0], p[1]);
+    }
+
+    int t4 = size_a;
+    double t5 = 1;
+    for (int i = 0; i < t4; i++) {
+        t5 = t5 * h[i];
+    }
+
+    result = r * t5;
+
+    return result;
+}
+
+double Calculation_Tbb(std::vector<double> a, std::vector<double> b,
+    int n, double(*f)(double, double)) {
+    //tbb::task_scheduler_init init(4);
+    //init.initialize(4);
+
+    int size_a = a.size();
+    std::vector<double> h;
+    double result = 0.0;
+    std::vector <double> p(size_a);
+    int num = pow(n, size_a);
+
+    for (int i = 0; i < size_a; i++) {
+        double t1 = b[i] - a[i];
+        double t2 = t1 / n;
+        h.push_back(t2);
+    }
+
+    result = tbb::parallel_reduce(
+        tbb::blocked_range<int> {0, num}, 0.f,
+        [&](const tbb::blocked_range<int>& r, double l_result)->double {
+            int begin = r.begin();
+            int end = r.end();
+            for (int i = begin; i < end; i++) {
+                for (int j = 0; j < size_a; j++) {
+                    p[j] = (i % n) * h[j] + a[j] + h[j] * 0.5;
+                }
+                l_result += f(p[0], p[1]);
+            }
+            return l_result;
+        }, std::plus<double>());
+
+    int t4 = size_a;
+    double t5 = 1;
+    for (int i = 0; i < t4; i++) {
+        t5 = t5 * h[i];
+    }
+
+    result = result * t5;
+
+    return result;
+}
+\end{lstlisting}
+
+\end{document}
