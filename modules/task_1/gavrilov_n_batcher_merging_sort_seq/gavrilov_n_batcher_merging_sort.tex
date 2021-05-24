@@ -1,0 +1,644 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+basicstyle=\footnotesize,
+keywordstyle=\color{blue}\ttfamily,
+stringstyle=\color{red}\ttfamily,
+commentstyle=\color{green}\ttfamily,
+morecomment=[l][\color{magenta}]{\#},
+tabsize=4,
+breaklines=true,
+breakatwhitespace=true,
+title=\lstname,
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Поразрядная сортировка для целых чисел с четно-нечетным слиянием Бэтчера»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-1 \\ Гаврилов Н. И.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А.В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2020 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+
+\newpage
+% Введение
+\begin{center}
+\section*{Введение}
+\end{center}
+\addcontentsline{toc}{section}{Введение}
+
+Вопрос о размещении данных в указанном (возрастающем или убывающем) порядке возникает довольно часто. От порядка, в котором хранятся элементы в памяти, во многом зависит скорость и простота алгоритмов, предназначенных для их обработки. Таким образом, сортировка является инструментом, полезным в самых различных ситуациях.
+\par Существует много различных методов сортировки, различающихся по эффективности. В данной работе рассматривается метод поразрядной сортировки.
+\par Для ускорения работы следует разбивать данные на группы меньшего размера и сортировать эти группы парраллельно. В таком случае возникает проблема слияния отсортированных групп данных. С этим нам поможет четно-нечетное слияние Бетчера.
+\par Целью данной работы является реализация поразрядной сортировки для целых чисел с четно-нечетным слиянием Бэтчера. 
+
+\newpage
+% Постановка задачи
+\begin{center}
+\section*{Постановка задачи}
+\end{center}
+\addcontentsline{toc}{section}{Постановка задачи}
+
+В данной работе необходимо:
+\begin{enumerate}
+\item Реализовать поразрядную сортировку для целых чисел.
+\item Реализовать параллельную поразрядную сортировку для целых чисел с четно-нечетным слиянием Бэтчера. 
+\item Сравнить время работы без распараллеливания и с распараллеливанием алгоритма.
+\end{enumerate}
+
+\newpage
+% Описание алгоритма последовательной сортировки
+\begin{center}
+\section*{Описание алгоритма последовательной сортировки}
+\end{center}
+\addcontentsline{toc}{section}{Описание алгоритма последовательной сортировки}
+
+Алгоритм поразрядной сортировки: 
+\begin{enumerate}
+\item Выбираем rank(система счисления).
+\item Для каждого разряда(начиная с младшего) выполняем следующие:
+\begin{enumerate}
+\item Создаем n массивов(n=rank-1).
+\item Распределяем элементы по этим массивам в зависимости от цифры расположенной на данном разряде.
+\item Собираем созданные массивы по порядку.
+\end{enumerate}
+\end{enumerate}
+В итоге получается отсортированый массив
+
+\newpage
+% Схема распараллеливания
+\begin{center}
+\section*{Схема распараллеливания}
+\end{center}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+
+\begin{enumerate}
+\item Кол-во элементов массива должно быть кратно кол-ву процессов, если это не так, добавляем элементы, равные максимально возможному числу в конец массива, чтобы условие выполнилось.
+\item Разбиваем массив на n частей(n=кол-во процессов) и распределяем по процессам.
+\item Каждый процесс сортирует свою часть с помощью поразрядной сортировки.
+\item Создаем сеть слияния Бэтчера.
+\item Каждый элемент созданной сети - пара номеров проццесов которые должны выполнить слияние и распределить элементы, поэтому проходим по сети и выполняем вышесказанное.
+\item Собираем массив из частей содержашихся в процессах.
+\item Удаляем элементы добавленные для кратности массива. Они находятся в конце.
+\end{enumerate}
+
+\newpage
+% Описание программной реализации
+\begin{center}
+\section*{Описание программной реализации}
+\end{center}
+\addcontentsline{toc}{section}{Описание программной реализации}
+
+Реализация последовательного алгоритма поразрядной сортировки:
+\begin{itemize}
+\item Функция возвращающая цифру из числа:
+\begin{lstlisting}
+	int8_t GetDigit(int value, uint8_t digidNum, uint8_t rang)
+\end{lstlisting}
+\item Функция возвращающая кол-во разрядов числа:
+\begin{lstlisting}
+	uint8_t GetNumOfDigits(int value, uint8_t rang)
+\end{lstlisting}
+\item Функция объединяющая векторы:
+\begin{lstlisting}
+	void ConcatVectors(const std::vector<std::vector<int>>& from, std::vector<int>* dest)
+\end{lstlisting}
+\item Функция сортирующая по определенному разряду:
+\begin{lstlisting}
+	void SortByDigid(std::vector<int>* data, uint8_t digitNum, uint8_t rang)
+\end{lstlisting}
+\item Сама функия сортировки:
+\begin{lstlisting}
+	void SortByNumPlace(std::vector<int>* data, uint8_t rang)
+\end{lstlisting}
+\end{itemize}
+
+Реализация построения сети слияния Бэтчера:
+\begin{itemize}
+\item Функция разделяющая вектор на два по четным и нечетным местам:
+\begin{lstlisting}
+	void SplitEvenOdd(const std::vector<int>& from, std::vector<int>* destEven, std::vector<int>* destOdd)
+\end{lstlisting}
+\item Функция слияния:
+\begin{lstlisting}
+	void BatcherMerge(std::vector<int> procsLeft, std::vector<int> procsRight, std::vector<std::pair<int, int>>* comps)
+\end{lstlisting}
+\item Функция разделения и слияния:
+\begin{lstlisting}
+	void BatcherSplitNMerge(std::vector<int> procs, std::vector<std::pair<int, int>>* comps)
+\end{lstlisting}
+\item Функция построения сети:
+\begin{lstlisting}
+	std::vector<std::pair<int, int>> Batcher(int procCount)
+\end{lstlisting}
+\end{itemize}
+
+Функия параллельной поразрядной сортировки слиянием Бэтчера:
+\begin{lstlisting}
+	void Sort(std::vector<int>* data)
+\end{lstlisting}
+\newpage
+
+% Подтверждение корректности
+\begin{center}
+\section*{Подтверждение корректности}
+\end{center}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью использования Google C++ Testing Framework.
+\par Набор представляет из себя тесты, которые проверяют корректность работы алгоритма(проверки отсортированности массива) при разных условиях: ранг сортировки(2, 10), неподходящее кол-во элементов в массиве(меньше кол-ва процессов, не кратное кол-ву процессов). Также присутствует подсчет времени сортировки.
+\par Успешное прохождение всех тестов доказывает корректность работы программного комплекса.
+\newpage
+
+% Описание экспериментов
+\begin{center}
+\section*{Описание экспериментов}
+\end{center}
+\addcontentsline{toc}{section}{Описание экспериментов}
+
+Эксперементы проводились на оборудовании со следующей аппаратной конфигурацией:
+\begin{itemize}
+\item Процессор: AMD Ryzen 5 3600X 6-Core Processor, 3,79 ГГц;
+\item Оперативная память: 16 ГБ (DDR4), 3200 МГц;
+\item ОС: Microsoft Windows 10 Interprise.
+\end{itemize}
+\begin{table}[h]
+    \begin{tabular}{ | p{4cm} | p{4cm} | p{4cm} | p{4cm} | }
+    \hline
+    Количество процессов & Параллельная \par реализация, сек & Разница с реализацией на 1 процессе\\ \hline
+    1    & 0.288  &0 \\ \hline
+    2    & 0.148  &-0.14 \\ \hline
+    3    & 0.226  &-0.062 \\ \hline
+    4    & 0.088  &-0.2 \\ \hline
+    5    & 0.069 &-0.219 \\ \hline 
+    6    & 0.118 &-0.17 \\ \hline
+    7    & 0.107  &-0.181 \\ \hline
+    8    & 0.052  &-0.236 \\ \hline
+    9    & 0.087  &-0.201\\ \hline
+    10   & 0.047  &-0.241 \\ \hline
+    11   & 0.076  &-0.212 \\ \hline
+    \end{tabular}
+\end{table}
+\par Сортировка производилась над массивом размером $10^7$, заполненым рандомно.
+\par По результатам эксперимента, можно сделать вывод о том, что в большинстве случаев параллельная реализация работает быстрее.
+
+\newpage
+% Заключение
+\begin{center}
+\section*{Заключение}
+\end{center}
+\addcontentsline{toc}{section}{Заключение}
+
+В ходе данной работы было реализована последовательная поразрядная сортировка и распараллеливание данного алгоритма с помощью четно - нечетного слияния Бэтчера. Были разработаны тесты для подтверждения корректности работы алгоритмов.
+\par Также была произведено сравнение производительности данных алгоритмов, результатом которого, является вывод, что параллельный вариант алгоритма работает быстрее.
+
+\newpage
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Литература}
+\bibitem{Algolist} Поразрядная сортировка [Электронный ресурс] // URL: \url{http://algolist.ru/sort/radix_sort.php/}
+\bibitem{Habr} Сеть обменной сортировки со слиянием Бэтчера [Электронный ресурс] // URL: \url{https://habr.com/ru/post/275889/}
+\end{thebibliography}
+
+\newpage
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\begin{lstlisting}
+// main.cpp
+// Copyright 2020 Gavrilov Nikita
+#define _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING
+
+#include <stdio.h>
+#include <mpi.h>
+#include <gtest/gtest.h>
+#include <gtest-mpi-listener.hpp>
+#include "BatcherMergingSort.h"
+#include <vector>
+#include <iostream>
+#include <ctime>
+#include <random>
+
+bool IsSorted(const std::vector<int>& data) {
+    if (data.size() == 0)
+        return true;
+    for (size_t i = 0; i < data.size()-1; i++) {
+        if (data[i] > data[i + 1])
+            return false;
+    }
+    return true;
+}
+std::vector<int> GetRandomVector(size_t size) {
+    std::mt19937 rnd;
+    rnd.seed(static_cast<unsigned int>(time(0)));
+
+    std::vector<int> result(size);
+    for (size_t i = 0; i < size; i++) {
+        result[i] = rnd() % 20000 - 10000;
+    }
+
+    return result;
+}
+
+TEST(Parallel_Operations_MPI, No_Throw) {
+    std::vector<int> data = GetRandomVector(10000);
+    ASSERT_NO_THROW(Sort(&data));
+}
+
+TEST(Parallel_Operations_MPI, Sorting_Right) {
+    std::vector<int> data = GetRandomVector(10000);
+    Sort(&data);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank == 0) {
+        ASSERT_TRUE(IsSorted(data));
+    }
+}
+
+TEST(Parallel_Operations_MPI, Sorting_Time) {
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+	
+    std::vector<int> data = GetRandomVector(1000000);
+	
+    double t1 = MPI_Wtime();
+    Sort(&data);
+    if (rank == 0) {
+		std::cout<<"time(100000): "<<(MPI_Wtime() - t1)<<std::endl;
+    }
+}
+
+TEST(Parallel_Operations_MPI, Sort_By_Num_Place_Rang10) {
+    std::vector<int> data = GetRandomVector(10000);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank == 0) {
+        ASSERT_NO_THROW(SortByNumPlace(&data, 10));
+        ASSERT_TRUE(IsSorted(data));
+    }
+}
+
+TEST(Parallel_Operations_MPI, Sort_By_Num_Place_Rang2) {
+    std::vector<int> data = GetRandomVector(10000);
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank == 0) {
+        ASSERT_NO_THROW(SortByNumPlace(&data, 2));
+        ASSERT_TRUE(IsSorted(data));
+    }
+}
+
+TEST(Parallel_Operations_MPI, Sorting_Right_Even_If_Bad_Size) {
+    int size;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    for (int i = 1; i < size; i++) {
+        std::vector<int> data = GetRandomVector(size * 1000 + size - i);
+        ASSERT_NO_THROW(Sort(&data));
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (rank == 0) {
+            ASSERT_TRUE(IsSorted(data));
+        }
+    }
+}
+
+TEST(Parallel_Operations_MPI, Sorting_Right_Even_If_Bad_Size2) {
+    int size;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    for (int i = 1; i <= size; i++) {
+        std::vector<int> data = GetRandomVector(size - 1);
+        ASSERT_NO_THROW(Sort(&data));
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (rank == 0) {
+            ASSERT_TRUE(IsSorted(data));
+        }
+    }
+}
+
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    MPI_Init(&argc, &argv);
+    ::testing::AddGlobalTestEnvironment(new GTestMPIListener::MPIEnvironment);
+    ::testing::TestEventListeners& listeners =
+        ::testing::UnitTest::GetInstance()->listeners();
+
+    listeners.Release(listeners.default_result_printer());
+    listeners.Release(listeners.default_xml_generator());
+
+    listeners.Append(new GTestMPIListener::MPIMinimalistPrinter);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+\begin{lstlisting}
+// BatcherMergingSort.h
+// Copyright 2020 Gavrilov Nikita
+#ifndef MODULES_TASK_3_GAVRILOV_N_BATCHER_MERGING_SORT_BATCHERMERGINGSORT_H_
+#define MODULES_TASK_3_GAVRILOV_N_BATCHER_MERGING_SORT_BATCHERMERGINGSORT_H_
+
+#include <stdint.h>
+#include <utility>
+#include <vector>
+
+int8_t GetDigit(int value, uint8_t digidNum, uint8_t rang);
+uint8_t GetNumOfDigits(int value, uint8_t rang);
+void ConcatVectors(const std::vector<std::vector<int>>& from, std::vector<int>* dest);
+void SortByDigid(std::vector<int>* data, uint8_t digitNum, uint8_t rang = 10);
+void SortByNumPlace(std::vector<int>* data, uint8_t rang = 10);
+
+void SplitEvenOdd(const std::vector<int>& from, std::vector<int>* destEven, std::vector<int>* destOdd);
+void BatcherMerge(std::vector<int> procsLeft, std::vector<int> procsRight, std::vector<std::pair<int, int>>* comps);
+void BatcherSplitNMerge(std::vector<int> procs, std::vector<std::pair<int, int>>* comps);
+std::vector<std::pair<int, int>> Batcher(int procCount);
+
+void Sort(std::vector<int>* data);
+
+#endif  // MODULES_TASK_3_GAVRILOV_N_BATCHER_MERGING_SORT_BATCHERMERGINGSORT_H_
+\end{lstlisting}
+\begin{lstlisting}
+// BatcherMergingSort.cpp
+// Copyright 2020 Gavrilov Nikita
+#include <mpi.h>
+#include <utility>
+#include <algorithm>
+#include <vector>
+#include <cmath>
+#include "../../modules/task_3/gavrilov_n_batcher_merging_sort/BatcherMergingSort.h"
+
+#define MY_INT_MAX 2147483647
+
+int8_t GetDigit(int value, uint8_t digidNum, uint8_t rang) {
+    if (rang <= 1)
+        throw "rang must be more than 1";
+
+    int powRang = static_cast<int>(pow(rang, digidNum));
+    int powRangNext = static_cast<int>(pow(rang, digidNum + 1.0));
+
+    return value % powRangNext / powRang;
+}
+uint8_t GetNumOfDigits(int value, uint8_t rang) {
+    if (rang <= 1)
+        throw "rang must be more than 1";
+
+    int length = 1;
+    while (value /= rang)
+        length++;
+
+    return length;
+}
+void ConcatVectors(const std::vector<std::vector<int>>& from, std::vector<int>* dest) {
+    for (size_t i = 0; i < from.size(); i++) {
+        for (size_t j = 0; j < from[i].size(); j++) {
+            dest->push_back(from[i][j]);
+        }
+    }
+}
+void SortByDigid(std::vector<int>* data, uint8_t digitNum, uint8_t rang) {
+    if (rang <= 1)
+        throw "rang must be more than 1";
+    std::vector<std::vector<int>> vectorsByDigits(rang * 2 - 1);
+
+    for (size_t i = 0; i < data->size(); i++) {
+        int8_t digit = GetDigit((*data)[i], digitNum, rang);
+        vectorsByDigits[digit + rang - 1].push_back((*data)[i]);
+    }
+
+    data->clear();
+    ConcatVectors(vectorsByDigits, data);
+}
+void SortByNumPlace(std::vector<int>* data, uint8_t rang) {
+    if (rang <= 1)
+        throw "rang must be more than 1";
+
+    std::vector<std::vector<int>> vectorsByDigits(rang * 2 - 1);
+    uint8_t maxNumOfDigits = 0;
+
+    // it is the same with SortByDigid, but we need to count maxNumOfDigits,
+    // we can do this because number has 1 digit as minimum
+    // bad part of this - we write same code
+    // it makes sort faster by data.size() operations
+    for (size_t i = 0; i < data->size(); i++) {
+        int8_t digit = GetDigit((*data)[i], 0, rang);
+        vectorsByDigits[digit + rang - 1].push_back((*data)[i]);
+
+        uint8_t numOfDigits = GetNumOfDigits((*data)[i], rang);
+        maxNumOfDigits = std::max(maxNumOfDigits, numOfDigits);
+    }
+
+    data->clear();
+    ConcatVectors(vectorsByDigits, data);
+
+    for (uint8_t i = 1; i < maxNumOfDigits; i++) {
+        SortByDigid(data, i, rang);
+    }
+}
+
+void SplitEvenOdd(const std::vector<int>& from, std::vector<int>* destEven, std::vector<int>* destOdd) {
+    for (size_t i = 0; i < from.size() / 2; i++) {
+        destEven->push_back(from[i * 2]);
+        destOdd->push_back(from[i * 2 + 1]);
+    }
+    if (from.size() % 2 == 1) {
+        destEven->push_back(from.back());
+    }
+}
+void BatcherMerge(std::vector<int> procsLeft, std::vector<int> procsRight, std::vector<std::pair<int, int>>* comps) {
+    int procsCount = procsLeft.size() + procsRight.size();
+    if (procsCount <= 1) {
+        return;
+    } else if (procsCount == 2) {
+        comps->push_back(std::pair<int, int>(procsLeft[0], procsRight[0]));
+        return;
+    }
+
+    std::vector<int> procsLeftOdd, procsLeftEven;
+    std::vector<int> procsRightOdd, procsRightEven;
+    std::vector<int> procsResult;
+
+    SplitEvenOdd(procsLeft, &procsLeftEven, &procsLeftOdd);
+    SplitEvenOdd(procsRight, &procsRightEven, &procsRightOdd);
+
+    BatcherMerge(procsLeftOdd, procsRightOdd, comps);
+    BatcherMerge(procsLeftEven, procsRightEven, comps);
+
+    std::vector<std::vector<int>> vecs{ procsLeft, procsRight };
+    ConcatVectors(vecs, &procsResult);
+
+    for (size_t i = 1; i + 1 < procsResult.size(); i += 2) {
+        comps->push_back(std::pair<int, int>(procsResult[i], procsResult[i + 1]));
+    }
+}
+void BatcherSplitNMerge(std::vector<int> procs, std::vector<std::pair<int, int>>* comps) {
+    if (procs.size() <= 1) {
+        return;
+    }
+
+    std::vector<int> procs_up(procs.begin(), procs.begin() + procs.size() / 2);
+    std::vector<int> procs_down(procs.begin() + procs.size() / 2, procs.end());
+
+    BatcherSplitNMerge(procs_up, comps);
+    BatcherSplitNMerge(procs_down, comps);
+    BatcherMerge(procs_up, procs_down, comps);
+}
+std::vector<std::pair<int, int>> Batcher(int procCount) {
+    std::vector<int> procs(procCount);
+    for (int i = 0; i < procCount; i++) {
+        procs[i] = i;
+    }
+
+    std::vector<std::pair<int, int>> comps;
+    BatcherSplitNMerge(procs, &comps);
+
+    return comps;
+}
+
+void Sort(std::vector<int>* data) {
+    size_t realSize = data->size();
+
+    int size, rank;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    int maxSize = std::min(size, static_cast<int>(data->size()));
+    // calculating comparers
+    std::vector<std::pair<int, int>> comps = Batcher(maxSize);
+
+    // calculating how many of data will owns each proc
+    int countPerProc;
+    if (rank == 0) {
+        while (data->size() % size != 0) {
+            data->push_back(MY_INT_MAX);
+        }
+        countPerProc = data->size() / size;
+    }
+    MPI_Bcast(&countPerProc, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // splitting data by procs
+    std::vector<int> localData;
+    if (rank == 0) {
+        for (int i = 1; i < maxSize; i++) {
+            MPI_Send(data->data() + (countPerProc * i), countPerProc, MPI_INT, i, 1, MPI_COMM_WORLD);
+        }
+        localData = std::vector<int>(data->begin(), data->begin() + countPerProc);
+    } else if (rank < maxSize) {
+        localData = std::vector<int>(countPerProc);
+        MPI_Status st;
+        MPI_Recv(localData.data(), countPerProc, MPI_INT, 0, 1, MPI_COMM_WORLD, &st);
+    }
+
+    // sort each proc's data
+    SortByNumPlace(&localData);
+
+    if (size > 1) {
+        // making all comparers
+        for (size_t i = 0; i < comps.size(); i++) {
+            if (rank == comps[i].first) {
+                MPI_Send(localData.data(), countPerProc, MPI_INT, comps[i].second, 2, MPI_COMM_WORLD);
+                MPI_Status st;
+                MPI_Recv(localData.data(), countPerProc, MPI_INT, comps[i].second, 3, MPI_COMM_WORLD, &st);
+            } else if (rank == comps[i].second) {
+                MPI_Status st;
+
+                std::vector<int> recvData(countPerProc);
+                MPI_Recv(recvData.data(), countPerProc, MPI_INT, comps[i].first, 2, MPI_COMM_WORLD, &st);
+
+                std::vector<int> tmp(countPerProc * 2);
+
+                for (int j = 0, k = 0, l = 0; l < countPerProc * 2; l++) {
+                    if (j < countPerProc && (k >= countPerProc || localData[j] < recvData[k]))
+                        tmp[l] = localData[j++];
+                    else
+                        tmp[l] = recvData[k++];
+                }
+                MPI_Send(tmp.data(), countPerProc, MPI_INT, comps[i].first, 3, MPI_COMM_WORLD);
+                for (int j = 0; j < countPerProc; j++) {
+                    localData[j] = tmp[j + countPerProc];
+                }
+            }
+        }
+
+        // recieving data from all procs to main one
+        if (rank == 0) {
+            for (int i = 1; i < maxSize; i++) {
+                MPI_Status st;
+                MPI_Recv(data->data() + (countPerProc * i), countPerProc, MPI_INT, i, 4, MPI_COMM_WORLD, &st);
+            }
+        } else if (rank < maxSize) {
+            MPI_Send(localData.data(), countPerProc, MPI_INT, 0, 4, MPI_COMM_WORLD);
+        }
+    }
+
+    if (rank == 0) {
+        // copying data from main to itself
+        std::copy(localData.begin(), localData.end(), data->begin());
+
+        // erasing added vars;
+        data->erase(data->begin() + realSize, data->end());
+    }
+}
+\end{lstlisting}
+\end{document}
+
