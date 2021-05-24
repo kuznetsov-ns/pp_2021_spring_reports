@@ -1,0 +1,824 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Поразрядная сортировка для вещественных чисел (тип double) с четно-нечетным слиянием Бэтчера.»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-1 \\ Белик Ю. А.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+\addcontentsline{toc}{section}{Введение}
+В настоящее время наука и технологии шагают вперед семимильными шагами. Чтобы идти в ногу с прогрессом, приходится постоянно совершенствовать свои знания, умения и навыки, а на это требуется достаточно много времени. В целях освобождения времени для таких фундаментальных задач нужно минимализировать его затраты на небольшие задачи, которые можно решить один раз вместо того, чтобы каждый раз делать все заново.
+\par Именно с этой целью пишутся программы, совершающие элементарные операции по обработке данных. Примером служит данная работа, в которой реализован один из методов сортировок данных.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+Необходимо реализовать последовательную и параллельную реализации поразрядной сортировки вещественных чисел с четно-нечетным слиянием Бэтчера, провести тесты для оценки времени и подтверждения корректности алгоритма. Сделать выводы по полученным результатам.
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+При поразрядной сортировке на вход приходит массив вещественных чисел.
+\par В новом цикле по всем байтам:
+\begin{itemize}
+\item Выбирается позиция байта, начиная с младшего
+\item Запоминается значение для каждого элемента массива по выбранной позиции байта
+\item Запоминается количество таких значений во всем массиве
+\item Новый массив формируется из элементов старого, выставляя элементы по позициям, указанных в массиве.
+\item Старый вектор приранивается к новому для дальнейшей сортировки
+\end{itemize}
+\par При прохождении по старшему байту учитывается знак числа.
+\par Таким образом, пройдя по всем разрядам, на выходе мы получим массив из упорядоченных элементов исходного вектора.
+\par В алгоритме слияния Бэтчера исходный вектор разбивается на куски, которые локально упорядочиваются. Затем происходит последовательное слияние этих фрагментов, сначала попарно четных с нечетными, затем попарно четные кратные четырем с четными не кратными четырем, после попарно сливаются кратные восьми с фрагментами, индекс которых кратен четырем, но не кратен восьми, и так далее до образования единого целого упорядоченного вектора.
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Первым шагом алгоритма является разбиение вектора с дальнейшей локальной поразрядной сортировкой и перетасовкой элементов (элементы, стоящие на четных позициях перемещаются в первую половину вектора, а на нечетных во вторую) на каждом.
+\par Далее в цикле по числу слияний, которое равно округленному в большую сторону логарифму общего числа потоков по основанию 2, происходят последовательные слияния. Сначала сливаются локальные вектора четных (верхний) и нечетных (нижний) потоков, потом потоков, у которых остаток от деления ранга на 4 равен 0 (верхний) и 2 (нижний), затем потоков с рангами, при делении на 8 дают остатки 0 (верхний) и 4 (нижний), и так далее пока не закончатся потоки (где верхний поток будет содержать итоговый вектор каждого слияния).
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Алгоритм поразрядной сортировки реализован в функции
+\begin{lstlisting}
+	void RadixSort(double* vec, size_t len, double* vec2);
+\end{lstlisting}
+\par Входным параметром явлется массив, элементы которого надо упорядочить, число элементов этого массива и итоговый массив, который нужно заполнить.
+\par Алгоритм слияния реализован в функции
+\begin{lstlisting}
+	std::vector<double> MergeBatcherPar(std::vector<double> vec, int size, int thr);
+\end{lstlisting}
+\par Входным параметром явлется вектор, элементы которого надо упорядочить, количество элементов этого вектора и число потоков. На выходе получаем вектор из упорядоченных элементов.
+\par Внутри функции вектор делится по числу потоков, число элементов, которое будет сортировать каждый поток, сохраняется в массив lens, номер элемента, с которого будет начинаться работа каждого потока, сохраняется в массив offsets. 
+\par Для работы механизма слияния реализованы некоторые дополнительные функции.
+\par Функция перетасовки элеметов
+\begin{lstlisting}
+	void Shuffle(double* vec, size_t len, double* vec2);
+\end{lstlisting}
+\par Входным параметром явлется массив, элементы которого надо перетасовать, число элементов массива и итоговый массив для заполнения. На выходе итоговый массив содержит элементы исходного массива, но элеметы, стоящие в исходном векторе на нечетных позициях, перенесены во вторую половину, а элементы, стоящие на четных, перенесены в первую половину.
+\par Алгоритм частичного слияния реализован в функции
+\begin{lstlisting}
+	void PMerge(double* start1, double* start2, double* start3, size_t len1, size_t len2);
+\end{lstlisting}
+\par Входным параметром являются указатели на 2 массива, которые должны слиться, число элементов в них и указатель на итоговый массив. На выходе получаем итоговый массив из упорядоченных элементов.
+\par Заметим, что принцип распараллеливания везде один и тот же, меняются лишь инструменты параллелизации. Рассмотрим их далее для каждой из 3 технологий:OpenMP, TBB и std::threads.
+\newpage
+
+% OpenMP
+\section*{OpenMP}
+\addcontentsline{toc}{section}{OpenMP}
+Определения именованных констант, прототипов функций и типов данных OpenMP содержится в файле "omp.h".
+\par Для параллелизации циклов сортировки, перетасовки и слияния в алгориме используется директива "pragma omp parallel for".
+\par Псевдокод параллельного фрагмента алгоритма с использованием OpenMP:
+\begin{lstlisting}
+	#pragma omp parallel for num_threads(thr)
+	for (int i = 0; i < thr; i++) {
+		RadixSort(vectmp + offsets[i], lens[i], reztmp + offsets[i]);
+		Shuffle(reztmp + offsets[i], lens[i], vectmp + offsets[i]);
+	}
+	for (int h = 0; h < nummerge; h++) {
+		#pragma omp parallel for num_threads(thr)
+		for (int i = 0; i < thr; i++) {
+			if ((i % mergecount == 0) && (i + offset < thr))
+			PMerge(vectmp + offsets[i], vectmp + offsets[i + offset], reztmp + offsets[i], len1, len2);
+			if ((i - offset >= 0) && ((i - offset) % mergecount == 0)) 
+			PMerge(vectmp + start1, vectmp + start2, reztmp + start3, lens[i - offset] / 2, lens[i] / 2);
+			
+		}
+		#pragma omp parallel for num_threads(thr)
+		for (int i = 0; i < thr; i++)
+		if ((i % mergecount == 0) && (i + offset < thr)) ;
+		PMerge(reztmp + offsets[i], reztmp + offsets[i] + evencount, vectmp + offsets[i], evencount, oddcount);
+	}
+\end{lstlisting}
+\newpage
+
+% TBB
+\section*{TBB}
+\addcontentsline{toc}{section}{TBB}
+Определения именованных констант, прототипов функций и типов данных TBB содержится в файле "tbb.h".
+\par Для параллелизации циклов сортировки, перетасовки и слияния в алгориме используется функция "tbb::parallel for". В качестве параметров эта функция принимает:
+\begin{enumerate}
+	\item Одномерное итерационное пространство tbb::blocked range - рекурсивно делимый полуинтервал [0; N), где N - число потоков. Значение параметра размера порции вычислений grainsize устанавливается явно и равно 1, поскольку разбиение массива на куски происходит раньше.
+	\item Лямбда, реализующая вычисления тела цикла. Она совершает сортировку, перетасовку и слияние кусков массива.
+\end{enumerate}
+\par Псевдокод параллельного фрагмента алгоритма с использованием TBB:
+\begin{lstlisting}
+	tbb_radixsort tbbrs(vectmp, reztmp, offsets, lens);
+	//void operator() (const tbb::blocked_range<int> &range) const {
+		//	RadixSort(in + offsets[range.begin()], lens[range.begin()], out + offsets[range.begin()]);
+		//}
+	tbb::parallel_for(tbb::blocked_range<int>(0, thr, 1), tbbrs);
+	tbb_shuffle tbbsh(reztmp, vectmp, offsets, lens);
+	//void operator() (const tbb::blocked_range<int> &range) const {
+		//	if (lens[range.begin()] != 0) {
+			//		Shuffle(in + offsets[range.begin()], lens[range.begin()], out + offsets[range.begin()]);
+			//	}
+		//}
+	tbb::parallel_for(tbb::blocked_range<int>(0, thr, 1), tbbsh);
+	for (int h = 0; h < nummerge; h++) {
+		tbb_pmerge tbbpm(vectmp, reztmp, offsets, lens, mergecount, offset, thr);
+		//	void operator() (const tbb::blocked_range<int> &range) const {
+			//		if ((range.begin() % mergecount == 0) && (range.begin() + offset < thr))
+			//			PMerge(in + offsets[range.begin()], in + offsets[range.begin() + offset], out + offsets[range.begin()], len1, len2);
+			//	if ((range.begin() - offset >= 0) && ((range.begin() - offset) % mergecount == 0)) 
+			//		PMerge(in + start1, in + start2, out + start3, lens[range.begin() - offset] / 2, lens[range.begin()] / 2);
+			//}	
+		tbb::parallel_for(tbb::blocked_range<int>(0, thr, 1), tbbpm);
+		tbb_ppmerge tbbppm(reztmp, vectmp, offsets, lens, mergecount, offset, thr);
+		//void operator() (const tbb::blocked_range<int> &range) const {
+			//	if ((range.begin() % mergecount == 0) && (range.begin() + offset < thr)) 
+			//		PMerge(in + offsets[range.begin()], in + offsets[range.begin()] + evencount, out + offsets[range.begin()], evencount, oddcount);
+			//}
+		tbb::parallel_for(tbb::blocked_range<int>(0, thr, 1), tbbppm);
+	}
+\end{lstlisting}
+\newpage
+
+% std::threads
+\section*{std::threads}
+\addcontentsline{toc}{section}{std::threads}
+Праллелизация программы с использованием API std::thread осуществляется путем создания объектов std::thread. Под каждый поток нужен свой объект класса. В данной работе реализованы вектора объектов std::thread, их размеры равны числу потоков.
+\par Для паралллелизации циклов сортировки, перетасовки и слияния, нужно в цикле по числу потоков, проинициализировать каждый поток ламбдой. Сразу после инициализации поток переходит в состояние исполнения. 
+\par В лямбду передается номер потока, на котором она будет исполняться и все необходимые данные для работы.
+\par Псевдокод параллельного фрагмента алгоритма с использованием std::threads:
+\begin{lstlisting}
+	for (int i = 0; i < thr; i++) {
+		threadssort.push_back(std::thread([i, &vectmp, &offsets, &lens, &reztmp]() {
+			RadixSort(vectmp + offsets[i], lens[i], reztmp + offsets[i]);
+			Shuffle(reztmp + offsets[i], lens[i], vectmp + offsets[i]);
+		}));
+	}
+	for (auto& t : threadssort)
+	t.join();
+	for (int h = 0; h < nummerge; h++) {
+		for (int i = 0; i < thr; i++) {
+			threadsmp.push_back(std::thread([i, &vectmp, &offsets, &lens, &reztmp, mergecount, offset, thr]() {
+				if ((i % mergecount == 0) && (i + offset < thr)) 
+				PMerge(vectmp + offsets[i], vectmp + offsets[i + offset], reztmp + offsets[i], len1, len2);
+				if ((i - offset >= 0) && ((i - offset) % mergecount == 0)) 
+				PMerge(vectmp + start1, vectmp + start2, reztmp + start3, lens[i - offset] / 2, lens[i] / 2);
+			}));
+		}
+		for (auto& t : threadsmp)
+		t.join();
+		for (int i = 0; i < thr; i++) {
+			threadsm.push_back(std::thread([i, &vectmp, &offsets, &lens, &reztmp, mergecount, offset, nummerge, thr, h]() {
+				if ((i % mergecount == 0) && (i + offset < thr)) 
+				PMerge(reztmp + offsets[i], reztmp + offsets[i] + evencount, vectmp + offsets[i], evencount, oddcount);
+			}));
+		}
+		for (auto& t : threadsm)
+		t.join();
+	}
+\end{lstlisting}
+\newpage
+
+% Описание экспериментов
+\section*{Описание экспериментов}
+\addcontentsline{toc}{section}{Описание экспериментов}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью использования Google C++ Testing Framework.
+\par Набор представляет из себя тесты, которые проверяют работу функций на разных количествах элементов вектора.
+\par Успешное прохождение всех тестов доказывает корректность работы программного комплекса.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Для проведения тестов производилась сортировка векторов размером 50'000'000 значений каждый с разбиением на 4 части. Эксперимент проведен 3 раза, за время работы каждого алгоритма принято среднее время. 
+\par Результаты тестов представлены в Таблице 1.
+\begin{table}[!h]
+\caption{Результаты экспериментов}
+\centering
+\begin{tabular}{lllll}
+		Механизм        & Время работы    & Разница по времени & Ускорение  \\
+		Последовательно & 6.077           & -                  & -          \\
+		OpenMP          & 2.972           & 3.105              & 2.045      \\
+		TBB             & 2.952           & 3.125              & 2.059      \\
+		std::thread     & 2.946           & 3.131              & 2.063      
+\end{tabular}
+\end{table}
+\par По данным, полученным в результате тестов, можно сделать вывод о том, что параллельная функция работает действительно быстрее, чем последовательная.
+\par Можно заметить, что все параллельные реализации работают примерно с одинаковым ускорением.
+\newpage
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+Все поставленные задачи выполнены. Реализованы параллельная и последовательная функции выполняющие поразрядную сортировку вещественных чисел с четно-нечетным слиянием Бэтчера. На тестах продемонстрирована эффективность работы параллельной функции. Также реализованы и пройдены тесты, проверящие корректность рабыты функций.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+	\addcontentsline{toc}{section}{Список литературы}
+	\bibitem{1} Вирт Н. - "Алгоритмы+структуры данных=программы"
+	\bibitem{2} Кнут Д. - "Искусство программирования. Том 3. Сортировка и поиск"
+	\bibitem{3} Дябилкин Д.А. - "Сортирующие сети"
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В данном разделе находится код, написанный в рамках лабораторной работы.
+\begin{lstlisting}
+	// RadixSortB.h
+	
+	// Copyright 2021 Belik Julia
+	#ifndef MODULES_TASK_1_BELIK_J_RADIX_SORT_RADIXSORTB_H_
+	#define MODULES_TASK_1_BELIK_J_RADIX_SORT_RADIXSORTB_H_
+	
+	#include <vector>
+	
+	void RadixSort(double* vec, size_t len, double* vec2);
+	std::vector<double> Vector(size_t n, double a, double b);
+	std::vector<double> MergeBatcherOMP(std::vector<double> vec, size_t size, int thr);
+	std::vector<double> MergeBatcherTBB(std::vector<double> vec, size_t size, int thr);
+	std::vector<double> MergeBatcherSTD(std::vector<double> vec, size_t size, int thr);
+	void Shuffle(double* vec, size_t len, double* vec2);
+	void PMerge(double* start1, double* start2, double* start3, size_t len1, size_t len2);
+	
+	class tbb_radixsort {
+		private:
+		double *in;
+		double *out;
+		std::vector<size_t> offsets;
+		std::vector<size_t> lens;
+		public:
+		tbb_radixsort(double *in_, double *out_, const std::vector<size_t>& offsets_,
+		const std::vector<size_t>& lens_) : in(in_), out(out_), offsets(offsets_), lens(lens_) {}
+		void operator() (const tbb::blocked_range<int> &range) const {
+			RadixSort(in + offsets[range.begin()], lens[range.begin()], out + offsets[range.begin()]);
+		}
+	};
+	
+	class tbb_pmerge {
+		private:
+		double *in;
+		double *out;
+		std::vector<size_t> offsets;
+		std::vector<size_t> lens;
+		int mergecount;
+		int offset;
+		int thr;
+		
+		public:
+		tbb_pmerge(double *in_, double *out_, const std::vector<size_t>& offsets_, const std::vector<size_t>& lens_,
+		int mergecount_, int offset_, int thr_) : in(in_), out(out_), offsets(offsets_), lens(lens_),
+		mergecount(mergecount_), offset(offset_), thr(thr_) {}
+		void operator() (const tbb::blocked_range<int> &range) const {
+			if ((range.begin() % mergecount == 0) && (range.begin() + offset < thr)) {
+			size_t len1 = lens[range.begin()] / 2 + lens[range.begin()] % 2;
+			size_t len2 = lens[range.begin() + offset] / 2 + lens[range.begin() + offset] % 2;
+			PMerge(in + offsets[range.begin()], in + offsets[range.begin() + offset],
+			out + offsets[range.begin()], len1, len2);
+		}
+		if ((range.begin() - offset >= 0) && ((range.begin() - offset) % mergecount == 0)) {
+		size_t start3 = offsets[range.begin() - offset] + lens[range.begin() - offset] / 2
+		+ lens[range.begin() - offset] % 2 + lens[range.begin()] / 2 + lens[range.begin()] % 2;
+		size_t start1 = offsets[range.begin() - offset] + lens[range.begin() - offset] / 2
+		+ lens[range.begin() - offset] % 2;
+		size_t start2 = offsets[range.begin()] + lens[range.begin()] / 2 + lens[range.begin()] % 2;
+		PMerge(in + start1, in + start2, out + start3, lens[range.begin() - offset] / 2, lens[range.begin()] / 2);
+	}
+}
+};
+
+class tbb_ppmerge {
+private:
+double *in;
+double *out;
+std::vector<size_t> offsets;
+std::vector<size_t> lens;
+int mergecount;
+int offset;
+int thr;
+public:
+tbb_ppmerge(double *in_, double *out_, const std::vector<size_t>& offsets_, const std::vector<size_t>& lens_,
+int mergecount_, int offset_, int thr_) : in(in_), out(out_), offsets(offsets_), lens(lens_),
+mergecount(mergecount_), offset(offset_), thr(thr_) {}
+void operator() (const tbb::blocked_range<int> &range) const {
+	if ((range.begin() % mergecount == 0) && (range.begin() + offset < thr)) {
+	size_t evencount = lens[range.begin()] / 2 + lens[range.begin() + offset] / 2 + lens[range.begin()] % 2
+	+ lens[range.begin() + offset] % 2;
+	size_t oddcount = lens[range.begin()] / 2 + lens[range.begin() + offset] / 2;
+	PMerge(in + offsets[range.begin()], in + offsets[range.begin()] + evencount, out + offsets[range.begin()],
+	evencount, oddcount);
+}
+}
+};
+
+class tbb_shuffle {
+private:
+double *in;
+double *out;
+std::vector<size_t> offsets;
+std::vector<size_t> lens;
+public:
+tbb_shuffle(double *in_, double *out_, const std::vector<size_t>& offsets_, const std::vector<size_t>& lens_)
+: in(in_), out(out_), offsets(offsets_), lens(lens_) {}
+void operator() (const tbb::blocked_range<int> &range) const {
+if (lens[range.begin()] != 0) {
+	Shuffle(in + offsets[range.begin()], lens[range.begin()], out + offsets[range.begin()]);
+}
+}
+};
+
+class tbb_sshuffle {
+private:
+double *in;
+double *out;
+std::vector<size_t> offsets;
+std::vector<size_t> lens;
+int mergecount;
+int offset;
+int thr;
+public:
+tbb_sshuffle(double *in_, double *out_, const std::vector<size_t>& offsets_, const std::vector<size_t>& lens_,
+int mergecount_, int offset_, int thr_) : in(in_), out(out_), offsets(offsets_), lens(lens_),
+mergecount(mergecount_), offset(offset_), thr(thr_) {}
+void operator() (const tbb::blocked_range<int> &range) const {
+if ((range.begin() % mergecount == 0) && (range.begin() + offset < thr)) {
+Shuffle(in + offsets[range.begin()], lens[range.begin()], out + offsets[range.begin()]);
+}
+}
+};
+
+#endif  // MODULES_TASK_1_BELIK_J_RADIX_SORT_RADIXSORTB_H_
+\end{lstlisting}
+\begin{lstlisting}
+// RadixSortB.cpp
+// Copyright 2021 Belik Julia
+#include <tbb/tbb.h>
+#include <omp.h>
+#include <vector>
+#include <string>
+#include <random>
+#include <ctime>
+#include <algorithm>
+#include <iterator>
+#include <utility>
+#include <iostream>
+#include "../../../modules/task_1/belik_j_radix_sort/RadixSortB.h"
+#include "../../../3rdparty/unapproved/unapproved.h"
+void RadixSort(double* vec, size_t len, double* vec2) {
+double* vec1 = new double[len];
+for (size_t i = 0; i < len; i++)
+vec1[i] = vec[i];
+for (size_t i = 0; i < 7; i++) {
+unsigned char* bvec = (unsigned char*)vec1;
+int countb[256] = { 0 };
+int offset[256] = { 0 };
+for (size_t j = 0; j < len; j++)
+countb[bvec[8 * j + i]]++;
+offset[0] = 0;
+for (int j = 1; j < 256; j++)
+offset[j] = offset[j - 1] + countb[j - 1];
+for (size_t j = 0; j < len; j++)
+vec2[offset[bvec[8 * j + i]]++] = vec1[j];
+for (size_t i = 0; i < len; i++)
+vec1[i] = vec2[i];
+}
+unsigned char* bvec = (unsigned char*)vec1;
+int countb[256] = { 0 };
+int offset[256] = { 0 };
+for (size_t i = 0; i < len; i++)
+countb[bvec[8 * i + 7]]++;
+offset[255] = offset[255] - 1;
+for (int i = 254; i >= 128; i--)
+offset[i] = offset[i + 1] + countb[i];
+offset[0] = offset[128] + 1;
+for (int i = 1; i < 128; i++)
+offset[i] = offset[i - 1] + countb[i - 1];
+for (size_t i = 0; i < len; i++) {
+if (bvec[8 * i + 7] >= 128) {
+vec2[offset[bvec[8 * i + 7]]--] = vec1[i];
+} else {
+vec2[offset[bvec[8 * i + 7]]++] = vec1[i];
+}
+}
+delete[] vec1;
+}
+std::vector<double> Vector(size_t n, double a, double b) {
+std::mt19937 gen;
+gen.seed(static_cast<unsigned int>(time(0)));
+std::uniform_real_distribution<double> rand(a, b);
+std::vector<double> vec(n);
+for (size_t i = 0; i < n; i++)
+vec[i] = rand(gen);
+return vec;
+}
+
+std::vector<double> MergeBatcherOMP(std::vector<double> vec, int size, int thr) {
+const int len = size / thr;
+size_t* lens = new size_t[thr];
+double* vectmp = new double[size];
+#pragma omp parallel for num_threads(thr)
+for (int j = 0; j < size; j++)
+vectmp[j] = vec[j];
+#pragma omp parallel for num_threads(thr)
+for (int j = 0; j < thr; j++)
+lens[j] = len;
+lens[thr - 1] += size % thr;
+size_t* offsets = new size_t[thr];
+offsets[0] = 0;
+for (int j = 1; j < thr; j++)
+offsets[j] = offsets[j - 1] + lens[j - 1];
+std::vector<double> rez(size);
+double* reztmp = new double[size];
+#pragma omp parallel for num_threads(thr)
+for (int i = 0; i < thr; i++) {
+RadixSort(vectmp + offsets[i], lens[i], reztmp + offsets[i]);
+if (thr > 1) {
+Shuffle(reztmp + offsets[i], lens[i], vectmp + offsets[i]);
+} else {
+for (size_t j = 0; j < lens[i]; j++)
+vectmp[offsets[i] + j] = reztmp[offsets[i] + j];
+}
+}
+int nt = thr;
+int mergecount = 2, offset = 1;
+int nummerge = 1, pow = 2;
+while (pow < thr) {
+pow *= 2;
+nummerge++;
+}
+for (int h = 0; h < nummerge; h++) {
+#pragma omp parallel for num_threads(thr)
+for (int i = 0; i < thr; i++) {
+if ((i % mergecount == 0) && (i + offset < thr)) {
+size_t len1 = lens[i] / 2 + lens[i] % 2;
+size_t len2 = lens[i + offset] / 2 + lens[i + offset] % 2;
+PMerge(vectmp + offsets[i], vectmp + offsets[i + offset], reztmp + offsets[i], len1, len2);
+}
+if ((i - offset >= 0) && ((i - offset) % mergecount == 0)) {
+size_t start1 = offsets[i - offset] + lens[i - offset] / 2 + lens[i - offset] % 2;
+size_t start2 = offsets[i] + lens[i] / 2 + lens[i] % 2;
+size_t start3 = start1 + lens[i] / 2 + lens[i] % 2;
+PMerge(vectmp + start1, vectmp + start2, reztmp + start3, lens[i - offset] / 2, lens[i] / 2);
+}
+}
+#pragma omp parallel for num_threads(thr)
+for (int i = 0; i < thr; i++) {
+if ((i % mergecount == 0) && (i + offset < thr)) {
+size_t evencount = lens[i] / 2 + lens[i + offset] / 2 + lens[i] % 2 + lens[i + offset] % 2;
+size_t oddcount = lens[i] / 2 + lens[i + offset] / 2;
+PMerge(reztmp + offsets[i], reztmp + offsets[i] + evencount, vectmp + offsets[i], evencount, oddcount);
+if (h != nummerge - 1) {
+Shuffle(vectmp + offsets[i], lens[i] + lens[i + offset], reztmp + offsets[i]);
+}
+lens[i] += lens[i + offset];
+lens[i + offset] = 0;
+}
+}
+if (h != nummerge - 1) {
+#pragma omp parallel for num_threads(thr)
+for (int j = 0; j < size; j++)
+vectmp[j] = reztmp[j];
+}
+nt /= 2;
+mergecount *= 2;
+offset *= 2;
+for (int j = 1; j < thr; j++)
+offsets[j] = offsets[j - 1] + lens[j - 1];
+}		
+delete[] lens;
+delete[] offsets;
+#pragma omp parallel for num_threads(thr)
+for (int j = 0; j < size; j++)
+vec[j] = vectmp[j];
+delete[] vectmp;
+delete[] reztmp;
+return vec;
+}
+
+std::vector<double> MergeBatcherTBB(std::vector<double> vec, size_t size, int thr) {
+tbb::task_scheduler_init init(thr);
+const size_t len = size / thr;
+std::vector<size_t> lens(thr);
+double* vectmp = new double[size];
+for (size_t j = 0; j < size; j++)
+vectmp[j] = vec[j];
+for (int j = 0; j < thr; j++)
+lens[j] = len;
+lens[thr - 1] += size % thr;
+std::vector<size_t> offsets(thr);
+offsets[0] = 0;
+for (int j = 1; j < thr; j++)
+offsets[j] = offsets[j - 1] + lens[j - 1];
+std::vector<double> rez(size);
+double* reztmp = new double[size];
+if (thr == 1) {
+RadixSort(vectmp, size, reztmp);
+for (size_t j = 0; j < size; j++)
+rez[j] = reztmp[j];
+return rez;
+}
+tbb_radixsort tbbrs(vectmp, reztmp, offsets, lens);
+tbb::parallel_for(tbb::blocked_range<int>(0, thr, 1), tbbrs);
+tbb_shuffle tbbsh(reztmp, vectmp, offsets, lens);
+tbb::parallel_for(tbb::blocked_range<int>(0, thr, 1), tbbsh);
+int nt = thr;
+int mergecount = 2, offset = 1;
+int nummerge = 1, pow = 2;
+while (pow < thr) {
+pow *= 2;
+nummerge++;
+}
+for (int h = 0; h < nummerge; h++) {
+tbb_pmerge tbbpm(vectmp, reztmp, offsets, lens, mergecount, offset, thr);
+tbb::parallel_for(tbb::blocked_range<int>(0, thr, 1), tbbpm);
+tbb_ppmerge tbbppm(reztmp, vectmp, offsets, lens, mergecount, offset, thr);
+tbb::parallel_for(tbb::blocked_range<int>(0, thr, 1), tbbppm);
+for (int j = 0; j < thr; j++)
+if ((j % mergecount == 0) && (j + offset < thr)) {
+lens[j] += lens[j + offset];
+lens[j + offset] = 0;
+}
+for (int j = 1; j < thr; j++)
+offsets[j] = offsets[j - 1] + lens[j - 1];
+if (h != nummerge - 1) {
+tbb_sshuffle tbbssh(vectmp, reztmp, offsets, lens, mergecount, offset, thr);
+tbb::parallel_for(tbb::blocked_range<int>(0, thr, 1), tbbssh);
+for (size_t j = 0; j < size; j++)
+vectmp[j] = reztmp[j];
+}
+nt /= 2;
+mergecount *= 2;
+offset *= 2;
+}
+for (size_t j = 0; j < size; j++)
+rez[j] = vectmp[j];
+delete[] vectmp;
+delete[] reztmp;
+return rez;
+}
+
+std::vector<double> MergeBatcherSTD(std::vector<double> vec, size_t size, int thr) {
+const size_t len = size / thr;
+size_t* lens = new size_t[thr];
+double* vectmp = new double[size];
+for (size_t j = 0; j < size; j++)
+vectmp[j] = vec[j];
+for (int j = 0; j < thr; j++)
+lens[j] = len;
+lens[thr - 1] += size % thr;
+size_t* offsets = new size_t[thr];
+offsets[0] = 0;
+for (int j = 1; j < thr; j++)
+offsets[j] = offsets[j - 1] + lens[j - 1];
+std::vector<double> rez(size);
+double* reztmp = new double[size];
+if (thr == 1) {
+RadixSort(vectmp, size, reztmp);
+for (size_t j = 0; j < size; j++)
+rez[j] = reztmp[j];
+delete[] lens;
+delete[] offsets;
+delete[] vectmp;
+delete[] reztmp;
+return rez;
+}
+std::vector<std::thread> threadssort;
+for (int i = 0; i < thr; i++) {
+threadssort.push_back(std::thread([i, &vectmp, &offsets, &lens, &reztmp]() {
+RadixSort(vectmp + offsets[i], lens[i], reztmp + offsets[i]);
+Shuffle(reztmp + offsets[i], lens[i], vectmp + offsets[i]);
+}));
+}
+for (auto& t : threadssort)
+t.join();
+int nt = thr;
+int mergecount = 2, offset = 1;
+int nummerge = 1, pow = 2;
+while (pow < thr) {
+pow *= 2;
+nummerge++;
+}
+for (int h = 0; h < nummerge; h++) {
+std::vector<std::thread> threadsmp;
+for (int i = 0; i < thr; i++) {
+threadsmp.push_back(std::thread([i, &vectmp, &offsets, &lens, &reztmp, mergecount, offset, thr]() {
+if ((i % mergecount == 0) && (i + offset < thr)) {
+size_t len1 = lens[i] / 2 + lens[i] % 2;
+size_t len2 = lens[i + offset] / 2 + lens[i + offset] % 2;
+PMerge(vectmp + offsets[i], vectmp + offsets[i + offset], reztmp + offsets[i], len1, len2);
+}
+if ((i - offset >= 0) && ((i - offset) % mergecount == 0)) {
+size_t start3 = offsets[i - offset] + lens[i - offset] / 2 + lens[i - offset] % 2
++ lens[i] / 2 + lens[i] % 2;
+size_t start1 = offsets[i - offset] + lens[i - offset] / 2 + lens[i - offset] % 2;
+size_t start2 = offsets[i] + lens[i] / 2 + lens[i] % 2;
+PMerge(vectmp + start1, vectmp + start2, reztmp + start3, lens[i - offset] / 2, lens[i] / 2);
+}
+}));
+}
+for (auto& t : threadsmp)
+t.join();
+std::vector<std::thread> threadsm;
+for (int i = 0; i < thr; i++) {
+threadsm.push_back(std::thread([i, &vectmp, &offsets, &lens,
+&reztmp, mergecount, offset, nummerge, thr, h]() {
+if ((i % mergecount == 0) && (i + offset < thr)) {
+size_t evencount = lens[i] / 2 + lens[i + offset] / 2 + lens[i] % 2 + lens[i + offset] % 2;
+size_t oddcount = lens[i] / 2 + lens[i + offset] / 2;
+PMerge(reztmp + offsets[i], reztmp + offsets[i] + evencount,
+vectmp + offsets[i], evencount, oddcount);
+if (h != nummerge - 1) {
+Shuffle(vectmp + offsets[i], lens[i] + lens[i + offset], reztmp + offsets[i]);
+}
+lens[i] += lens[i + offset];
+lens[i + offset] = 0;
+}
+}));
+}
+for (auto& t : threadsm)
+t.join();
+if (h != nummerge - 1) {
+for (size_t j = 0; j < size; j++)
+vectmp[j] = reztmp[j];
+}
+nt /= 2;
+mergecount *= 2;
+offset *= 2;
+for (int j = 1; j < thr; j++)
+offsets[j] = offsets[j - 1] + lens[j - 1];
+}
+delete[] lens;
+delete[] offsets;
+for (size_t j = 0; j < size; j++)
+vec[j] = vectmp[j];
+delete[] vectmp;
+delete[] reztmp;
+return vec;
+}
+
+void Shuffle(double* vec, size_t len, double* vec2) {
+for (size_t i = 0; i < len; i++)
+vec2[i / 2 + (i % 2) * (len / 2 + len % 2)] = vec[i];
+}
+void PMerge(double* start1, double* start2, double* start3, size_t len1, size_t len2) {
+size_t i = 0, j = 0, k = 0;
+while ((i < len1) && (j < len2)) {
+if (start1[i] < start2[j])
+start3[k++] = start1[i++];
+else
+start3[k++] = start2[j++];
+}
+while (i < len1)
+start3[k++] = start1[i++];
+while (j < len2)
+start3[k++] = start2[j++];
+}
+\end{lstlisting}
+\begin{lstlisting}
+// main.cpp
+// Copyright 2021 Belik Julia
+#include <gtest/gtest.h>
+#include <vector>
+#include <numeric>
+#include <algorithm>
+#include <iostream>
+#include "./RadixSortB.h"
+
+TEST(Radix_Sort_Merge_Batcher, Test_Sort) {
+std::vector<double> vec;
+const int n = 10;
+vec = Vector(n, -10000.0, 10000.0);
+double* tmp1 = new double[n];
+double* tmp2 = new double[n];
+for (int i = 0; i < n; i++)
+tmp1[i] = vec[i];
+RadixSort(tmp1, n, tmp2);
+std::vector<double> v1(n);
+for (int i = 0; i < n; i++)
+v1[i] = tmp2[i];
+std::sort(vec.begin(), vec.end());
+delete[] tmp1;
+delete[] tmp2;
+ASSERT_EQ(v1, vec);
+}
+TEST(Radix_Sort_Merge_Batcher, Test_Sort_OMP_4thr) {
+std::vector<double> vec;
+const int n = 10;
+vec = Vector(n, -10.0, 10.0);
+std::vector<double> v1 = MergeBatcherOMP(vec, n, 4);
+std::sort(vec.begin(), vec.end());
+ASSERT_EQ(v1, vec);
+}
+TEST(Radix_Sort_Merge_Batcher, Test_Sort_TBB_4thr) {
+std::vector<double> vec;
+const int n = 10;
+vec = Vector(n, -10.0, 10.0);
+std::vector<double> v1 = MergeBatcherTBB(vec, n, 4);
+std::sort(vec.begin(), vec.end());
+ASSERT_EQ(v1, vec);
+}
+TEST(Radix_Sort_Merge_Batcher, Test_Sort_STD_4thr) {
+std::vector<double> vec;
+const int n = 10;
+vec = Vector(n, -10.0, 10.0);
+std::vector<double> v1 = MergeBatcherSTD(vec, n, 4);
+std::sort(vec.begin(), vec.end());
+ASSERT_EQ(v1, vec);
+}
+TEST(Radix_Sort_Merge_Batcher, Test_Sort_Par) {
+std::vector<double> vec;
+const int n = 20;
+int thr = 4;
+vec = Vector(n, -10000.0, 10000.0);
+std::vector<double> v1 = MergeBatcherOMP(vec, n, thr);
+std::vector<double> v2 = MergeBatcherTBB(vec, n, thr);
+std::vector<double> v3 = MergeBatcherSTD(vec, n, thr);
+ASSERT_EQ(v1, v2);
+}
+int main(int argc, char **argv) {
+::testing::InitGoogleTest(&argc, argv);
+return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\end{document}
