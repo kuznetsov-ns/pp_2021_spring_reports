@@ -1,0 +1,988 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Поразрядная сортировка для целых чисел с простым слиянием.»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-3 \\ Макарычев С. Д.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+К списку самых популярных задач в программировании относится сортировка данных в порядке возрастания или убывания по какому-либо ключу. Одной из таких задач является поразрядная сортировка для целых чисел.
+\par Главным преимуществом данного алгоритма является работа за линейное время. Также его можно применить ко всем объектам, которые можно поделить на условные ``разряды''. В частности целые числа типа \verb|int|.
+\par Реализация поразрядной сортировки существует в двух вариантах: LSD(сортировка производится по разрядам справа налево) и MSD(сортировка производится по разрядам слева направо). В данной работе реализуется поразрядная сортировка первого типа.
+\par Таким образом, нами будет рассмотрены последовательная реализация сортировки и ее распараллеливание с использованием разных технологий.
+\newpage
+% Конец введения
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+
+В рамках лабораторной работы необходимо выполнить несколько задач:
+
+\begin{enumerate} 
+
+\item Изучить алгоритм поразрядной сортировки для целых чисел
+\item Реализовать последовательную версию алгоритма и создать автоматические тесты для проверки корректности его работы
+\item Реализовать параллельную версию алгоритма, использовав технологию OpenMP. Создать автоматические тесты для проверки корректности его работы
+\item Реализовать параллельную версию алгоритма, использовав технологию TBB. Создать автоматические тесты для проверки корректности его работы
+\item Провести вычислительные эксперименты и сделать выводы
+
+\end{enumerate} 
+
+\newpage
+% Конец постановки задачи
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+В нашем случае поразрядная сортировка сортирует элементы по разрядам чисел, начиная с крайнего правого разряда и заканчивая крайним левым. За разряд считаем байт числа.
+\par Сортировка протекает следующим образом: начинаем идти по байтам числа с младшего байта, создаем массив счетчиков размером 256, так как каждый байт равен числу от 0 до 255. Смотрим значение текущего байта числа и и увеличиваем элемент в массиве счетчиков с индексом, равным этому значению, на единицу. Далее присваиваем элементу массива счетчиков значение, равное сумме элементов до данного. Производим окончательную расстановку: для каждого числа исходного массива мы знаем, сколько чисел меньше него - это значение хранится в массиве счетчиков. Таким образом, нам известно окончательное место числа в упорядоченном массиве: если есть K чисел меньше данного, то оно должно стоять на позиции K+1. Осуществляем проход по входному массиву слева направо, одновременно заполняя выходной массив.
+\par Так как у целых чисел со знаком левый бит старшего байта выделен для определения знака числа, то для корректной работы алгоритма мы из исходного массива создадим два вспомогательных массива(для положительных и отрицательных чисел), произведем их сортировку по отдельности и сольем их в исходный массив(снчала отсортированный массив отрицательных чисел, потом отсортированный массив положительных чисел).
+\newpage
+% Конец метод решения
+% Схема распараллеливания
+\begin{center}\section*{Схема распараллеливания}\end{center}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+\subsection*{Технология OpenMP}
+\addcontentsline{toc}{subsection}{Технология OpenMP}
+Для организации параллельного блока исполнения использовалась директива препроцессора \verb|#pragma omp parallel|.
+\par Исходный массив делится на равные части и распределяется по потокам, в случае если число элементов не делится нацело на число потоков, оставшиеся числа при делении числа элементов на число потоков, добавляются в нулевой поток.
+\par Затем каждый поток вызывает функцию поразрядной сортировки для своего выделенного массива.
+\par В конце необходимо сделать слияние всех отсортированных массивов в один. Слияние происходит в нулевом потоке, который поочередно вызвыет функцию слияния, в которую передает участки отсортированного массива.
+\subsection*{Технология TBB}
+\addcontentsline{toc}{subsection}{Технология TBB}
+Для решения задачи будем использовать функцию \verb|tbb::parallel_for|. Первым параметром которой является иттерационное пространство - в нашем случае \verb|tbb::blocked_range<int>(0, sizeVec, grainsize)|, где первый и второй параметр - левая и правая граница полуинтервала, третий параметр - размер порции вычислений. Вторым парметром является функтор, в котором вызывается функция сортировки для каждой части массива.
+\par В конце происходит слияние такое же, как в версии OpenMP.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+В программе используются функции, представленные ниже.
+Последовательный алгоритм поразрядной сортировки вызывается с помощью функции:
+\begin{lstlisting}
+void signedRadixSort(std::vector<int>* sortVec);
+\end{lstlisting}
+\par В качестве входного параметра передается указатель на сортируемый вектор чисел.
+\par Реализация параллельного алгоритма представлена в функциях:
+\begin{lstlisting}
+void signedRadixSortOmp(std::vector<int>* sortVec);
+void signedRadixSortTbb(std::vector<int>* sortVec);
+\end{lstlisting}
+\par В качестве входного параметра передается указатель на сортируемый вектор чисел.
+
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью Google Testing Framework.
+\par Набор представляет из себя тесты, которые проверяют корректность вычислений: сравниваются отсортированный с помощью функции стандартной библиотеки вектор и вектор, отсортированный с помощью написанной нами функции.
+
+\par Успешное прохождение всех тестов подтверждает корректность работы написанной программы.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельного алгоритма Фокса были проведены на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel Core i3-9100F, 3.60 GHz, 4 ядра;
+\item Оперативная память: 16,0 ГБ (DDR4);
+\item ОС: Майкрософт Windows 10 Pro 64-bit.
+\end{itemize}
+
+\par В рамках эксперимента было вычислено время работы параллельного
+и последовательного алгоритмов поразрядной сортировки. Размеры вектора в эксперименте: \verb|1500000| , \verb|15000000| и \verb|150000000|.
+\par  Тесты запускались на четырех потоках. Результаты экспериментов представлены ниже.
+
+\begin{table}[!h]
+\caption{Результаты экспериментов. Сравнение с OpenMP.}
+\centering
+\begin{tabular}{lllll}
+Размер вектора & Последовательно & Параллельно & Ускорение  \\
+1500000        & 0.427         & 0.132     & 3.3       \\
+15000000        & 4.2         & 1.4     & 2.9       \\
+150000000       & 41.7179         & 12.198     & 3.42       
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты экспериментов. Сравнение с TBB.}
+\centering
+\begin{tabular}{lllll}
+Размер вектора & Последовательно & Параллельно & Ускорение  \\
+1500000        & 	0.4231         & 0.199     & 	2.122       \\
+15000000        & 4.235         & 1.5459     & 2.74       \\
+150000000       & 41.8891         & 15.5868     & 2.68748       
+\end{tabular}
+\end{table}
+\par Из полученных результатов можно сделать несколько выводов:
+\begin{enumerate} 
+\item Благодаря параллельному исполнению время работы сортировки сократилось.
+\item Сложность и затратность в выполнении такого этапа сортировки, как слияние отсортированных массивов, сильно увеличивает время выполнения сортировки.
+
+\end{enumerate} 
+
+\newpage
+% Конец результатов экспериментов
+
+% Заключение
+\begin{center}\section*{Заключение}\end{center}
+\addcontentsline{toc}{section}{Заключение}
+
+В результате выполнения данной работы был изучен алгоритм поразрядной сортировки и возможность его распараллеливания с помощью разбиения исходного массива на части с последующим простым слиянием. Были реализованы: последовательная версия, OpenMP и TBB реализации. Выполнены замеры времени выполнения, на основании которых можно сделать вывод, что распараллеливание данного алгоритма даёт ускорение, равное количеству физических ядер на компьютере.
+\newpage
+% Конец заключения
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{algolist} Поразрядная сортировка. [Электронный ресурс] // URL: \url {https://http://algolist.ru/sort/radix_sort.php} (дата обращения: 25.03.2021)
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится весь код, написанный в рамках лабораторной работы.
+\begin{lstlisting}[language=C++]
+//Seq bitwise_sort.h
+// Copyright 2021 Makarychev Sergey
+#ifndef  MODULES_TASK_1_MAKARYCHEV_S_BITWISE_SORT_BITWISE_SORT_H_
+#define MODULES_TASK_1_MAKARYCHEV_S_BITWISE_SORT_BITWISE_SORT_H_
+#include <iostream>
+#include <vector>
+
+std::vector<int> getRandomVector(int sizeVec);
+void createCounters(int* sortVec, int* counters, int sizeVec);
+void signedRadix(int byteNumber, int sizeVec, int* sourceVec, int* destVec, int* count);
+void signedRadixSort(int* sortVec, int sizeVec);
+
+#endif  // MODULES_TASK_1_MAKARYCHEV_S_BITWISE_SORT_BITWISE_SORT_H_
+
+//Seq bitwise_sort.cpp
+
+// Copyright 2021 Makarychev Sergey
+#include "../../../modules/task_1/makarychev_s_bitwise_sort/bitwise_sort.h"
+#include <vector>
+#include <random>
+
+std::vector<int> getRandomVector(int sizeVec) {
+    if (sizeVec < 0)
+        throw "Wrong vector size";
+    std::vector<int> rVec(sizeVec);
+    std::random_device rd;
+    std::mt19937 mersenne(rd());
+    std::uniform_int_distribution<> uid(-1000, 2000);
+    for (int i = 0; i < sizeVec; i++)
+        rVec[i] = uid(mersenne);
+    return rVec;
+}
+
+void createCounters(int* sortVec, int* counters, int sizeVec) {
+  unsigned char* bytePointer = (unsigned char*)sortVec;
+  unsigned char* dataEnd = (unsigned char*)(sortVec + sizeVec);
+  int s = static_cast<int>(sizeof(int));
+  while (bytePointer != dataEnd) {
+    for (int i = 0; i < s; i++)
+      counters[256 * i + *bytePointer++]++;
+  }
+}
+void signedRadix(int byteNumber, int sizeVec, int* sourceVec, int* destVec, int* count) {
+  int sum = 0;
+  int* countPointer;
+  if (byteNumber == sizeof(int) - 1) {
+    int numNegative = 0;
+    for (int i = 128; i < 256; i++)
+      numNegative += count[i];
+
+    sum = numNegative;
+    countPointer = count;
+    int tmp;
+    for (int i = 0; i < 128; ++i, ++countPointer) {
+      tmp = *countPointer;
+      *countPointer = sum;
+      sum += tmp;
+    }
+    sum = 0;
+    countPointer = count + 128;
+    for (int i = 0; i < 128; ++i, ++countPointer) {
+      tmp = *countPointer;
+      *countPointer = sum;
+      sum += tmp;
+    }
+  } else {
+    countPointer = count;
+    int tmp;
+    for (int i = 256; i > 0; --i, ++countPointer) {
+      tmp = *countPointer;
+      *countPointer = sum;
+      sum += tmp;
+    }
+  }
+
+  unsigned char* bytePointer = (unsigned char*)sourceVec + byteNumber;
+  int* sourceVecPointer = sourceVec;
+  for (int i = sizeVec; i > 0; --i, bytePointer += sizeof(int), ++sourceVecPointer) {
+    countPointer = count + *bytePointer;
+    destVec[*countPointer] = *sourceVecPointer;
+    ++(*countPointer);
+  }
+}
+
+void signedRadixSort(int* sortVec, int sizeVec) {
+  int* out = new int[sizeVec];
+  std::vector<int> counters(sizeof(int) * 256);
+  int* count;
+  createCounters(sortVec, counters.data(), sizeVec);
+  int s = static_cast<int>(sizeof(int));
+  for (int i = 0; i < s; i++) {
+    count = counters.data() + 256 * i;
+    signedRadix(i, sizeVec, sortVec, out, count);
+    std::swap(sortVec, out);
+  }
+  delete[] out;
+}
+
+//Seq main.cpp
+
+// Copyright 2021 Makarychev Sergey
+#include <gtest/gtest.h>
+#include <algorithm>
+#include <vector>
+#include "./bitwise_sort.h"
+
+TEST(Sequential_Radix_Sort, sort_vector_of_random_value_1) {
+    std::vector<int> vec1 = getRandomVector(50);
+    std::vector<int> vec2 = vec1;
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    signedRadixSort(vec1.data(), vec1.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Sequential_Radix_Sort, sort_vector_of_random_value_2) {
+    std::vector<int> vec1 = getRandomVector(78);
+    std::vector<int> vec2 = vec1;
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    signedRadixSort(vec1.data(), vec1.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Sequential_Radix_Sort, sort_vector_of_litle_positive_value) {
+    std::vector<int> vec1 = {1, 3, 7, 4, 0, 7, 0, 9};
+    std::vector<int> vec2 = vec1;
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    signedRadixSort(vec1.data(), vec1.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Sequential_Radix_Sort, sort_vector_of_litle_negative_value) {
+    std::vector<int> vec1 = { -1, -8, -4, -10, -1, -6, -6, -6 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSort(vec1.data(), vec1.size());
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Sequential_Radix_Sort, sort_vector_of_zero_value) {
+    std::vector<int> vec1 = { 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int> vec2 = vec1;
+    signedRadixSort(vec1.data(), vec1.size());
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Sequential_Radix_Sort, sort_vector_of_mixed_value) {
+    std::vector<int> vec1 = { 2, -99947, -9, 87456, -987456, 0 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSort(vec1.data(), vec1.size());
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Sequential_Radix_Sort, sort_just_sorted_vector) {
+    std::vector<int> vec1 = { -99999, -1, 0, 8, 9, 15, 10265, 235458 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSort(vec1.data(), vec1.size());
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+//OpenMP bitwise_sort.h
+// Copyright 2021 Makarychev Sergey
+#ifndef  MODULES_TASK_2_MAKARYCHEV_S_BITWISE_SORT_BITWISE_SORT_H_
+#define MODULES_TASK_2_MAKARYCHEV_S_BITWISE_SORT_BITWISE_SORT_H_
+#include <omp.h>
+#include <iostream>
+#include <vector>
+
+std::vector<int> getRandomVector(int sizeVec);
+void createCounters(int* sortVec, int* counters, int sizeVec);
+void signedRadixSort(std::vector<int>* sortVec);
+void countersSort(int numByte, std::vector<int>* sortVec,
+  std::vector<int>* output);
+void unsignedRadixSort(std::vector<int>* sortVec);
+void signedRadixSortParallel(std::vector<int>* sortVec,
+  int leftIndex, int rightIndex, int sizeVec);
+void mergeOrderVec(int* vec1, int size1, int* vec2, int size2);
+void signedRadixSortOmp(std::vector<int>* sortVec);
+
+#endif  // MODULES_TASK_2_MAKARYCHEV_S_BITWISE_SORT_BITWISE_SORT_H_
+
+//OpenMP bitwise_sort.cpp
+// Copyright 2021 Makarychev Sergey
+#include <omp.h>
+#include <random>
+#include <algorithm>
+#include <vector>
+#include "../../../modules/task_2/makarychev_s_bitwise_sort/bitwise_sort.h"
+
+std::vector<int> getRandomVector(int sizeVec) {
+    if (sizeVec < 0)
+        throw "Wrong vector size";
+    std::vector<int> rVec(sizeVec);
+    std::random_device rd;
+    std::mt19937 mersenne(rd());
+    std::uniform_int_distribution<> uid(-1000, 2000);
+    for (int i = 0; i < sizeVec; i++)
+        rVec[i] = uid(mersenne);
+    return rVec;
+}
+
+void mergeOrderVec(int* vec1, int size1,  int* vec2, int size2) {
+    int* resVec = new int[size1 + size2];
+    int i = 0, s = 0, j = 0;
+    while (i < size1 && j < size2) {
+        if (vec1[i] < vec2[j])
+            resVec[s++] = vec1[i++];
+        else
+            resVec[s++] = vec2[j++];
+    }
+    while (i < size1)
+        resVec[s++] = vec1[i++];
+    while (j < size2)
+        resVec[s++] = vec2[j++];
+    i = s = 0;
+    while (i < size1 + size2)
+        vec1[i++] = resVec[s++];
+    delete[] resVec;
+}
+
+void createCounters(std::vector<int>* sortVec, int* counters, int numByte) {
+    unsigned char* bytePointer = (unsigned char*)sortVec->data();
+    int s = static_cast<int>(sizeof(int));
+    for (size_t i = 0; i < sortVec->size(); i++) {
+        counters[bytePointer[s * i + numByte]]++;
+    }
+}
+
+void countersSort(int numByte, std::vector<int>* sortVec,
+    std::vector<int>* output) {
+    unsigned char* bytePointer = (unsigned char*)sortVec->data();
+    const int sizeCounter = 256;
+    int counters[sizeCounter] = { 0 };
+    int typeSize = static_cast<int>(sizeof(int));
+    createCounters(sortVec, counters, numByte);
+    int value = 0;
+    for (int i = 0; i < sizeCounter; i++) {
+        int tmp = counters[i];
+        counters[i] = value;
+        value += tmp;
+    }
+    int index = 0;
+    for (size_t i = 0; i < sortVec->size(); i++) {
+        index = bytePointer[typeSize * i + numByte];
+        output->at(counters[index]++) = sortVec->at(i);
+    }
+}
+
+void unsignedRadixSort(std::vector<int>* sortVec) {
+    std::vector<int>* outbuf = new std::vector<int>(sortVec->size());
+    for (int i = 0; i < 4; i++) {
+        countersSort(i, sortVec, outbuf);
+        std::swap(sortVec, outbuf);
+    }
+}
+
+void signedRadixSort(std::vector<int>* sortVec) {
+    int positiveNum = 0;
+    int negativeNum = 0;
+    for (size_t i = 0; i < sortVec->size(); i++) {
+        if (sortVec->at(i) < 0)
+            negativeNum++;
+        else
+            positiveNum++;
+    }
+     std::vector<int> positiveNumVec(positiveNum);
+    std::vector<int> negativeNumVec(negativeNum);
+
+    int it1 = 0, it2 = 0;
+    for (size_t i = 0; i < sortVec->size(); i++) {
+        if (sortVec->at(i) >= 0)
+            positiveNumVec[it1++] = sortVec->at(i);
+        else
+            negativeNumVec[it2++] = sortVec->at(i);
+    }
+
+    unsignedRadixSort(&positiveNumVec);
+    unsignedRadixSort(&negativeNumVec);
+
+    int current_buff = 0;
+    for (size_t i = 0; i < negativeNumVec.size() ; i++) {
+        sortVec->at(i) = negativeNumVec.at(current_buff);
+        current_buff++;
+    }
+    current_buff = 0;
+    for (size_t i = negativeNumVec.size();
+        i < positiveNumVec.size() + negativeNumVec.size(); i++) {
+        sortVec->at(i) = positiveNumVec.at(current_buff);
+        current_buff++;
+    }
+}
+
+
+
+void signedRadixSortParallel(std::vector<int>* sortVec,
+    int leftIndex, int rightIndex, int sizeVec) {
+
+    int positiveNum = 0;
+    int negativeNum = 0;
+    for (int i = leftIndex; i <= rightIndex; i++) {
+        if (sortVec->at(i) < 0)
+            negativeNum++;
+        else
+            positiveNum++;
+    }
+    std::vector<int> positiveNumVec(positiveNum);
+    std::vector<int> negativeNumVec(negativeNum);
+
+    int it1 = 0, it2 = 0;
+    for (int i = leftIndex; i <= rightIndex; i++) {
+        if (sortVec->at(i) >= 0)
+            positiveNumVec[it1++] = sortVec->at(i);
+        else
+            negativeNumVec[it2++] = sortVec->at(i);
+    }
+
+    unsignedRadixSort(&positiveNumVec);
+    unsignedRadixSort(&negativeNumVec);
+
+    int currentId = 0;
+    for (size_t i = leftIndex; i < negativeNumVec.size() + leftIndex; i++) {
+        sortVec->at(i) = negativeNumVec.at(currentId);
+        currentId++;
+    }
+    currentId = 0;
+    for (size_t i = leftIndex + negativeNumVec.size();
+        i < positiveNumVec.size() + leftIndex + negativeNumVec.size(); i++) {
+        sortVec->at(i) = positiveNumVec.at(currentId);
+        currentId++;
+    }
+}
+
+void signedRadixSortOmp(std::vector<int>* sortVec) {
+    int numberThreads = 0;
+    int sizeVec = sortVec->size();
+#pragma omp parallel
+    {
+        int sizePartVec = 0;
+        numberThreads = omp_get_num_threads();
+        sizePartVec = sizeVec / numberThreads;
+        int remainder = sizeVec % numberThreads;
+        int threadId = omp_get_thread_num();
+#pragma omp master
+        {
+            sizePartVec += remainder;
+            remainder = 0;
+        }
+        signedRadixSortParallel(sortVec,  threadId * sizePartVec + remainder,
+            (threadId + 1)* sizePartVec + remainder - 1, sizePartVec);
+    }
+
+    for (int i = 1; i < numberThreads; i++) {
+        int remainder = sizeVec % numberThreads;
+        int current_size = sortVec->size() / numberThreads;
+        if (i == 0) {
+            current_size = sortVec->size() /
+                numberThreads + sortVec->size() % numberThreads;
+        } else {
+            current_size = sortVec->size() / numberThreads;
+        }
+        mergeOrderVec(sortVec->data(), current_size * i + remainder,
+            sortVec->data() + current_size * i  + remainder, current_size);
+    }
+}
+
+//OpenMP main.cpp
+// Copyright 2021 Makarychev Sergey
+#include <gtest/gtest.h>
+#include <algorithm>
+#include <vector>
+#include "./bitwise_sort.h"
+
+TEST(Sequential_Radix_Sort, sort_vector_of_random_value) {
+    std::vector<int> vec1 = getRandomVector(78);
+    std::vector<int> vec2 = vec1;
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    signedRadixSort(&vec1);
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_litle_positive_value) {
+    std::vector<int> vec1 = {1, 3, 7, 4, 0, 7, 0, 9};
+    std::vector<int> vec2 = vec1;
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    signedRadixSortOmp(&vec1);
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_seq_omp) {
+    std::vector<int> vec1 = { 1, 3, 7, 4, 0, 7, 0, 9 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSortOmp(&vec1);
+    signedRadixSort(&vec2);
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_litle_negative_value) {
+    std::vector<int> vec1 = { -1, -8, -4, -10, -1, -6, -6, -6 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSortOmp(&vec1);
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_zero_value) {
+    std::vector<int> vec1 = { 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int> vec2 = vec1;
+    signedRadixSortOmp(&vec1);
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_mixed_value) {
+    std::vector<int> vec1 = { 2, -99947, -9, 87456, -987456, 0 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSortOmp(&vec1);
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_just_sorted_vector) {
+    std::vector<int> vec1 = { -99999, -1, 0, 8, 9, 15, 10265, 235458 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSortOmp(&vec1);
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+/*TEST(Omp_Radix_Sort, sort_vector_of_random_value_with_time) {
+    std::vector<int> vec1 = getRandomVector(150000000);
+    std::vector<int> vec2 = vec1;
+    std::cout << std::endl;
+    double t1 = omp_get_wtime();
+    signedRadixSortOmp(&vec1);
+    double t2 = omp_get_wtime();
+    double ompTime = t2 - t1;
+    std::cout << "Par: " << ompTime << std::endl;
+    t1 = omp_get_wtime();
+    signedRadixSort(&vec2);
+    t2 = omp_get_wtime();
+    double seqTime = t2 - t1;
+    std::cout << "Seq: " << seqTime << std::endl;
+    std::cout << "Acceleration: " << seqTime / ompTime << std::endl;
+    ASSERT_EQ(vec1, vec2);
+}*/
+
+//TBB bitwise_sort.h
+// Copyright 2021 Makarychev Sergey
+#ifndef  MODULES_TASK_3_MAKARYCHEV_S_BITWISE_SORT_BITWISE_SORT_H_
+#define MODULES_TASK_3_MAKARYCHEV_S_BITWISE_SORT_BITWISE_SORT_H_
+#include <iostream>
+#include <vector>
+
+std::vector<int> getRandomVector(int sizeVec);
+void createCounters(int* sortVec, int* counters, int sizeVec);
+void signedRadixSort(std::vector<int>* sortVec);
+void countersSort(int numByte, std::vector<int>* sortVec,
+  std::vector<int>* output);
+void unsignedRadixSort(std::vector<int>* sortVec);
+void signedRadixSortParallel(std::vector<int>* sortVec,
+  int leftIndex, int rightIndex);
+void mergeOrderVec(int* vec1, int size1, int* vec2, int size2);
+void signedRadixSortTbb(std::vector<int>* sortVec);
+
+#endif  // MODULES_TASK_3_MAKARYCHEV_S_BITWISE_SORT_BITWISE_SORT_H_
+
+//TBB bitwise_sort.cpp
+// Copyright 2021 Makarychev Sergey
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <random>
+#include <algorithm>
+#include <vector>
+#include "../../../modules/task_3/makarychev_s_bitwise_sort/bitwise_sort.h"
+
+std::vector<int> getRandomVector(int sizeVec) {
+    if (sizeVec < 0)
+        throw "Wrong vector size";
+    std::vector<int> rVec(sizeVec);
+    std::random_device rd;
+    std::mt19937 mersenne(rd());
+    std::uniform_int_distribution<> uid(-1000, 2000);
+    for (int i = 0; i < sizeVec; i++)
+        rVec[i] = uid(mersenne);
+    return rVec;
+}
+
+void mergeOrderVec(int* vec1, int size1, int* vec2, int size2) {
+    int* resVec = new int[size1 + size2];
+    int i = 0, s = 0, j = 0;
+    while (i < size1 && j < size2) {
+        if (vec1[i] < vec2[j])
+            resVec[s++] = vec1[i++];
+        else
+            resVec[s++] = vec2[j++];
+    }
+    while (i < size1)
+        resVec[s++] = vec1[i++];
+    while (j < size2)
+        resVec[s++] = vec2[j++];
+    i = s = 0;
+    while (i < size1 + size2)
+        vec1[i++] = resVec[s++];
+    delete[] resVec;
+}
+
+void createCounters(std::vector<int>* sortVec, int* counters, int numByte) {
+    unsigned char* bytePointer = (unsigned char*)sortVec->data();
+    int s = static_cast<int>(sizeof(int));
+    for (size_t i = 0; i < sortVec->size(); i++) {
+        counters[bytePointer[s * i + numByte]]++;
+    }
+}
+
+void countersSort(int numByte, std::vector<int>* sortVec,
+    std::vector<int>* output) {
+    unsigned char* bytePointer = (unsigned char*)sortVec->data();
+    const int sizeCounter = 256;
+    int counters[sizeCounter] = { 0 };
+    int typeSize = static_cast<int>(sizeof(int));
+    createCounters(sortVec, counters, numByte);
+    int value = 0;
+    for (int i = 0; i < sizeCounter; i++) {
+        int tmp = counters[i];
+        counters[i] = value;
+        value += tmp;
+    }
+    int index = 0;
+    for (size_t i = 0; i < sortVec->size(); i++) {
+        index = bytePointer[typeSize * i + numByte];
+        output->at(counters[index]++) = sortVec->at(i);
+    }
+}
+
+void unsignedRadixSort(std::vector<int>* sortVec) {
+    std::vector<int>* outbuf = new std::vector<int>(sortVec->size());
+    for (int i = 0; i < 4; i++) {
+        countersSort(i, sortVec, outbuf);
+        std::swap(sortVec, outbuf);
+    }
+}
+
+void signedRadixSort(std::vector<int>* sortVec) {
+    int positiveNum = 0;
+    int negativeNum = 0;
+    for (size_t i = 0; i < sortVec->size(); i++) {
+        if (sortVec->at(i) < 0)
+            negativeNum++;
+        else
+            positiveNum++;
+    }
+    std::vector<int> positiveNumVec(positiveNum);
+    std::vector<int> negativeNumVec(negativeNum);
+
+    int it1 = 0, it2 = 0;
+    for (size_t i = 0; i < sortVec->size(); i++) {
+        if (sortVec->at(i) >= 0)
+            positiveNumVec[it1++] = sortVec->at(i);
+        else
+            negativeNumVec[it2++] = sortVec->at(i);
+    }
+
+    unsignedRadixSort(&positiveNumVec);
+    unsignedRadixSort(&negativeNumVec);
+
+    int current_buff = 0;
+    for (size_t i = 0; i < negativeNumVec.size(); i++) {
+        sortVec->at(i) = negativeNumVec.at(current_buff);
+        current_buff++;
+    }
+    current_buff = 0;
+    for (size_t i = negativeNumVec.size();
+        i < positiveNumVec.size() + negativeNumVec.size(); i++) {
+        sortVec->at(i) = positiveNumVec.at(current_buff);
+        current_buff++;
+    }
+}
+
+
+
+void signedRadixSortParallel(std::vector<int>* sortVec,
+    int leftIndex, int rightIndex) {
+
+    int positiveNum = 0;
+    int negativeNum = 0;
+    for (int i = leftIndex; i <= rightIndex; i++) {
+        if (sortVec->at(i) < 0)
+            negativeNum++;
+        else
+            positiveNum++;
+    }
+    std::vector<int> positiveNumVec(positiveNum);
+    std::vector<int> negativeNumVec(negativeNum);
+
+    int it1 = 0, it2 = 0;
+    for (int i = leftIndex; i <= rightIndex; i++) {
+        if (sortVec->at(i) >= 0)
+            positiveNumVec[it1++] = sortVec->at(i);
+        else
+            negativeNumVec[it2++] = sortVec->at(i);
+    }
+
+    unsignedRadixSort(&positiveNumVec);
+    unsignedRadixSort(&negativeNumVec);
+
+    int currentId = 0;
+    for (size_t i = leftIndex; i < negativeNumVec.size() + leftIndex; i++) {
+        sortVec->at(i) = negativeNumVec.at(currentId);
+        currentId++;
+    }
+    currentId = 0;
+    for (size_t i = leftIndex + negativeNumVec.size();
+        i < positiveNumVec.size() + leftIndex + negativeNumVec.size(); i++) {
+        sortVec->at(i) = positiveNumVec.at(currentId);
+        currentId++;
+    }
+}
+
+void signedRadixSortTbb(std::vector<int>* sortVec) {
+    int previous = 0;
+    int numberThreads = 4;
+    int sizeVec = sortVec->size();
+    int sizePartVec = sizeVec / numberThreads;
+    int grainsize = sizePartVec;
+    tbb::parallel_for(tbb::blocked_range<int>(0, sizeVec, grainsize),
+        [&sortVec](const tbb::blocked_range<int>& r) {
+        signedRadixSortParallel(sortVec, r.begin(), r.end() - 1);
+        });
+    for (int i = 1; i < sizeVec; i++) {
+        if (sortVec->at(i) < sortVec->at(i - 1)) {
+                mergeOrderVec(sortVec->data(), previous,
+                    sortVec->data() + previous, i - previous);
+                previous = i;
+        }
+    }
+    mergeOrderVec(sortVec->data(), previous, sortVec->data() + previous,
+        sizeVec - previous);
+}
+
+//TBB main.cpp
+// Copyright 2021 Makarychev Sergey
+#include <gtest/gtest.h>
+#include <tbb/tick_count.h>
+#include <algorithm>
+#include <vector>
+#include "./bitwise_sort.h"
+
+TEST(Sequential_Radix_Sort, sort_vector_of_random_value) {
+    std::vector<int> vec1 = getRandomVector(78);
+    std::vector<int> vec2 = vec1;
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    signedRadixSort(&vec1);
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_litle_positive_value) {
+    std::vector<int> vec1 = { 1, 3, 7, 4, 0, 7, 0, 9 };
+    std::vector<int> vec2 = vec1;
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    signedRadixSortTbb(&vec1);
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_seq_omp) {
+    std::vector<int> vec1 = { 1, 3, 7, 4, 0, 7, 0, 9 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSortTbb(&vec1);
+    signedRadixSort(&vec2);
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_litle_negative_value) {
+    std::vector<int> vec1 = { -1, -8, -4, -10, -1, -6, -6, -6 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSortTbb(&vec1);
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_zero_value) {
+    std::vector<int> vec1 = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSortTbb(&vec1);
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_vector_of_mixed_value) {
+    std::vector<int> vec1 = { 2, -99947, -9, 87456, -987456, 0 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSortTbb(&vec1);
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Omp_Radix_Sort, sort_just_sorted_vector) {
+    std::vector<int> vec1 = { -99999, -1, 0, 8, 9, 15, 10265, 235458 };
+    std::vector<int> vec2 = vec1;
+    signedRadixSortTbb(&vec1);
+    std::sort(vec2.begin(), vec2.begin() + vec2.size());
+    ASSERT_EQ(vec1, vec2);
+}
+
+TEST(Seqvssspar, Test_Only_Positive1) {
+    std::vector<int> vec1 = getRandomVector(1500000);
+    std::vector<int> vec2 = vec1;
+    tbb::tick_count t1Seq = tbb::tick_count::now();
+    signedRadixSort(&vec1);
+    tbb::tick_count t2Seq = tbb::tick_count::now();
+    double time_seq = (t2Seq - t1Seq).seconds();
+    std::cout << "Seq: " << time_seq << std::endl;
+    tbb::tick_count t1_par = tbb::tick_count::now();
+    signedRadixSortTbb(&vec2);
+    tbb::tick_count t2_par = tbb::tick_count::now();
+    double time_par = (t2_par - t1_par).seconds();
+    std::cout << "Par: " << time_par << std::endl;
+    std::cout << "Acceleration " << time_seq / time_par << std::endl;
+    ASSERT_EQ(vec2, vec1);
+}
+
+TEST(Seqvssspar, Test_Only_Positive2) {
+    std::vector<int> vec1 = getRandomVector(15000000);
+    std::vector<int> vec2 = vec1;
+    tbb::tick_count t1Seq = tbb::tick_count::now();
+    signedRadixSort(&vec1);
+    tbb::tick_count t2Seq = tbb::tick_count::now();
+    double time_seq = (t2Seq - t1Seq).seconds();
+    std::cout << "Seq: " << time_seq << std::endl;
+    tbb::tick_count t1_par = tbb::tick_count::now();
+    signedRadixSortTbb(&vec2);
+    tbb::tick_count t2_par = tbb::tick_count::now();
+    double time_par = (t2_par - t1_par).seconds();
+    std::cout << "Par: " << time_par << std::endl;
+    std::cout << "Acceleration " << time_seq / time_par << std::endl;
+    ASSERT_EQ(vec2, vec1);
+}
+
+ TEST(Seqvssspar, Test_Only_Positive) {
+     std::vector<int> vec1 = getRandomVector(150000000);
+     std::vector<int> vec2 = vec1;
+     tbb::tick_count t1Seq = tbb::tick_count::now();
+     signedRadixSort(&vec1);
+     tbb::tick_count t2Seq = tbb::tick_count::now();
+     double time_seq = (t2Seq - t1Seq).seconds();
+     std::cout << "Seq: " << time_seq << std::endl;
+     tbb::tick_count t1_par = tbb::tick_count::now();
+     signedRadixSortTbb(&vec2);
+     tbb::tick_count t2_par = tbb::tick_count::now();
+     double time_par = (t2_par - t1_par).seconds();
+     std::cout << "Par: " << time_par << std::endl;
+     std::cout << "Acceleration " << time_seq / time_par << std::endl;
+     ASSERT_EQ(vec2, vec1);
+ }
+
+\end{lstlisting}
+\end{document}
