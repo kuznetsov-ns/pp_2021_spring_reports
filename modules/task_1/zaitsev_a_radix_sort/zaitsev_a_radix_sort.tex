@@ -1,0 +1,1376 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Поразрядная сортировка для вещественных чисел с чётно-нечётным слиянием Бэтчера»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-3 \\ Зайцев А. Р.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center}
+Нижний Новгород \\ 2021
+\end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+При работе с данными нам очень часто приходится их отсортировывать, и эту задачу решают методы сортировки. На сегодняшний день существует очень много разнообразных методов сортировки, от простых до сложных, от медленных до быстрых. Они уже просто необходимы при разработке программы, и трудно представить работу с данными без них.
+
+\par Одной из таких сортировок является "поразрядная сортировка". Её реализация достаточно трудна, так как сортировка будет происходить по разрядам чисел, т.е. будут сравниваться поочерёдно каждый байт у чисел, и чем больше будет значение этого байта(всего 256 значений, т.к. байт содержит 8 бит, каждый из которых принимает 0 или 1), тем на данном этапе число будет больше. Я специально сказал 'на данном этапе', т.к. окончательно числа отсортируются после сравнений последнего разряда, а все промежуточные сравнения на текущем разряде нужны для правильной сортировки на следующем разряде. В частности числа, с которыми придётся работать в моей программе, будут вещественными(типа double). Этот тип хранится в памяти размером в 8 байт, и соответственно для сортировки чисел с таким типом данных нужно будет проделать 8 шагов, где на каждом шаге будут отсортировываться кокретные байты.
+
+\par Помимо поразрядной сортировки в программе будет использоваться чётно-нечётное слияние Бэтчера. Суть этого слияния в том, что исходный массив данных разбивается на левую и правую половинку, каждая из которых отсортировывается, а после чего эти половинки сливаются в один массив таким образом, что на чётные индексы главного массива помещаются в отсортированном порядке элементы, стоящие на тех же чётных индексах в двух отсортированных половинках, и тоже самое происходит с нечётными индексами. После такого слияния дополнительно необходимо отсортировать элементы в результирующем массиве между собой(проделать swap при необходимости), это делается в один проход по массиву от начала до конца.
+
+\par Таким образом в данной задаче будет рассмотрена совместная работа поразрядной сортировки и чётно-нечётного слияния Бэтчера над вектором вещественных чисел. 
+
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы нужно реализовать алгоритм чётно-нечётного слияния Бэтчера, внутри которого будет использоваться поразрядная сортировка, и всё это должно работать для вещественных чисел. Этот алгоритм должен уметь отсортировывать исходный массив чисел.
+
+\par Требуется выполнить следующее:
+
+\begin{enumerate}
+\item Изучить и реализовать поразрядную сортировку и чётно-нечётное слияние Бэтчера.
+\item Разработать и реализовать параллельный алгоритм данной задачи с использованием технологий OpenMP, TBB.
+\item Проверить корректность работы алгоритмов с помощью набора автоматических тестов с использованием Google C++ Testing Framework для каждой из технологий.
+\item Провести вычислительные эксперименты и сделать выводы.
+\end{enumerate}
+\newpage
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+Пусть нам дан вектор вещественных чисел, который нужно отсортировать. Для примера возьмём вектор из 16 чисел $N = \{n_1, n_2, ..., n_{16}\}$. Для начала разделим этот целый вектор на несколько маленьких одинаковой длины. Делать это будем, постепенно разбивая вектор на равные половинки. Также в моём алгоритме есть возможность задать границу, которая будет служить прекращением деления(если количество элементов в векторе равняется ей или становится меньше, то деление прекращается). Предположим, что в данном примере эта граница будет равняться 4.
+
+\par Итак, начинаем алгоритм. Сначала делим исходный вектор из 16 чисел на 2 вектора по 8 чисел $N_1 = \{n_1, n_2, ..., n_8\}$, $N_2 = \{n_9, n_{10}, ..., n_{16}\}$. Теперь каждый из двух получившихся векторов снова делим на 2 равные половинки. Получится следующее: $N_{11} = \{n_1, n_2, n_3, n_4\}$, $N_{12} = \{n_5, n_6, n_7, n_8\}$, $N_{21} = \{n_9, n_{10}, n_{11}, n_{12}\}$, $N_{22} = \{n_{13}, n_{14}, n_{15}, n_{16}\}$. После этого деление уже не продолжается, так как мы задали границу в 4, а количество элементов в каждом подвекторе равняется 4.
+
+\par Теперь каждый из этих подвекторов с 4-мя числами отсортировывается поразрядной сортировкой, и затем уже отсортированные подвектора подаются на чётно-нечётное слияние Бэтчера (подробный разбор поразрядной сортировки и чётно-нечётного слияния Бэтчера приведён в введении). Слияние будет происходит в обратном порядке делению на половинки. Т.е. отсортированные по отдельности $N_{11}$ и $N_{12}$ сливаются в $N_1$ по правилу чётных и нечётных индексов, аналогично $N_{21}$ и $N_{22}$ сливаются в $N_2$. $N_1$ и $N_2$ доотсортировываются одним проходом по ним(будет происходить swap соседних элементов по необходимости). И затем снова уже полностью отсортированные по отдельности $N_1$ и $N_2$ сливаются в вектор $N$, который также дополнительно доотсортировывается. В итоге мы получим отсортированный вектор из всех исходных чисел.
+
+\par В общем случае, при большом количестве элементов, смысл алгоритма такой же. Мы просто делим пополам наши вектора, затем сортируем наименьшие из подвекторов и сливаем их в обратном порядке.
+
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Рассмотрим реализацию алгоритма поразрядной сортировки с чётно-нечётным слиянием Бэтчера с точки зрения задачи распараллеливания вычислений.
+
+\par Распараллеливание я произвёл в следующих моментах:
+
+\par 1. Был распараллелен цикл, передающий наименьшие подвектора чисел после деления на поразрядную сортировку. Т.е. за один момент времени одновременно стали отсортировываться несколько подвекторов, что сильно ускорило вычисления.
+\par 2. Был распараллелен цикл, выполняющий слияние двух подвекторов в один.
+\par 3. Также был распараллелен цикл, в котором доотсортировывались вектора, образованные из 2-ух подвекторов.
+
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Вещественные числа в программе хранятся в виде вектора:
+\begin{lstlisting}
+std::vector<double> v;
+\end{lstlisting}
+Рассмотрим алгоритмы в программе.
+\par Последовательный алгоритм поразрядной сортировки с чётно-нечётным слиянием Бэтчера для вещественных чисел реализован в следующей функции:
+\begin{lstlisting}
+void oddEvenMergeSortSeq(double* vec, int size, int border);
+\end{lstlisting}
+\par В качестве входных параметров передаётся адрес на изменяемый исходный вектор чисел, размер этого вектора и граница, влияющая на размер конечных подвекторов для поразрядной сортировки. Выходного параметра нет, т.к. изменения записываются в векторе, который передан по адресу.
+\par Параллельные алгоритмы для реализаций с OpenMP и TBB представлены в функциях:
+\begin{lstlisting}
+void oddEvenMergeSortOmp(double* vec, int size, int border, int threads);
+void oddEvenMergeSortTbb(double* vec, int size, int border, int threads);
+\end{lstlisting}
+\par В качестве входного параметра добавляется только целочисленное количество потоков, чтобы иметь возможность задавать исходное количество потоков по-разному. Во всём остальном эти функции аналогичны функции для последовательного варианта.
+
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью Google Testing Framework.
+\par Набор включает в себя тесты, проверяющие работоспособность всех функций. Они проверяют работоспособность создания вектора из случайных чисел, отдельно проверяют саму поразрядную сортировку, ну и корректность самих функций чётно-нечётного слияния Бэтчера с векторами вещественных чисел разного размера.
+
+\par По окончании проверки успешное прохождение всех тестов подтверждает корректность работы написанной программы.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельного алгоритма рассматриваемой задачи проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: AMD Ryzen 5 1600 Six-Core Processor 3.20 GHz, 6 ядер;
+\item Оперативная память: 16 ГБ;
+\item ОС: Windows 10 Pro.
+\end{itemize}
+
+\par В рамках эксперимента было вычислено время работы последовательного алгоритма и двух параллельных алгоритмов сортировки исходного вектора вещественных чисел с использованием чётно-нечётного слияния Бэтчера и поразрядной сортировки. В тестах отсортировывались вектора по 1000000, 10000000 и 50000000 элементов, а в качестве границы делимости была указана 1000, 10000 и 50000 соответственно. Тесты запускались на шести потоках.
+\par Результаты экспериментов представлены ниже.
+
+\begin{table}[!h]
+\caption{Сравнение последовательного алгоритма с OpenMP.}
+\centering
+\begin{tabular}{lllll}
+Размер вектора & Последовательно & Параллельно & Ускорение  \\
+1000000        & 0.243         & 0.064     & 3.8       \\
+10000000        & 2.545         & 0.629     & 4.05       \\
+50000000       & 13.09         & 3.293     & 3.98       
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Сравнение последовательного алгоритма с TBB.}
+\centering
+\begin{tabular}{lllll}
+Размер вектора & Последовательно & Параллельно & Ускорение  \\
+1000000        & 0.243         & 0.055     & 4.42       \\
+10000000        & 2.545         & 0.535     & 4.76       \\
+50000000       & 13.09         & 2.78     & 4.71       
+\end{tabular}
+\end{table}
+
+\par По данным экспериментов можно сделать вывод, что параллельный алгоритм работает быстрее последовательного. А между OpenMP и TBB с небольшим преимуществом в среднем в 1.16 раза выигрывает TBB. Но и при разработке реализация TBB вызывает больше трудностей, чем OpenMP.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения лабораторной работы был реализован алгоритм чётно-нечётного слияния Бэтчера с использованием поразрядной сортировки. Этот алгоритм был сделан в последовательном варианте и в 2-ух параллельных: с использованием OpenMP и TBB.
+\par По данным экспериментов удалось сравнить время работы последовательного алгоритма с каждым из 2-ух параллельных алгоритмов.
+\par В итоге удалось достичь достаточно хорошего ускорения для обоих вариантов распараллеливания.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Sysoev} Сысоев А.В., Мееров И.Б., Свистунов А.Н., Курылев А.Л., Сенин А.В., Шишков А.В., Корняков К.В., Сиднев А.А. «Параллельное программирование в системах с общей памятью. Инструментальная поддержка». Учебно-методические материалы по программе повышения квалификации «Технологии высокопроизводительных вычислений для обеспечения учебного процесса и научных исследований». Нижний Новгород, 2007, 110 с.
+\bibitem{Wiki1} Wikipedia: the free encyclopedia [Электронный ресурс] // URL: https://ru.wikipedia.org/wiki/Поразрядная сортировка (дата обращения: 22.03.2021)
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\par 1. Библиотека с последовательной реализацией. Файл: RadixSortSeq.h
+\begin{lstlisting}
+// Copyright 2021 Zaitsev Andrey
+#ifndef MODULES_TASK_1_ZAITSEV_A_RADIX_SORT_SEQ_RADIXSORTSEQ_H_
+#define MODULES_TASK_1_ZAITSEV_A_RADIX_SORT_SEQ_RADIXSORTSEQ_H_
+
+#include <vector>
+
+void merge(double *vec, double *out, int center, int size, int odd_even);
+void oddEvenMergeSort(double *vec, double *out, int size, int border);
+void radixSort(double *vec, double *out, int size);
+double* createVector(double* vec, int size, double a, double b);
+bool check(double* vec, int size);
+
+#endif  // MODULES_TASK_1_ZAITSEV_A_RADIX_SORT_SEQ_RADIXSORTSEQ_H_
+\end{lstlisting}
+\par 2. Библиотека с последовательной реализацией. Файл: RadixSortSeq.cpp
+\begin{lstlisting}
+// Copyright 2021 Zaitsev Andrey
+#include <random>
+#include <ctime>
+#include <vector>
+#include <algorithm>
+#include "../../../modules/task_1/zaitsev_a_radix_sort_seq/RadixSortSeq.h"
+
+double* createVector(double* vec, int size, double a, double b) {
+  std::mt19937 gen;
+  gen.seed(static_cast<unsigned int>(time(0)));
+  std::uniform_real_distribution<double> distr(a, b);
+  for (int i = 0; i < size; i++) {
+    vec[i] = distr(gen);
+  }
+  return vec;
+}
+
+bool check(double* vec, int size) {
+  for (int i = 0; i < size - 1; i++) {
+    if (vec[i + 1] >= vec[i]) {
+      i++;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+void radixSort(double *vec, double *out, int size) {
+  double* swap = nullptr;
+  for (int i = 0; i < 7; i++) {
+    unsigned char* arr = (unsigned char*)vec;
+    int cnt[256] = { 0 };
+    int res = 0;
+    for (int j = 0; j < size; j++)
+      cnt[arr[8 * j + i]]++;
+    for (int j = 0; j < 256; j++) {
+      int tmp_ = cnt[j];
+      cnt[j] = res;
+      res += tmp_;
+    }
+    for (int j = 0; j < size; j++) {
+      int ind = 8 * j + i;
+      out[cnt[arr[ind]]] = vec[j];
+      cnt[arr[ind]]++;
+    }
+
+    swap = vec;
+    vec = out;
+    out = swap;
+  }
+
+  unsigned char* arr2 = (unsigned char*)vec;
+  int cnt[256] = { 0 };
+  int shift[256] = { 0 };
+  for (int i = 0; i < size; i++)
+    cnt[arr2[8 * i + 7]]++;
+  shift[255] = cnt[255] - 1;
+  for (int i = 254; i >= 128; i--)
+    shift[i] = shift[i + 1] + cnt[i];
+  shift[0] = shift[128] + 1;
+  for (int i = 1; i < 128; i++)
+    shift[i] = shift[i - 1] + cnt[i - 1];
+  for (int i = 0; i < size; i++) {
+    if (arr2[8 * i + 7] < 128)
+      out[shift[arr2[8 * i + 7]]++] = vec[i];
+    else
+      out[shift[arr2[8 * i + 7]]--] = vec[i];
+  }
+}
+
+void merge(double *vec, double *out, int center, int size, int odd_even) {
+  for (int i = odd_even; i < center; i += 2)
+    out[i] = vec[i];
+  double *inp2 = vec + center;
+  int par1 = odd_even;
+  int par2 = odd_even;
+  int ind = odd_even;
+  while ((par1 < center) && (par2 < size)) {
+    if (out[par1] > inp2[par2]) {
+      vec[ind] = inp2[par2];
+      par2 += 2;
+    } else {
+      vec[ind] = out[par1];
+      par1 += 2;
+    }
+    ind += 2;
+  }
+  if (par1 != center) {
+    for (int j = par1; j < center; j += 2, ind += 2)
+      vec[ind] = out[j];
+  } else {
+    for (int j = par2; j < size; j += 2, ind += 2)
+      vec[ind] = inp2[j];
+  }
+}
+
+void oddEvenMergeSort(double *vec, double *out, int size, int border) {
+  if (size <= border) {
+    radixSort(vec, out, size);
+  } else {
+    int center = size / 2 + (size / 2) % 2;
+    oddEvenMergeSort(vec, out, center, border);
+    oddEvenMergeSort(vec + center, out + center, size - center, border);
+    merge(vec, out, center, size - center, 0);
+    merge(vec, out, center, size - center, 1);
+    for (int i = 1; i < (size + 1) / 2; i++) {
+      if (vec[2 * i] < vec[2 * i - 1]) {
+        double tmp = vec[2 * i - 1];
+        vec[2 * i - 1] = vec[2 * i];
+        vec[2 * i] = tmp;
+      }
+    }
+  }
+}
+\end{lstlisting}
+
+\par 3. Библиотека с последовательной реализацией. Файл: main.cpp
+\begin{lstlisting}
+// Copyright 2021 Zaitsev Andrey
+#include <gtest/gtest.h>
+#include <vector>
+#include <algorithm>
+#include "./RadixSortSeq.h"
+
+TEST(Test_Seq, Size_5_Without_Random) {
+  int size = 5;
+  double* vec = new double[size] {4.33, -6.541,
+    16.84, 2.662, -12.544};
+  double* tmp = new double[size];
+  bool result = false;
+  radixSort(vec, tmp, size);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+}
+
+TEST(Test_Seq, Size_1000_Random_Positive) {
+  int size = 1000;
+  double* vec = new double[size];
+  vec = createVector(vec, size, 100.0, 1000.0);
+  double* tmp = new double[size];
+  bool result = false;
+  radixSort(vec, tmp, size);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+}
+
+TEST(Test_Seq, Size_1000_Random_Negative) {
+  int size = 1000;
+  double* vec = new double[size];
+  vec = createVector(vec, size, -800.0, 0.0);
+  double* tmp = new double[size];
+  bool result = false;
+  radixSort(vec, tmp, size);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+}
+
+TEST(Test_Seq, Size_1000_Random_Pos_And_Neg) {
+  int size = 1000;
+  double* vec = new double[size];
+  vec = createVector(vec, size, -500.0, 500.0);
+  double* tmp = new double[size];
+  bool result = false;
+  radixSort(vec, tmp, size);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+}
+
+TEST(Test_Seq, Exact_Answer) {
+  int size = 7;
+  double* vec = new double[size] {5.32, 8.25, 3.463, 43.733,
+    120.632, 75.86, 53.41};
+  double* answer = new double[size] {3.463, 5.32, 8.25,
+    43.733, 53.41, 75.86, 120.632};
+  double* tmp = new double[size];
+  bool result = false;
+  radixSort(vec, tmp, size);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+  delete[] answer;
+}
+
+TEST(Test_Seq, Size_100_Batcher) {
+  int size = 100;
+  double* vec = new double[size];
+  vec = createVector(vec, size, 0.0, 1000.0);
+  double* tmp = new double[size];
+  bool result = false;
+  oddEvenMergeSort(vec, tmp, size, 6);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+}
+
+TEST(Test_Seq, Size_1000_Batcher_Border_20) {
+  int size = 1000;
+  double* vec = new double[size];
+  vec = createVector(vec, size, -1000.0, 1000.0);
+  double* tmp = new double[size];
+  bool result = false;
+  oddEvenMergeSort(vec, tmp, size, 20);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+}
+
+TEST(Test_Seq, Size_1000_Batcher_Border_1000) {
+  int size = 1000;
+  double* vec = new double[size];
+  vec = createVector(vec, size, -1000.0, 1000.0);
+  double* tmp = new double[size];
+  bool result = false;
+  oddEvenMergeSort(vec, tmp, size, 1000);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+}
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\par 4. Библиотека с реализацией на OpenMP. Файл: RadixSortOmp.h
+\begin{lstlisting}
+// Copyright 2021 Zaitsev Andrey
+#ifndef MODULES_TASK_2_ZAITSEV_A_RADIX_SORT_RADIXSORTOMP_H_
+#define MODULES_TASK_2_ZAITSEV_A_RADIX_SORT_RADIXSORTOMP_H_
+
+#include <omp.h>
+#include <vector>
+
+void merge(double *vec, double *out, int center, int size, int odd_even);
+void oddEvenMergeSortSeq(double* vec, int size, int border);
+void oddEvenMergeSortOmp(double* vec, int size, int border, int threads);
+void radixSort(double *vec, double *out, int size);
+std::vector<double> createVector(int size, double a, double b);
+bool check(double* vec, int size);
+
+#endif  // MODULES_TASK_2_ZAITSEV_A_RADIX_SORT_RADIXSORTOMP_H_
+\end{lstlisting}
+
+\par 5. Библиотека с реализацией на OpenMP. Файл: RadixSortOmp.cpp
+\begin{lstlisting}
+// Copyright 2021 Zaitsev Andrey
+#include <omp.h>
+#include <random>
+#include <ctime>
+#include <utility>
+#include <vector>
+#include <queue>
+#include <stack>
+#include "../../../modules/task_2/zaitsev_a_radix_sort/RadixSortOmp.h"
+
+std::vector<double> createVector(int size, double a, double b) {
+  std::mt19937 gen;
+  gen.seed(static_cast<unsigned int>(time(0)));
+  std::uniform_real_distribution<double> distr(a, b);
+  std::vector<double> vec;
+  for (int i = 0; i < size; i++) {
+    vec.push_back(distr(gen));
+  }
+  return vec;
+}
+
+bool check(double* vec, int size) {
+  for (int i = 0; i < size - 1; i++) {
+    if (vec[i + 1] >= vec[i]) {
+      i++;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+void radixSort(double *vec, double *out, int size) {
+  double* swap = nullptr;
+  for (int i = 0; i < 7; i++) {
+    unsigned char* temp_vec_one_byte = (unsigned char*)vec;
+    int cnt[256] = { 0 };
+    int res = 0;
+    for (int j = 0; j < size; j++)
+      cnt[temp_vec_one_byte[8 * j + i]]++;
+    for (int j = 0; j < 256; j++) {
+      int tmp_ = cnt[j];
+      cnt[j] = res;
+      res += tmp_;
+    }
+    for (int j = 0; j < size; j++) {
+      int ind = 8 * j + i;
+      out[cnt[temp_vec_one_byte[ind]]] = vec[j];
+      cnt[temp_vec_one_byte[ind]]++;
+    }
+
+    swap = vec;
+    vec = out;
+    out = swap;
+  }
+
+  unsigned char* temp_vec_one_byte = (unsigned char*)vec;
+  int cnt[256] = { 0 };
+  int shift[256] = { 0 };
+  for (int i = 0; i < size; i++)
+    cnt[temp_vec_one_byte[8 * i + 7]]++;
+  shift[255] = cnt[255] - 1;
+  for (int i = 254; i >= 128; i--)
+    shift[i] = shift[i + 1] + cnt[i];
+  shift[0] = shift[128] + 1;
+  for (int i = 1; i < 128; i++)
+    shift[i] = shift[i - 1] + cnt[i - 1];
+  for (int i = 0; i < size; i++) {
+    if (temp_vec_one_byte[8 * i + 7] < 128)
+      out[shift[temp_vec_one_byte[8 * i + 7]]++] = vec[i];
+    else
+      out[shift[temp_vec_one_byte[8 * i + 7]]--] = vec[i];
+  }
+}
+
+void merge(double *vec, double *out, int center, int size, int odd_even) {
+  for (int i = odd_even; i < center; i += 2)
+    out[i] = vec[i];
+  double *vec_from_center = vec + center;
+  int par1 = odd_even;
+  int par2 = odd_even;
+  int ind = odd_even;
+  while ((par1 < center) && (par2 < size)) {
+    if (out[par1] > vec_from_center[par2]) {
+      vec[ind] = vec_from_center[par2];
+      par2 += 2;
+    } else {
+      vec[ind] = out[par1];
+      par1 += 2;
+    }
+    ind += 2;
+  }
+  if (par1 != center) {
+    for (int j = par1; j < center; j += 2, ind += 2)
+      vec[ind] = out[j];
+  } else {
+    for (int j = par2; j < size; j += 2, ind += 2)
+      vec[ind] = vec_from_center[j];
+  }
+}
+
+void oddEvenMergeSortSeq(double* vec, int size, int border) {
+  double* temp_vec = new double[size];
+  std::vector<std::pair<int, int>> piecesOfVector;
+  std::stack<std::pair<int, std::pair<int, int>>> preparingForMerges;
+  std::queue<std::pair<int, int>> curr_level;
+  std::queue<std::pair<int, int>> next_level;
+
+  preparingForMerges.push({ 0, {0, 0} });
+  curr_level.push({ 0, size });
+
+  std::pair<int, int> current;
+
+  while (true) {
+    current = curr_level.front();
+    curr_level.pop();
+    if (current.second > border) {
+      int center = current.second / 2 + (current.second / 2) % 2;
+      next_level.push({ current.first, center });
+      next_level.push({ current.first + center, current.second - center });
+      preparingForMerges.push({ current.first,
+        {center, current.second - center} });
+    } else {
+      piecesOfVector.push_back(current);
+    }
+    if (curr_level.empty()) {
+      if (!next_level.empty()) {
+        curr_level = next_level;
+        next_level = std::queue<std::pair<int, int>>();
+        preparingForMerges.push({ 0, {0, 0} });
+      } else {
+        break;
+      }
+    }
+  }
+  preparingForMerges.pop();
+
+  for (size_t i = 0; i < piecesOfVector.size(); i++) {
+    radixSort(vec + piecesOfVector[i].first,
+      temp_vec + piecesOfVector[i].first, piecesOfVector[i].second);
+  }
+  std::vector<std::pair<int, std::pair<int, int>>> merges_order;
+
+  while (!preparingForMerges.empty()) {
+    while (preparingForMerges.top().second.second != 0) {
+      merges_order.push_back(preparingForMerges.top());
+      preparingForMerges.pop();
+    }
+    preparingForMerges.pop();
+
+    for (size_t i = 0; i < merges_order.size() * 2; i++) {
+      int start = merges_order[i / 2].first;
+      int center = merges_order[i / 2].second.first;
+      int size_after_center = merges_order[i / 2].second.second;
+      merge(vec + start, temp_vec + start, center, size_after_center, i % 2);
+    }
+
+    for (size_t i = 0; i < merges_order.size(); i++) {
+      int start = merges_order[i].first;
+      int center = merges_order[i].second.first;
+      int size_after_center = merges_order[i].second.second;
+      for (int j = 1; j < (center + size_after_center + 1) / 2; j++) {
+        if (vec[start + 2 * j - 1] > vec[start + 2 * j]) {
+          double tmp = vec[start + 2 * j];
+          vec[start + 2 * j] = vec[start + 2 * j - 1];
+          vec[start + 2 * j - 1] = tmp;
+        }
+      }
+    }
+    merges_order.clear();
+  }
+  delete[] temp_vec;
+}
+
+void oddEvenMergeSortOmp(double* vec, int size, int border, int threads) {
+  double* temp_vec = new double[size];
+  std::vector<std::pair<int, int>> piecesOfVector;
+  std::stack<std::pair<int, std::pair<int, int>>> preparingForMerges;
+  std::queue<std::pair<int, int>> curr_level;
+  std::queue<std::pair<int, int>> next_level;
+
+  preparingForMerges.push({ 0, {0, 0} });
+  curr_level.push({ 0, size });
+
+  std::pair<int, int> current;
+
+  while (true) {
+    current = curr_level.front();
+    curr_level.pop();
+    if (current.second > border) {
+      int center = current.second / 2 + (current.second / 2) % 2;
+      next_level.push({ current.first, center });
+      next_level.push({ current.first + center, current.second - center });
+      preparingForMerges.push({ current.first,
+        {center, current.second - center} });
+    } else {
+      piecesOfVector.push_back(current);
+    }
+    if (curr_level.empty()) {
+      if (!next_level.empty()) {
+        curr_level = next_level;
+        next_level = std::queue<std::pair<int, int>>();
+        preparingForMerges.push({ 0, {0, 0} });
+      } else {
+        break;
+      }
+    }
+  }
+  preparingForMerges.pop();
+
+#pragma omp parallel for num_threads(threads)
+  for (int i = 0; i < static_cast<int>(piecesOfVector.size()); i++) {
+    radixSort(vec + piecesOfVector[i].first,
+      temp_vec + piecesOfVector[i].first, piecesOfVector[i].second);
+  }
+  std::vector<std::pair<int, std::pair<int, int>>> merges_order;
+
+  while (!preparingForMerges.empty()) {
+    while (preparingForMerges.top().second.second != 0) {
+      merges_order.push_back(preparingForMerges.top());
+      preparingForMerges.pop();
+    }
+    preparingForMerges.pop();
+
+#pragma omp parallel for num_threads(threads)
+    for (int i = 0; i < static_cast<int>(merges_order.size() * 2); i++) {
+      int start = merges_order[i / 2].first;
+      int center = merges_order[i / 2].second.first;
+      int size_after_center = merges_order[i / 2].second.second;
+      merge(vec + start, temp_vec + start, center, size_after_center, i % 2);
+    }
+
+#pragma omp parallel for num_threads(threads)
+    for (int i = 0; i < static_cast<int>(merges_order.size()); i++) {
+      int start = merges_order[i].first;
+      int center = merges_order[i].second.first;
+      int size_after_center = merges_order[i].second.second;
+      for (int j = 1; j < (center + size_after_center + 1) / 2; j++) {
+        if (vec[start + 2 * j - 1] > vec[start + 2 * j]) {
+          double tmp = vec[start + 2 * j];
+          vec[start + 2 * j] = vec[start + 2 * j - 1];
+          vec[start + 2 * j - 1] = tmp;
+        }
+      }
+    }
+    merges_order.clear();
+  }
+  delete[] temp_vec;
+}
+\end{lstlisting}
+
+\par 6. Библиотека с реализацией на OpenMP. Файл: main.cpp
+\begin{lstlisting}
+// Copyright 2021 Zaitsev Andrey
+#include <gtest/gtest.h>
+#include <vector>
+#include <iostream>
+#include "./RadixSortOmp.h"
+
+TEST(Test_Omp, Size_5_Without_Random) {
+  int size = 5;
+  double* vec = new double[size] {5.21, -8.652,
+  26.32, 3.289, -14.842};
+  double* tmp = new double[size];
+  bool result = false;
+  radixSort(vec, tmp, size);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+}
+
+TEST(Test_Omp, Size_1000_Random_Pos_And_Neg) {
+  int size = 1000;
+  std::vector<double> vec = createVector(size, -1000.0, 1000.0);
+  double* tmp = new double[size];
+  bool result = false;
+  radixSort(vec.data(), tmp, size);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+}
+
+TEST(Test_Omp, Size_1000_Batcher_Seq_Border_20) {
+  int size = 1000;
+  std::vector<double> vec = createVector(size, -1000.0, 1000.0);
+  bool result = false;
+  oddEvenMergeSortSeq(vec.data(), size, 20);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+}
+
+TEST(Test_Omp, Size_100_Batcher_Omp_1thr_Border_25) {
+  int size = 100;
+  int thr = 1;
+  std::vector<double> vec = createVector(size, -100.0, 100.0);
+  bool result = false;
+  oddEvenMergeSortOmp(vec.data(), size, 25, thr);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+}
+
+TEST(Test_Omp, Size_100_Batcher_Omp_4thr_Border_25) {
+  int size = 100;
+  int thr = 4;
+  std::vector<double> vec = createVector(size, -1000.0, 1000.0);
+  bool result = false;
+  oddEvenMergeSortOmp(vec.data(), size, 25, thr);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+}
+
+TEST(Test_Omp, Size_1000_Batcher_Omp_4thr_Border_60) {
+  int size = 1000;
+  int thr = 4;
+  std::vector<double> vec = createVector(size, -1000.0, 1000.0);
+  bool result = false;
+  oddEvenMergeSortOmp(vec.data(), size, 60, thr);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+}
+
+TEST(Test_Omp, Test_Equality_Seq_Par_1000) {
+  int size = 1000;
+  int thr = 5;
+  std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+  std::vector<double> v2 = v1;
+  double t1 = omp_get_wtime();
+  oddEvenMergeSortSeq(v1.data(), size, 50);
+  double t2 = omp_get_wtime();
+  std::cout << "Seq: " << t2 - t1 << std::endl;
+  t1 = omp_get_wtime();
+  oddEvenMergeSortOmp(v2.data(), size, 50, thr);
+  t2 = omp_get_wtime();
+  std::cout << "Omp: " << t2 - t1 << std::endl;
+  ASSERT_EQ(v1, v2);
+}
+
+TEST(Test_Omp, Test_Equality_Seq_Par_2000) {
+  int size = 2000;
+  int thr = 5;
+  std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+  std::vector<double> v2 = v1;
+  double t1 = omp_get_wtime();
+  oddEvenMergeSortSeq(v1.data(), size, 50);
+  double t2 = omp_get_wtime();
+  std::cout << "Seq: " << t2 - t1 << std::endl;
+  t1 = omp_get_wtime();
+  oddEvenMergeSortOmp(v2.data(), size, 50, thr);
+  t2 = omp_get_wtime();
+  std::cout << "Omp: " << t2 - t1 << std::endl;
+  ASSERT_EQ(v1, v2);
+}
+
+TEST(Test_Omp, Test_Equality_Seq_Par_3000) {
+  int size = 3000;
+  int thr = 5;
+  std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+  std::vector<double> v2 = v1;
+  double t1 = omp_get_wtime();
+  oddEvenMergeSortSeq(v1.data(), size, 50);
+  double t2 = omp_get_wtime();
+  std::cout << "Seq: " << t2 - t1 << std::endl;
+  t1 = omp_get_wtime();
+  oddEvenMergeSortOmp(v2.data(), size, 50, thr);
+  t2 = omp_get_wtime();
+  std::cout << "Omp: " << t2 - t1 << std::endl;
+  ASSERT_EQ(v1, v2);
+}
+
+TEST(Test_Omp, Test_Equality_Seq_Par_4000) {
+  int size = 4000;
+  int thr = 5;
+  std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+  std::vector<double> v2 = v1;
+  double t1 = omp_get_wtime();
+  oddEvenMergeSortSeq(v1.data(), size, 50);
+  double t2 = omp_get_wtime();
+  std::cout << "Seq: " << t2 - t1 << std::endl;
+  t1 = omp_get_wtime();
+  oddEvenMergeSortOmp(v2.data(), size, 50, thr);
+  t2 = omp_get_wtime();
+  std::cout << "Omp: " << t2 - t1 << std::endl;
+  ASSERT_EQ(v1, v2);
+}
+
+TEST(Test_Omp, Test_Equality_Seq_Par_1000000) {
+	int size = 1000000;
+	int thr = 6;
+	std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+	std::vector<double> v2 = v1;
+	double t1 = omp_get_wtime();
+	oddEvenMergeSortSeq(v1.data(), size, 1000);
+	double t2 = omp_get_wtime();
+	std::cout << "Seq: " << t2 - t1 << std::endl;
+	t1 = omp_get_wtime();
+	oddEvenMergeSortOmp(v2.data(), size, 1000, thr);
+	t2 = omp_get_wtime();
+	std::cout << "Omp: " << t2 - t1 << std::endl;
+	ASSERT_EQ(v1, v2);
+}
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\par 7. Библиотека с реализацией на TBB. Файл: RadixSortTbb.h
+\begin{lstlisting}
+// Copyright 2021 Zaitsev Andrey
+#ifndef MODULES_TASK_3_ZAITSEV_A_RADIX_SORT_RADIXSORTTBB_H_
+#define MODULES_TASK_3_ZAITSEV_A_RADIX_SORT_RADIXSORTTBB_H_
+
+#include <vector>
+
+void merge(double *vec, double *out, int center, int size, int odd_even);
+void oddEvenMergeSortSeq(double* vec, int size, int border);
+void oddEvenMergeSortTbb(double* vec, int size, int border, int threads);
+void radixSort(double *vec, double *out, int size);
+std::vector<double> createVector(int size, double a, double b);
+bool check(double* vec, int size);
+
+#endif  // MODULES_TASK_3_ZAITSEV_A_RADIX_SORT_RADIXSORTTBB_H_
+\end{lstlisting}
+
+\par 8. Библиотека с реализацией на TBB. Файл: RadixSortTbb.cpp
+\begin{lstlisting}
+// Copyright 2021 Zaitsev Andrey
+#include <tbb/tbb.h>
+#include <random>
+#include <ctime>
+#include <utility>
+#include <vector>
+#include <queue>
+#include <stack>
+#include "../../../modules/task_3/zaitsev_a_radix_sort/RadixSortTbb.h"
+
+std::vector<double> createVector(int size, double a, double b) {
+  std::mt19937 gen;
+  gen.seed(static_cast<unsigned int>(time(0)));
+  std::uniform_real_distribution<double> distr(a, b);
+  std::vector<double> vec;
+  for (int i = 0; i < size; i++) {
+    vec.push_back(distr(gen));
+  }
+  return vec;
+}
+
+bool check(double* vec, int size) {
+  for (int i = 0; i < size - 1; i++) {
+    if (vec[i + 1] >= vec[i]) {
+      i++;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+void radixSort(double *vec, double *out, int size) {
+  double* swap = nullptr;
+  for (int i = 0; i < 7; i++) {
+    unsigned char* temp_vec_one_byte = (unsigned char*)vec;
+    int cnt[256] = { 0 };
+    int res = 0;
+    for (int j = 0; j < size; j++)
+      cnt[temp_vec_one_byte[8 * j + i]]++;
+    for (int j = 0; j < 256; j++) {
+      int tmp_ = cnt[j];
+      cnt[j] = res;
+      res += tmp_;
+    }
+    for (int j = 0; j < size; j++) {
+      int ind = 8 * j + i;
+      out[cnt[temp_vec_one_byte[ind]]] = vec[j];
+      cnt[temp_vec_one_byte[ind]]++;
+    }
+
+    swap = vec;
+    vec = out;
+    out = swap;
+  }
+
+  unsigned char* temp_vec_one_byte = (unsigned char*)vec;
+  int cnt[256] = { 0 };
+  int shift[256] = { 0 };
+  for (int i = 0; i < size; i++)
+    cnt[temp_vec_one_byte[8 * i + 7]]++;
+  shift[255] = cnt[255] - 1;
+  for (int i = 254; i >= 128; i--)
+    shift[i] = shift[i + 1] + cnt[i];
+  shift[0] = shift[128] + 1;
+  for (int i = 1; i < 128; i++)
+    shift[i] = shift[i - 1] + cnt[i - 1];
+  for (int i = 0; i < size; i++) {
+    if (temp_vec_one_byte[8 * i + 7] < 128)
+      out[shift[temp_vec_one_byte[8 * i + 7]]++] = vec[i];
+    else
+      out[shift[temp_vec_one_byte[8 * i + 7]]--] = vec[i];
+  }
+}
+
+void merge(double *vec, double *out, int center, int size, int odd_even) {
+  for (int i = odd_even; i < center; i += 2)
+    out[i] = vec[i];
+  double *vec_from_center = vec + center;
+  int par1 = odd_even;
+  int par2 = odd_even;
+  int ind = odd_even;
+  while ((par1 < center) && (par2 < size)) {
+    if (out[par1] > vec_from_center[par2]) {
+      vec[ind] = vec_from_center[par2];
+      par2 += 2;
+    } else {
+      vec[ind] = out[par1];
+      par1 += 2;
+    }
+    ind += 2;
+  }
+  if (par1 != center) {
+    for (int j = par1; j < center; j += 2, ind += 2)
+      vec[ind] = out[j];
+  } else {
+    for (int j = par2; j < size; j += 2, ind += 2)
+      vec[ind] = vec_from_center[j];
+  }
+}
+
+void oddEvenMergeSortSeq(double* vec, int size, int border) {
+  double* temp_vec = new double[size];
+  std::vector<std::pair<int, int>> piecesOfVector;
+  std::stack<std::pair<int, std::pair<int, int>>> preparingForMerges;
+  std::queue<std::pair<int, int>> curr_level;
+  std::queue<std::pair<int, int>> next_level;
+
+  preparingForMerges.push({ 0, {0, 0} });
+  curr_level.push({ 0, size });
+
+  std::pair<int, int> current;
+
+  while (true) {
+    current = curr_level.front();
+    curr_level.pop();
+    if (current.second > border) {
+      int center = current.second / 2 + (current.second / 2) % 2;
+      next_level.push({ current.first, center });
+      next_level.push({ current.first + center, current.second - center });
+      preparingForMerges.push({ current.first,
+        {center, current.second - center} });
+    } else {
+      piecesOfVector.push_back(current);
+    }
+    if (curr_level.empty()) {
+      if (!next_level.empty()) {
+        curr_level = next_level;
+        next_level = std::queue<std::pair<int, int>>();
+        preparingForMerges.push({ 0, {0, 0} });
+      } else {
+        break;
+      }
+    }
+  }
+  preparingForMerges.pop();
+
+  for (size_t i = 0; i < piecesOfVector.size(); i++) {
+    radixSort(vec + piecesOfVector[i].first,
+      temp_vec + piecesOfVector[i].first, piecesOfVector[i].second);
+  }
+  std::vector<std::pair<int, std::pair<int, int>>> merges_order;
+
+  while (!preparingForMerges.empty()) {
+    while (preparingForMerges.top().second.second != 0) {
+      merges_order.push_back(preparingForMerges.top());
+      preparingForMerges.pop();
+    }
+    preparingForMerges.pop();
+
+    for (size_t i = 0; i < merges_order.size() * 2; i++) {
+      int start = merges_order[i / 2].first;
+      int center = merges_order[i / 2].second.first;
+      int size_after_center = merges_order[i / 2].second.second;
+      merge(vec + start, temp_vec + start, center, size_after_center, i % 2);
+    }
+
+    for (size_t i = 0; i < merges_order.size(); i++) {
+      int start = merges_order[i].first;
+      int center = merges_order[i].second.first;
+      int size_after_center = merges_order[i].second.second;
+      for (int j = 1; j < (center + size_after_center + 1) / 2; j++) {
+        if (vec[start + 2 * j - 1] > vec[start + 2 * j]) {
+          double tmp = vec[start + 2 * j];
+          vec[start + 2 * j] = vec[start + 2 * j - 1];
+          vec[start + 2 * j - 1] = tmp;
+        }
+      }
+    }
+    merges_order.clear();
+  }
+  delete[] temp_vec;
+}
+
+void oddEvenMergeSortTbb(double* vec, int size, int border, int threads) {
+  double* temp_vec = new double[size];
+  std::vector<std::pair<int, int>> piecesOfVector;
+  std::stack<std::pair<int, std::pair<int, int>>> preparingForMerges;
+  std::queue<std::pair<int, int>> curr_level;
+  std::queue<std::pair<int, int>> next_level;
+
+  preparingForMerges.push({ 0, {0, 0} });
+  curr_level.push({ 0, size });
+
+  std::pair<int, int> current;
+
+  while (true) {
+    current = curr_level.front();
+    curr_level.pop();
+    if (current.second > border) {
+      int center = current.second / 2 + (current.second / 2) % 2;
+      next_level.push({ current.first, center });
+      next_level.push({ current.first + center, current.second - center });
+      preparingForMerges.push({ current.first,
+        {center, current.second - center} });
+    } else {
+      piecesOfVector.push_back(current);
+    }
+    if (curr_level.empty()) {
+      if (!next_level.empty()) {
+        curr_level = next_level;
+        next_level = std::queue<std::pair<int, int>>();
+        preparingForMerges.push({ 0, {0, 0} });
+      } else {
+        break;
+      }
+    }
+  }
+  preparingForMerges.pop();
+
+  int n = static_cast<int>(piecesOfVector.size());
+  tbb::task_scheduler_init init(threads);
+  tbb::parallel_for(tbb::blocked_range<int>(0, n, 1),
+    [&](const tbb::blocked_range<int>& range) {
+      int begin = range.begin();
+      int end = range.end();
+      for (int i = begin; i < end; i++) {
+          radixSort(vec + piecesOfVector[i].first,
+              temp_vec + piecesOfVector[i].first, piecesOfVector[i].second);
+      }
+    });
+  init.terminate();
+
+  std::vector<std::pair<int, std::pair<int, int>>> merges_order;
+
+  while (!preparingForMerges.empty()) {
+    while (preparingForMerges.top().second.second != 0) {
+      merges_order.push_back(preparingForMerges.top());
+      preparingForMerges.pop();
+    }
+    preparingForMerges.pop();
+
+    n = static_cast<int>(merges_order.size() * 2);
+    tbb::parallel_for(tbb::blocked_range<int>(0, n, 1),
+      [&](const tbb::blocked_range<int>& range) {
+        int begin = range.begin();
+        int end = range.end();
+        for (int i = begin; i < end; i++) {
+          int start = merges_order[i / 2].first;
+          int center = merges_order[i / 2].second.first;
+          int size_after_center = merges_order[i / 2].second.second;
+          merge(vec + start, temp_vec + start,
+            center, size_after_center, i % 2);
+        }
+      });
+
+    n = static_cast<int>(merges_order.size());
+    tbb::parallel_for(tbb::blocked_range<int>(0, n, 1),
+      [&](const tbb::blocked_range<int>& range) {
+        int begin = range.begin();
+        int end = range.end();
+        for (int i = begin; i < end; i++) {
+          int start = merges_order[i].first;
+          int center = merges_order[i].second.first;
+          int size_after_center = merges_order[i].second.second;
+          for (int j = 1; j < (center + size_after_center + 1) / 2; j++) {
+            if (vec[start + 2 * j - 1] > vec[start + 2 * j]) {
+              double tmp = vec[start + 2 * j];
+              vec[start + 2 * j] = vec[start + 2 * j - 1];
+              vec[start + 2 * j - 1] = tmp;
+            }
+          }
+        }
+      });
+    merges_order.clear();
+  }
+  delete[] temp_vec;
+}
+\end{lstlisting}
+
+\par 9. Библиотека с реализацией на TBB. Файл: main.cpp
+\begin{lstlisting}
+// Copyright 2021 Zaitsev Andrey
+#include <gtest/gtest.h>
+#include <tbb/tick_count.h>
+#include <iostream>
+#include <vector>
+#include "./RadixSortTbb.h"
+
+TEST(Test_Tbb, Size_5_Without_Random) {
+  int size = 5;
+  double* vec = new double[size] {5.21, -8.652,
+  26.32, 3.289, -14.842};
+  double* tmp = new double[size];
+  bool result = false;
+  radixSort(vec, tmp, size);
+  result = check(vec, size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+  delete[] vec;
+}
+
+TEST(Test_Tbb, Size_1000_Random_Pos_And_Neg) {
+  int size = 1000;
+  std::vector<double> vec = createVector(size, -1000.0, 1000.0);
+  double* tmp = new double[size];
+  bool result = false;
+  radixSort(vec.data(), tmp, size);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+  delete[] tmp;
+}
+
+TEST(Test_Tbb, Size_1000_Batcher_Seq_Border_20) {
+  int size = 1000;
+  std::vector<double> vec = createVector(size, -1000.0, 1000.0);
+  bool result = false;
+  oddEvenMergeSortSeq(vec.data(), size, 20);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+}
+
+TEST(Test_Tbb, Size_100_Batcher_Tbb_1thr_Border_25) {
+  int size = 100;
+  int thr = 1;
+  std::vector<double> vec = createVector(size, -100.0, 100.0);
+  bool result = false;
+  oddEvenMergeSortTbb(vec.data(), size, 25, thr);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+}
+
+TEST(Test_Tbb, Size_100_Batcher_Tbb_4thr_Border_25) {
+  int size = 100;
+  int thr = 4;
+  std::vector<double> vec = createVector(size, -1000.0, 1000.0);
+  bool result = false;
+  oddEvenMergeSortTbb(vec.data(), size, 25, thr);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+}
+
+TEST(Test_Tbb, Size_1000_Batcher_Tbb_4thr_Border_60) {
+  int size = 1000;
+  int thr = 4;
+  std::vector<double> vec = createVector(size, -1000.0, 1000.0);
+  bool result = false;
+  oddEvenMergeSortTbb(vec.data(), size, 60, thr);
+  result = check(vec.data(), size);
+  ASSERT_EQ(true, result);
+}
+
+TEST(Test_Tbb, Test_Equality_Seq_Par_10000) {
+  int size = 10000;
+  int thr = 6;
+  std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+  std::vector<double> v2 = v1;
+  tbb::tick_count t1 = tbb::tick_count::now();
+  oddEvenMergeSortSeq(v1.data(), size, 100);
+  tbb::tick_count t2 = tbb::tick_count::now();
+  std::cout << "Seq: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  t1 = tbb::tick_count::now();
+  oddEvenMergeSortTbb(v2.data(), size, 100, thr);
+  t2 = tbb::tick_count::now();
+  std::cout << "Tbb: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  ASSERT_EQ(v1, v2);
+}
+
+TEST(Test_Tbb, Test_Equality_Seq_Par_20000) {
+  int size = 20000;
+  int thr = 6;
+  std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+  std::vector<double> v2 = v1;
+  tbb::tick_count t1 = tbb::tick_count::now();
+  oddEvenMergeSortSeq(v1.data(), size, 100);
+  tbb::tick_count t2 = tbb::tick_count::now();
+  std::cout << "Seq: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  t1 = tbb::tick_count::now();
+  oddEvenMergeSortTbb(v2.data(), size, 100, thr);
+  t2 = tbb::tick_count::now();
+  std::cout << "Tbb: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  ASSERT_EQ(v1, v2);
+}
+
+TEST(Test_Tbb, Test_Equality_Seq_Par_30000) {
+  int size = 30000;
+  int thr = 6;
+  std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+  std::vector<double> v2 = v1;
+  tbb::tick_count t1 = tbb::tick_count::now();
+  oddEvenMergeSortSeq(v1.data(), size, 100);
+  tbb::tick_count t2 = tbb::tick_count::now();
+  std::cout << "Seq: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  t1 = tbb::tick_count::now();
+  oddEvenMergeSortTbb(v2.data(), size, 100, thr);
+  t2 = tbb::tick_count::now();
+  std::cout << "Tbb: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  ASSERT_EQ(v1, v2);
+}
+
+TEST(Test_Tbb, Test_Equality_Seq_Par_50000) {
+  int size = 50000;
+  int thr = 6;
+  std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+  std::vector<double> v2 = v1;
+  tbb::tick_count t1 = tbb::tick_count::now();
+  oddEvenMergeSortSeq(v1.data(), size, 100);
+  tbb::tick_count t2 = tbb::tick_count::now();
+  std::cout << "Seq: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  t1 = tbb::tick_count::now();
+  oddEvenMergeSortTbb(v2.data(), size, 100, thr);
+  t2 = tbb::tick_count::now();
+  std::cout << "Tbb: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  ASSERT_EQ(v1, v2);
+}
+
+TEST(Test_Tbb, Test_Equality_Seq_Par_1000000) {
+  int size = 1000000;
+  int thr = 6;
+  std::vector<double> v1 = createVector(size, -1000.0, 1000.0);
+  std::vector<double> v2 = v1;
+  tbb::tick_count t1 = tbb::tick_count::now();
+  oddEvenMergeSortSeq(v1.data(), size, 1000);
+  tbb::tick_count t2 = tbb::tick_count::now();
+  std::cout << "Seq: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  t1 = tbb::tick_count::now();
+  oddEvenMergeSortTbb(v2.data(), size, 1000, thr);
+  t2 = tbb::tick_count::now();
+  std::cout << "Tbb: " <<
+    static_cast<double>((t2 - t1).seconds()) << std::endl;
+  ASSERT_EQ(v1, v2);
+}
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\end{document}
