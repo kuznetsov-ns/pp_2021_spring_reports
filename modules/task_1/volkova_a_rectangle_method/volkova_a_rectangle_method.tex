@@ -9,28 +9,31 @@
 \usepackage{color}
 \usepackage{geometry}
 \usepackage{indentfirst}
-\usepackage{pgfplots}
+\usepackage{enumitem}
 
 \geometry{a4paper,top=2cm,bottom=2cm,left=2.5cm,right=1.5cm}
 \setlength{\parskip}{0.5cm}
 
 \lstset{language=C++,
-		basicstyle=\footnotesize,
-		keywordstyle=\color{blue}\ttfamily,
-		stringstyle=\color{green}\ttfamily,
-		commentstyle=\color{green}\ttfamily,
-		morecomment=[l][\color{red}]{\#}, 
-		tabsize=2,
-		breaklines=true,
-  		breakatwhitespace=true,
-  		title=\lstname,       
+        basicstyle=\footnotesize,
+        keywordstyle=\color{blue}\ttfamily,
+        stringstyle=\color{green}\ttfamily,
+        commentstyle=\color{green}\ttfamily,
+        morecomment=[l][\color{red}]{\#}, 
+        tabsize=2,
+        breaklines=true,
+        breakatwhitespace=true,
+        title=\lstname,
 }
 
 \begin{document}
+
 \begin{titlepage}
+
 \begin{center}
 Министерство образования и науки Российской Федерации
 \end{center}
+
 \begin{center}
 Федеральное государственное автономное образовательное учреждение высшего образования \\
 Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского(ННГУ)
@@ -64,6 +67,7 @@
 \\
 \textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
 }
+
 \vspace{\fill}
 
 \begin{center} Нижний Новгород \\ 2021 \end{center}
@@ -117,7 +121,7 @@ $$ e \le z \le f $$
 $$ hx=\frac{b-a}{n} $$
 $$ hy=\frac{d-c}{m} $$
 $$ hz=\frac{f-e}{k} $$
-\item Посчитав шаги разбиения отрезков, вычисляем интеграл по формуле средних прямоугольников:
+\item Посчитав шаги разбиения отрезков, вычисляем интеграл по формуле:
 $$\int\limits_a^b 
 \int\limits_c^d 
 \int\limits_e^f \,f(x,y,z)\,dx\,dy\,dz=$$
@@ -140,7 +144,7 @@ $$
 
 \section*{Описание программной реализации}
 \addcontentsline{toc}{section}{Описание программной реализации}
-Алгоритм последовательного вычисления интеграла методом средних прямоугольников вызывается с помощью функции:
+\par Приведем алгоритм последовательного вычисления интеграла методом средних прямоугольников вызывается с помощью функции:
 \begin{lstlisting}
 double integralFunction(double (*f)(double, double, double),
                         double ax, double bx,
@@ -163,7 +167,8 @@ double getCalculatedIntegral( double (*f)(double, double, double),
 \subsection*{OpenMP}
 \addcontentsline{toc}{subsection}{OpenMP}
 Для распараллеливания алгоритма была использована директива:
-\par \verb|#pragma omp parallel for private(X, Y, Z, sum1, sum2) reduction(+ : ans)|
+\par \verb|#pragma omp parallel for private(X, Y, Z, sum1, sum2)|
+\par \verb reduction(+ : ans)
 \par В sum2 записываются вычисления по внутреннему фору, в sum1 по двум внутренним, а операция редукции происходит в переменную ans в самом внешнем цикле.
 \subsection*{TBB}
 \addcontentsline{toc}{subsection}{TBB}
@@ -1029,7 +1034,5 @@ int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
-
 \end{lstlisting}
-
 \end{document}
