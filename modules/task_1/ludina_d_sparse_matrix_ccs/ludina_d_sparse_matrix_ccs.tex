@@ -1,0 +1,595 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\addto\captionsrussian{\renewcommand \contentsname {\LARGE Содержание}}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ\\
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+\textbf{"Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского" (ННГУ)}
+\end{center}
+
+\begin{center}
+\textbf{Институт информационных технологий, математики и механики}
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+Отчет по лабораторной работе \\
+\end{center}
+\begin{center}
+\textbf{\Large«Умножение разреженных матриц. Элементы комплексного типа. Формат хранения матрицы - столбцовый (CCS).»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-3 \\ Лудина Д.А.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+% содержание
+\tableofcontents{}
+\clearpage
+
+\begin{center}
+\section*{Введение}
+\end{center}
+\addcontentsline{toc}{section}{Введение}
+\parРазреженная матрица - это матрица, состоящая приемущественно из нулевых элементов. Строгого определения того, сколько элементов должно быть нулевыми, чтобы матрица считалась разреженной не существует, но общий критерий состоит в том, что количество ненулевых элементов приблизительно равно числу строк или столбцов.
+\par Так как в разреженных матрицах большинство значений - нули, то любая арифметическая операция с этими матрицами увеличивает вычислительные затраты. Для того чтобы их снизить
+были придуманы разные способы хранений разреженных матриц. Самые распространенные из них это координатный, строковый(CRS) и столбцовый(CCS) форматы. В данной работе будет рассмотрен только последний из перечисленных.\\
+Столбцовый формат хранения представляет собой структуру данных, позволяющую хранить матрицу в виде трех массивов. Первый хранит значениия ненулевых элементов исходной матрицы. Второй массив хранит индексы строк для каждого ненулевого элемента. Третий хранит индекс начала каждого столбца.
+\par Умножение является одной из основных операций с матрицами, в том числе и с рязреженными. Поэтому, в данной работе рассматривается алгоритм умножения разреженных матриц, хранящихся в столбцовом формате, а также примененение к нему разных методов распараллеливания.
+\newpage
+
+\begin{center}
+\section*{Постановка задач}
+\end{center}
+\addcontentsline{toc}{section}{Постановка задач}
+В данной лабораторной работе необходимо:
+\begin{enumerate}
+\item Реализовать последовательный алгоритм умножения разреженных матриц в столбцовом формате(CCS).
+\item Реализовать параллельный алгоритм умножения разреженных матриц в столбцовом формате(CCS) с использованием технологии OpenMP.
+\item Реализовать параллельный алгоритм умножения разреженных матриц в столбцовом формате(CCS) с использованием технологии TBB.
+\item Провести вычислительные эксперементы и сравнить время работы трех алгоритмов.
+\item Сделать вывод на основе полученных результатов.
+\end{enumerate}
+\newpage
+
+\begin{center}
+\section*{Описание алгоритма}
+\end{center}
+\addcontentsline{toc}{section}{Описание алгоритма}
+Алгоритм преобразования матрицы в столбцовый формат хранения:
+\par Проходим по столбцу матрицы, в нем по каждой строке. Если значение не нулевое, то увеличиваем переменную, хранящую количество ненулевых элементов. В вектор значений помещаем данный элемент и записываем индекс строки в соответсвующий вектор.
+По окончании внутреннего цикла заполняем вектор начала нового столбца в векторе значений.\\
+\\
+Алгоритм транспонирования:
+\begin{enumerate}
+\item Создаем три вектора, которые будут хранить транспонированную матрицу в CCS формате.
+\item Просматриваем масив индексов по строкам исходной матрицы и считаем количество в каждой строке(столбце транспонированной матрицы). Записываем результат в третий вектор.
+\item Подсчитываем индексы начала каждого столбца в транспонированной матрицы.
+\item Правильно распологаем в структуре результирующей матрицы значения из исходной.
+\item Возвращаем транспонированную матрицу.
+\end{enumerate}
+Алгоритм умножения двух разреженных матриц:
+\begin{enumerate}
+\item Создаем результирующую матрицу.
+\item Транспонируем матрицу A. Это необходимо сделать, так как умножение производится строка на столбец, а формат хранения матриц столбцовый, поэтому рациональнее сначала транспонировать первую матрицу.
+\item Проходим по столбцам матрицы B и для каждого перебираем столбцы транспонированной матрицы A.
+\item Выполняем скалярное умножение. Если оно не ранво нулю, то заполняем результирующие векторы для столбцового формата хранения.
+\item После того, как мы перебрали все столбцы матрицы B, записываем в вектор, хранящий начало каждого столбца, число ненулевых элемнтов.
+\item Возвращаем результирующую матрицу.
+\end{enumerate}
+\newpage
+
+\begin{center}
+\section*{Схема распараллеливания}
+\end{center}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+\par Главной идеей распараллеливания алгоритма умножения разреженных матриц в столбцовом формате хранения является перебор столбцов матрицы B, то есть распараллеливание происходит по внешнему циклу. Мы распределяем столбцы между потоками и работаем с ними независимо.
+\par Для более эффективного результата необходимо оптимизировать сам алгоримт умножения. Добавляем вектор, хранящий индексы расположения ненулевых элементов в столбце и инициализируем его -1.
+Проходим по каждому столбцу матрицы В и заполняем новый вектор. Затем рассматриваем все ненулевые элементы столбца матрицы А и проверяем значение. Если оно равно -1(в первом векторе нет соответсвующего элемента), то выполянть умножение не надо. В противном случае, выполняем умножение.
+\newpage
+
+\begin{center}
+\section*{Описание программной реализации}
+\end{center}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Разреженная матрица в столбцовом формате хранения представлена следующей структурой:
+\begin{lstlisting}
+struct SparseMatrix {
+  int rows, cols;
+  std::vector<int> col_idx;
+  std::vector<int> row;
+  std::vector<std::complex<int>> value;
+
+  SparseMatrix() : rows(0), cols(0) {}
+  SparseMatrix(int _rows, int _cols) : rows(_rows), cols(_cols) {}
+  SparseMatrix(int _rows, int _cols,
+    const std::vector<int>& _col_idx, const std::vector<int>& _row,
+    const std::vector<std::complex<int>>& _value) : rows(_rows), cols(_cols), col_idx(_col_idx),
+    row(_row), value(_value) {}
+  SparseMatrix(int _rows, int _cols, std::vector<std::complex<int>> matrix);
+  SparseMatrix transpose();
+};
+\end{lstlisting}
+\par Реализация алгоритма перевода матрицы в столбцовый формат хранения представлена функцией:
+\begin{lstlisting}
+  SparseMatrix(int _rows, int _cols, std::vector<std::complex<int>> matrix);
+\end{lstlisting}
+В качетве входных парамтров передаются число строк, число столбцов и вектор значений. На выходе результирующая матрица в столбцовом формате.
+\par Реализация алгоритма транпонирования представлена функцией:
+\begin{lstlisting}
+  SparseMatrix transpose();
+\end{lstlisting}
+Выходным параметром является траспонированная разреженная матрица.
+\par Функция умножения двух разреженных матриц:
+\begin{lstlisting}
+  SparseMatrix Multiplication(SparseMatrix A, SparseMatrix B);
+\end{lstlisting}
+На вход подаются две разреженные матрицы, на выходе результирующая матрица.
+\par Реализация параллельного алгоритма умножения представлена в следующих функциях:
+\begin{lstlisting}
+  SparseMatrix MultiplicationOpenMP(SparseMatrix A, SparseMatrix B);
+  SparseMatrix MultiplicationTBB(SparseMatrix A, SparseMatrix B);
+\end{lstlisting}
+На вход подаются две разреженные матрицы, на выходе результирующая матрица.
+\par Также в программе реализована вспомогательная функция, генерирующая разреженную матрицу
+\begin{lstlisting}
+  SparseMatrix getRandomSparseMatrix(int rows, int cols, int notZero);
+\end{lstlisting}
+В качетве входных парамтров передаются число строк, число столбцов и число ненулевых значений в каждом столбце. На выходе результирующая матрица в столбцовом формате хранения.
+\newpage
+
+\begin{center}
+\section*{Подтверждение корректности}
+\end{center}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+\par Для подтверждения корректности в программе реализована система тестов, разработанная с помощью использования Google C++ Testing Framework.
+\par Эта система включает в себя тесты, проверяющие все алгоритмы написанной программы. При проверке умножения в последовательной реализации сравнивались вектора столбцового формата хранения результирующей матрицы с ожидаемыми. А в паралльленой версии сравниваются значение последовательного алгоритма умножения разреженных матриц с параллельным.
+\par Успешное прохождение данных тестов доказывает корректность работы всей программы.
+\newpage
+
+\begin{center}
+\section*{Результаты эксперементов}
+\end{center}
+\addcontentsline{toc}{section}{Результаты эксперементов}
+\par Вычислительные эксперименты для оценки эффективности алгоритма умножения двух разреженных матриц в столбцовом формате хранения проводились на оборудовании со следующей аппаратной конфигурацией:
+\begin{enumerate}
+\item Процессор: Intel(R) Core(TM) i5-8250U CPU @ 1.60GHz 1.80GHz, ядер: 4, логических процессоров: 8;
+\item Оперативная память: 6 Gb, 2133 MHz;
+\item Операционная система: Windows 10 Домашняя;
+\item Среда разработки: Visual Studio 2019.
+\end{enumerate}
+В тестах умножались матрицы размером 1000$\times$1000, 2000$\times$2000, 3000$\times$3000, 4000$\times$4000, 5000$\times$5000, 10000$\times$10000. Количество используемых потоков определялось автоматически.
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов. Сравнение последовательного алгоритма с OpenMP}
+\centering
+\begin{tabular}{|p{4cm}|p{4cm}|p{4cm}|p{3cm}|}
+\hline
+Размер матрицы & Последовательный алгоритм,сек & Параллельный алгоритм,сек & Ускорение  \\\hline
+1000 & 0.0036702 & 0.0033403 & 1.0988  \\\hline
+2000  & 0.0425559 & 0.0080879 & 5.262  \\\hline
+3000  & 0.108678 & 0.0276799 & 3.926  \\\hline
+4000  & 0.169397 & 0.0418563 & 4.047  \\\hline
+5000  & 0.256634 & 0.0678537 & 3.782  \\\hline
+10000 & 0.962818 & 0.242603 & 3.989  \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов. Сравнение последовательного алгоритма с TBB}
+\centering
+\begin{tabular}{|p{4cm}|p{4cm}|p{4cm}|p{3cm}|}
+\hline
+Размер матрицы & Последовательный алгоритм,сек & Параллельный алгоритм,сек & Ускорение  \\\hline
+1000  & 0.0128584 & 0.0113118 & 1.138  \\\hline
+2000  & 0.0275358 & 0.0091291 & 3.016  \\\hline
+3000  & 0.0806581 & 0.0203535 & 3.982  \\\hline
+4000  & 0.137639 & 0.0343931 & 4.002  \\\hline
+5000  & 0.23257 & 0.0641605 & 3.625  \\\hline
+10000 & 1.144314 & 0.325898 & 3.511 \\
+\hline
+\end{tabular}
+\end{table}
+
+\par На основе полученных данных, можно сделать вывод, что в большинстве случаев параллельный алгоритм с использованием OpenMP более эффективен. Максимальное ускорение в 4 раза.
+\newpage
+
+\begin{center}
+\section*{Заключение}
+\end{center}
+\addcontentsline{toc}{section}{Заключение}
+\par В ходе данной лабораторной работы мною были реализованы три алгоритма умножения двух разреженных матриц в столбцовом формате хранения: последовательное умножение, параллельнное умножение с импользованием технологии OpenMP и параллельнное умножение с импользованием технологии TBB. Кроме того, был реализован алгоритм транспонирования матрицы и преобразование матрицы в столбцовый формат хранения. А также были разработаны и доведены до успешного выполнения тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+\par Основной целью работы была реализация параллельной версии алгоритма умножения, которая должна работать быстрее по времени, чем последовательная.
+Вычислительные эксперименты нам это показали.
+\newpage
+
+\addcontentsline{toc}{section}{Литература}
+\begin{thebibliography}{}
+\bibitem{1} Гергель В. П. Теория и практика параллельных вычислений. – 2007.
+\bibitem{2} Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\bibitem{3}Wikipedia: the free encyclopedia [Электронный ресурс] // URL: https://ru-wiki.ru/wiki/\verb|Разреженная_матрица| (дата обращения: 15.03.2021)
+\end{thebibliography}{}
+\newpage
+
+\begin{center}
+\section*{Приложение}
+\end{center}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\begin{lstlisting}
+// sparse_matrix_complex_ccs.h
+
+// Copyright 2021 Ludina Daria
+#ifndef MODULES_TASK_3_LUDINA_D_SPARSE_MATRIX_COMPLEX_CCS_SPARSE_MATRIX_COMPLEX_CCS_H_
+#define MODULES_TASK_3_LUDINA_D_SPARSE_MATRIX_COMPLEX_CCS_SPARSE_MATRIX_COMPLEX_CCS_H_
+
+#include <omp.h>
+#include <tbb/tbb.h>
+#include <complex>
+#include <vector>
+#include <random>
+#include <ctime>
+#include <iostream>
+
+struct SparseMatrix {
+  int rows, cols;
+  std::vector<int> col_idx;
+  std::vector<int> row;
+  std::vector<std::complex<int>> value;
+
+  SparseMatrix() : rows(0), cols(0) {}
+  SparseMatrix(int _rows, int _cols) : rows(_rows), cols(_cols) {}
+  SparseMatrix(int _rows, int _cols,
+    const std::vector<int>& _col_idx, const std::vector<int>& _row,
+    const std::vector<std::complex<int>>& _value) : rows(_rows), cols(_cols), col_idx(_col_idx),
+    row(_row), value(_value) {}
+  SparseMatrix(int _rows, int _cols, std::vector<std::complex<int>> matrix);
+  SparseMatrix transpose();
+};
+
+SparseMatrix Multiplication(SparseMatrix A, SparseMatrix B);
+SparseMatrix getRandomSparseMatrix(int rows, int cols, int notZero);
+SparseMatrix MultiplicationOpenMP(SparseMatrix A, SparseMatrix B);
+SparseMatrix MultiplicationTBB(SparseMatrix A, SparseMatrix B);
+
+#endif  // MODULES_TASK_3_LUDINA_D_SPARSE_MATRIX_COMPLEX_CCS_SPARSE_MATRIX_COMPLEX_CCS_H_
+
+
+//sparse_matrix_complex_ccs.cpp
+
+// Copyright 2021 Ludina Daria
+#include "../../../modules/task_3/ludina_d_sparse_matrix_complex_ccs/sparse_matrix_complex_ccs.h"
+
+SparseMatrix::SparseMatrix(int _rows, int _cols, std::vector<std::complex<int>> matrix) {
+  rows = _rows;
+  cols = _cols;
+  int not_zero_value = 0;
+  col_idx.push_back(0);
+
+  for (int j = 0; j < _cols; j++) {
+    for (int i = 0; i < _rows; i++) {
+      if (matrix[cols * i + j] != std::complex<int>(0, 0)) {
+        not_zero_value++;
+        value.push_back(matrix[cols * i + j]);
+        row.push_back(i);
+      }
+    }
+    col_idx.push_back(not_zero_value);
+  }
+}
+
+SparseMatrix SparseMatrix::transpose() {
+  std::vector<std::complex<int>> valueT(value.size());
+  std::vector<int> col_idxT(col_idx.size());
+  std::vector<int> rowT(row.size());
+  int size = row.size();
+  for (int i = 0; i < size; i++) {
+    col_idxT[row[i] + 1]++;
+  }
+  int tmp, index, r;
+  int s = 0;
+  for (int i = 1; i <= rows; i++) {
+    tmp = col_idxT[i];
+    col_idxT[i] = s;
+    s += tmp;
+  }
+  for (int i = 0; i < cols; i++) {
+    for (int j = col_idx[i]; j < col_idx[i + 1]; j++) {
+      r = row[j];
+      index = col_idxT[r + 1];
+      rowT[index] = i;
+      valueT[index] = value[j];
+      col_idxT[r + 1]++;
+    }
+  }
+  SparseMatrix res = SparseMatrix(rows, cols, col_idxT, rowT, valueT);
+  return res;
+}
+
+SparseMatrix Multiplication(SparseMatrix A, SparseMatrix B) {
+  if (A.cols != B.rows)
+    throw "Size col A not equal size row B";
+  SparseMatrix result(A.rows, B.cols);
+  A = A.transpose();
+  result.col_idx.push_back(0);
+  for (int i = 0; i < B.cols; i++) {
+    for (int j = 0; j < A.cols; j++) {
+      std::complex<int> sum = { 0, 0 };
+      for (int k = B.col_idx[i]; k < B.col_idx[i + 1]; k++) {
+        for (int n = A.col_idx[j]; n < A.col_idx[j + 1]; n++) {
+          if (B.row[k] == A.row[n]) {
+            sum += B.value[k] * A.value[n];
+            break;
+          }
+        }
+      }
+      if (sum != std::complex<int>(0, 0)) {
+        result.value.push_back(sum);
+        result.row.push_back(j);
+      }
+    }
+    result.col_idx.push_back(static_cast<int>(result.value.size()));
+  }
+  return result;
+}
+
+SparseMatrix getRandomSparseMatrix(int rows, int cols, int notZero) {
+  SparseMatrix result;
+  std::vector<std::complex<int>> val;
+  std::vector<int> col_i, r;
+  col_i.push_back(0);
+  std::mt19937 gen;
+  gen.seed(static_cast<unsigned int>(time(0)));
+  for (int j = 0; j < cols; j++) {
+    for (int i = 0; i < notZero; i++) {
+      val.push_back(std::complex<int>(
+        static_cast<int>(gen() % 100),
+        static_cast<int>(gen() % 100)));
+      r.push_back(gen() % cols);
+    }
+    col_i.push_back(static_cast<int>(r.size()));
+  }
+  result.value = val;
+  result.row = r;
+  result.col_idx = col_i;
+  return result;
+}
+
+SparseMatrix MultiplicationOpenMP(SparseMatrix A, SparseMatrix B) {
+  if (A.cols != B.rows)
+    throw "Size col A not equal size row B";
+  SparseMatrix res(A.rows, B.cols);
+  std::vector<std::vector<std::complex<int>>> val(res.cols);
+  std::vector<std::vector<int>> r(res.cols);
+  A = A.transpose();
+  res.col_idx.push_back(0);
+  int i, j, k;
+
+#pragma omp parallel
+  {
+    std::vector<int> tmp(res.cols);
+#pragma omp for private(j, k) schedule(static)
+    for (i = 0; i < res.cols; i++) {
+      tmp.assign(res.cols, -1);
+      for (j = B.col_idx[i]; j < B.col_idx[i + 1]; j++) {
+        tmp[B.row[j]] = j;
+      }
+      for (j = 0; j < res.cols; j++) {
+        std::complex<int> sum = { 0, 0 };
+        for (k = A.col_idx[j]; k < A.col_idx[j + 1]; k++) {
+          if (tmp[A.row[k]] != -1) {
+            sum += B.value[tmp[A.row[k]]] * A.value[k];
+          }
+        }
+        if (sum != std::complex<int>(0, 0)) {
+          val[i].emplace_back(sum);
+          r[i].emplace_back(j);
+        }
+      }
+    }
+  }
+  for (int i = 0; i < res.cols; i++) {
+    res.value.insert(res.value.end(), val[i].begin(), val[i].end());
+    res.row.insert(res.row.end(), r[i].begin(), r[i].end());
+    res.col_idx.insert(res.col_idx.end(), r[i].begin(), r[i].end());
+  }
+  return res;
+}
+
+SparseMatrix MultiplicationTBB(SparseMatrix A, SparseMatrix B) {
+  if (A.cols != B.rows)
+    throw "Size col A not equal size row B";
+  SparseMatrix res(A.rows, B.cols);
+  std::vector<std::vector<std::complex<int>>> val(res.cols);
+  std::vector<std::vector<int>> res_row(res.cols);
+  A = A.transpose();
+  res.col_idx.push_back(0);
+  tbb::task_scheduler_init init;
+  int my_grainsize = 10;
+  tbb::parallel_for(tbb::blocked_range<int>(0, B.cols, my_grainsize),
+    [&](const tbb::blocked_range<int>& r) {
+    std::vector<int> tmp(res.cols);
+    for (int i = r.begin(); i < r.end(); i++) {
+      tmp.assign(res.cols, -1);
+      for (int j = B.col_idx[i]; j < B.col_idx[i + 1]; j++) {
+        tmp[B.row[j]] = j;
+      }
+      for (int j = 0; j < res.cols; j++) {
+        std::complex<int> sum = { 0, 0 };
+        for (int k = A.col_idx[j]; k < A.col_idx[j + 1]; k++) {
+          if (tmp[A.row[k]] != -1) {
+            sum += B.value[tmp[A.row[k]]] * A.value[k];
+          }
+        }
+        if (sum != std::complex<int>(0, 0)) {
+          val[i].emplace_back(sum);
+          res_row[i].emplace_back(j);
+        }
+      }
+    }
+  });
+  init.terminate();
+  for (int i = 0; i < res.cols; i++) {
+    res.value.insert(res.value.end(), val[i].begin(), val[i].end());
+    res.row.insert(res.row.end(), res_row[i].begin(), res_row[i].end());
+    res.col_idx.insert(res.col_idx.end(), res_row[i].begin(), res_row[i].end());
+  }
+  return res;
+}
+
+
+//main.cpp
+
+// Copyright 2021 Ludina Daria
+#include <gtest/gtest.h>
+#include "../../../modules/task_3/ludina_d_sparse_matrix_complex_ccs/sparse_matrix_complex_ccs.h"
+
+TEST(Sparse_Matrix_CCS_3, CreateCCS) {
+  std::vector<std::complex<int>> a = {
+    {0, 0},  {3, 0}, {0, 0}, {7, 0},
+    {0, 0}, {0, 0},  {5, 0}, {0, 0},
+    {8, 0},  {0, 0},  {0, 0}, {0, 0},
+    {0, 0},  {0, 0},  {1, 0}, {11, 0}
+  };
+  SparseMatrix SMatrix(4, 4, a);
+  std::vector<int> row1 = { 2, 0, 1, 3, 0, 3 };
+  std::vector<int> colidx = { 0, 1, 2, 4, 6 };
+  std::vector<std::complex<int>> val = { {8, 0} , {3, 0}, {5, 0}, {1, 0}, {7, 0}, {11, 0} };
+  ASSERT_EQ(val, SMatrix.value);
+  ASSERT_EQ(row1, SMatrix.row);
+  ASSERT_EQ(colidx, SMatrix.col_idx);
+}
+
+TEST(Sparse_Matrix_CCS_3, Transpose) {
+  std::vector<std::complex<int>> a = {
+    {0, 0},  {3, 0}, {0, 0}, {7, 0},
+    {0, 0}, {0, 0},  {8, 0}, {0, 0},
+    {0, 0},  {0, 0},  {0, 0}, {0, 0},
+    {9, 0},  {0, 0},  {15, 0}, {16, 0}
+  };
+  SparseMatrix SMatrix(4, 4, a);
+  SparseMatrix SMatrixT = SMatrix.transpose();
+  std::vector<int> row1 = { 1, 3, 2, 0, 2, 3 };
+  std::vector<int> colidx = { 0, 2, 3, 3, 6 };
+  std::vector<std::complex<int>> val = { {3, 0} , {7, 0}, {8, 0}, {9, 0}, {15, 0}, {16, 0} };
+  ASSERT_EQ(val, SMatrixT.value);
+  ASSERT_EQ(row1, SMatrixT.row);
+  ASSERT_EQ(colidx, SMatrixT.col_idx);
+}
+
+TEST(Sparse_Matrix_CCS_3, Multiplication_1) {
+  std::vector<std::complex<int>> a = {
+    {1, 0}, {0, 0},
+    {0, 0}, {2, 0} };
+  SparseMatrix A(2, 2, a);
+  std::vector<std::complex<int>> b = {
+    {0, 0}, {0, 0},
+    {0, 0}, {0, 0} };
+  SparseMatrix B(2, 2, b);
+  SparseMatrix result = Multiplication(A, B);
+  std::vector<std::complex<int>> res = {};
+  ASSERT_EQ(res, result.value);
+}
+
+TEST(Sparse_Matrix_CCS_3, Multiplication_2) {
+  std::vector<std::complex<int>> a = {
+    {0, 0}, {5, 0}, {0, 0},
+    {3, 4}, {0, 0}, {1, -2},
+    {1, 0}, {0, 0}, {0, 0} };
+  SparseMatrix A(3, 3, a);
+  std::vector<std::complex<int>> b = {
+    {0, 0}, {8, 0}, {0, 0},
+    {1, 0}, {2, -4}, {0, 0},
+    {0, 0}, {0, 0}, {2, -1} };
+  SparseMatrix B(3, 3, b);
+  SparseMatrix result = Multiplication(A, B);
+  std::vector<std::complex<int>> res = { {5, 0}, {10, -20}, {24, 32}, {8, 0}, {0, -5} };
+  ASSERT_EQ(res, result.value);
+}
+
+TEST(Sparse_Matrix_CCS_3, Multiplication_TBB) {
+  std::vector<std::complex<int>> a = {
+    {0, 0}, {5, 0}, {0, 0},
+    {3, 4}, {0, 0}, {1, -2},
+    {1, 0}, {0, 0}, {0, 0} };
+  SparseMatrix A(3, 3, a);
+  std::vector<std::complex<int>> b = {
+    {0, 0}, {8, 0}, {0, 0},
+    {1, 0}, {2, -4}, {0, 0},
+    {0, 0}, {0, 0}, {2, -1} };
+  SparseMatrix B(3, 3, b);
+  SparseMatrix result = MultiplicationTBB(A, B);
+  std::vector<std::complex<int>> res = { {5, 0}, {10, -20}, {24, 32}, {8, 0}, {0, -5} };
+  ASSERT_EQ(res, result.value);
+}
+
+TEST(Sparse_Matrix_CCS_3, Multiplication_TBB_2) {
+  SparseMatrix A = getRandomSparseMatrix(100, 100, 20);
+  SparseMatrix B = getRandomSparseMatrix(100, 100, 40);
+  SparseMatrix result_1 = Multiplication(A, B);
+  SparseMatrix result_2 = MultiplicationTBB(A, B);
+  ASSERT_EQ(result_1.value, result_2.value);
+  ASSERT_EQ(result_1.col_idx, result_2.col_idx);
+  ASSERT_EQ(result_1.row, result_2.row);
+}
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+\end{document}
