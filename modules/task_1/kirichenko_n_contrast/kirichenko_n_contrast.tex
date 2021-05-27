@@ -1,0 +1,148 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\begin{document}
+
+\begin{titlepage}
+\begin{center}
+Министерство образования и науки Российской Федерации
+\end{center}
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского(ННГУ)
+\end{center}
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+\begin{center}
+Направление подготовки: «Фундаментальная информатика и информационные технологии»
+\end{center}
+
+\vspace{2em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} 
+\end{center}
+\begin{center}
+\textbf{\Large«Повышение контраста полутонового изображения посредством линейной растяжки гистограммы»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\textbf{Выполнил:} \\ студент группы 381806-3 \\ Кириченко Н. А.\\
+\\
+\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Оглавление
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Предварительная обработка изображения -процесс улучшения качества изображения, ставящий целью получение на основе оригинала максимально точного и адаптированного для автоматического анализа изображения.
+\par Контраст представляет собой характеристику того, насколько большой разброс имеют цвета пикселей изображения. Чем больший разброс имеют значения цветов пикселей, тем больший контраст имеет изображение.
+\par Слабый контраст - наиболее распространенный дефект фотографических, телевизионных и сканерных изображений, обусловленный ограниченностью диапазона воспроизводимых яркостей. Под контрастом обычно понимают разность максимального и минимального значений яркости. Увеличение диапазона интенсивности изображения существенно улучшает качество изображения за счет усиления контраста. Для этого используют три метода – линейная растяжка, нормализация и выравнивание гистограмм. Все эти методы направлены на расширение диапазона интенсивности до максимального интервала от 0 до 255.
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+\par Цель работы – разработка последовательной и параллельных реализаций алгоритма повышения контраста полутонового изображения посредством линейной растяжки гистограммы.
+\par Линейная растяжка сводится к присваиванию новых значений интенсивности каждому пикселю изображения. Если интенсивности исходного изображения изменялись в диапазоне от $i_{1}$ до $i_{2}$, тогда необходимо линейно "растянуть" указанный диапазон так, чтобы значения изменялись от 0 до 255. Для этого достаточно пересчитать старые значения интенсивности $f_{xy}$ для всех пикселей $(x,y)$ согласно формуле $g_{xy} = a \cdot f_{xy} + b$, где коэффициенты a,b просто вычисляются, исходя из того, что граница $i_{1}$ должна перейти в 0, а $i_{2}$ – в 255.
+\par Нужно реализовать последовательную версию программы, а так сделать параллельную реализацию используя TBB и OpenMP.
+\par Для проверки корректности работы алгоритмов требуется использовать Google C++ Testing Framework.
+\newpage
+
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+Алгоритм повышения контраста полутонового изображения посредством линейной растяжки гистограммы заключается в следующем:
+\begin{enumerate}
+\item Найти $min$ и $max$.
+\item Пересчитать старые значения интенсивности для всех пикселей по формуле $f^{-1}(y)$ = (y - $y_{min}$) * ${\frac{255}{y_{max} - y_{min}}}$.
+\end{enumerate}
+\newpage
+
+\section*{Описание схемы распараллеливания}
+\addcontentsline{toc}{section}{Описание схемы распараллеливания}
+
+\newpage
+
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}\
+
+\newpage
+
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты проводились на оборудовании со следующей аппаратной конфигурацией:
+\begin{itemize}
+\item Процессор: 
+\item Оперативная память: 
+\item ОС: 
+\end{itemize}
+
+\newpage
+
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+
+\newpage
+
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Литература}
+\bibitem{Gorodetsky} Турлапов В. Е. «Обработка изображений. Часть 1».
+\\URL:\url {http://www.graph.unn.ru/rus/materials/CG/CG03_ImageProcessing.pdf} (дата обращения: 22.05.2021)
+\bibitem{} «Параллельное программирование на OpenMP»
+\\URL:\url {http://ccfit.nsu.ru/arom/data/openmp.pdf} (дата обращения: 22.05.2021)
+\bibitem{Sidnev} Сиднев А.А., Мееров И.Б., Сысоев А.В. «Разработка параллельных программ в системах с общей памятью с использованием библиотеки Intel Threading Building Blocks (TBB)».
+\\URL:\url {http://hpc-education.ru/files/lectures/meerov/ppt06.pdf} (дата обращения: 22.05.2021)
+\bibitem{} «Параллельное программирование. С++. Thread Support Library. Atomic Operations Library.»
+\\URL:\url {https://ppt-online.org/184002} (дата обращения: 22.05.2021)
+\end{thebibliography}
+\newpage
+
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В данном разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+
+
+\end{document}
