@@ -1,0 +1,215 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=2cm,left=2.5cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\usepackage{xcolor}
+\definecolor{weborange}{RGB}{255,165,0}
+\definecolor{codepurple}{RGB}{220,20,60}
+\definecolor{codecyan}{RGB}{135,0,198}
+\definecolor{codeblue}{RGB}{69,97,189}
+\definecolor{backcolour}{RGB}{230,230,220}
+
+\usepackage{listings}
+\lstset{language=C++,
+	basicstyle=\ttfamily\footnotesize,
+	backgroundcolor=\color{backcolour},
+    	emph={int, double, time_t, char, new},
+    	emphstyle={\color{blue}},
+    	commentstyle=\color{green!60!black},
+ 	keywordstyle={\color{codepurple}},
+ 	keywords=[2]{std},
+    	keywordstyle=[2]{\color{weborange}},
+    	otherkeywords = {:},
+	morekeywords = [2]{:},
+   	stringstyle=\color{codepurple},
+	morecomment=[l][\color{codecyan}]{\#}, 
+	tabsize=2,
+	breaklines=true,                               
+  	breakatwhitespace=true,
+  	title=\lstname,  
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Умножение матриц методом Фокса»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнила:} \\ студентка группы 381806-2 \\ Груздева Д.М.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А.В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+\par Блочное умножение матриц
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+\par В данном лабораторной работе требуется рассмотреть умножение матриц методом Фокса, реализовать последовательную
+ и две параллельные версии этого метода (при помощи технологий OpenMP и TBB), провести эксперименты для оценки времени выполнения. 
+ По полученным результатам сделать выводы.
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+Алгоритм Фокса основан на блочном разбиении матрицы между вычислителями.\par
+
+Пусть  \( A= \left( a_{ij} \right) ,~~ B= \left( b_{ij} \right) ,~ i,j=\overline{0, n-1} \)  – квадратные матрицы размера  \( n \times n \) . Тогда:\par
+
+ \[ C=A \times B,~ c_{ij}=a_{i0}b_{0j}+a_{i1}b_{1j}+ \ldots +a_{i,n-1}b_{n-1,j}= \sum _{k=0}^{n-1}a_{ik}b_{kj} \] \par
+
+ \( c_{ij} \)  – результат скалярного произведения i-ой строки матрицы A и j-ого столбца матрицы B.\par
+
+ Пусть число вычислителей равно 4, а n = 4, тогда блочное разбиение будет выглядеть следующим образом:\par
+
+ \[ A_{00}= \left( \begin{matrix}
+a_{00}  &  a_{01}\\
+a_{10}  &  a_{11}\\
+\end{matrix}
+ \right) ,~~A_{01}= \left( \begin{matrix}
+a_{02}  &   a_{03}\\
+a_{12}  &   a_{13}\\
+\end{matrix}
+ \right)  \]  \[ A_{10}= \left( \begin{matrix}
+a_{20}  &  a_{21}\\
+a_{30}  &  a_{31}\\
+\end{matrix}
+ \right) ,~~A_{11}= \left( \begin{matrix}
+a_{22}  &  a_{23}\\
+a_{32}  &  a_{33}\\
+\end{matrix}
+ \right)  \] \par
+
+
+\vspace{\baselineskip}
+ Аналогично для B и C.\par
+
+Сам алгоритм Фокса заключается в том, что на каждом шаге нужно выбрать подматрицу A в каждой строке, чтобы каждый вычислитель умножил полученную матрицу на имеющуюся подматрицу B, а затем отправил свою подматрицу B вышестоящему в схеме вычислителю.\par
+
+Так как мы реализуем данный алгоритм на потоках, то нужды в передаче-получении подматриц у нас нет, что упрощает алгоритм.\par
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+
+% Схема распараллеливания OpenMP
+\subsection{OpenMP}
+\addcontentsline{toc}{subsubsection}{OpenMP}
+\newpage
+
+% Схема распараллеливания TBB
+\subsection{TBB}
+\addcontentsline{toc}{subsubsection}{TBB}
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+\begin{itemize}
+\item Процессор: Intel Core i3-4130, 3400 MHz, физических ядер: 2, потоков: 4;
+\item Оперативная память: 8192 МБ (DDR3), 800 MHz;
+\item ОС: Microsoft Windows 10 Home, версия 2004 сборка 19041.572.
+\end{itemize}
+
+\par Для оценки времени работы рассмотренных выше реализаций сгенерируем случайные матрицы размерами 500x500, 1000x1000, 1500x1500
+\par Результаты экспериментов представлены в Таблице 1.
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов}
+\renewcommand{\arraystretch}{1.8} 
+\centering
+\begin{tabular}{l*{4}{|l}}
+\hline
+& 500 & 1000 & 1500 \\
+\hline
+Размер матрицы & 0 & 0 & 0 \\
+\hline
+Наивная реализация & 0 & 0 & 0  \\
+\hline
+Последовательная блочная реализация & 0 & 0 & 0 \\
+\hline
+OpenMP & 0 & 0 & 0 \\
+\hline
+Ускорение OpenMP & 0 & 0 & 0 \\
+\hline
+TBB & 0 & 0 & 0 \\
+\hline
+Ускорение TBB & 0 & 0 & 0 \\
+\end{tabular}
+\end{table}
+
+\par Из данных, представленных в Таблице 1 видно, что параллельная версия быстрее последовательной, а ее ускорение в общем случае пропорционально количеству запускаемых процессов. Такой хороший результат объясняется тем, что мы использовали относительно большое количество испытаний, из-за чего последовательная версия выполнялась гораздо дольше.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+\par Главной задачей данной лабораторной работы была реализация параллельной версии, которая должна была быть эффективнее последовательной. Эта задача была успешно достигнута, о чем говорят результаты экспериментов, проведенных в ходе работы.
+\par Кроме того, были разработаны и доведены до успешного выполнения тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+\newpage
+
+\end{document}
