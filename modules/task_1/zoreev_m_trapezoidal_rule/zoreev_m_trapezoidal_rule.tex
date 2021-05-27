@@ -1,0 +1,394 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Вычисление многомерных интегралов методом трапеций»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-1 \\ Зореев М. В.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+Интеграл - одно из важнейших понятий математического анализа, самым простейшим является интеграл одномерный, с помощью которого, можно находить площадь криволинейной трапеции. Но гораздо более полезными, являются интегралы многомерные, позволяющие находить объём и площадь произвольных фигур, а так же многие другие величины.
+\par Для вычисления интегралов на компьютере используются так называемый "численные методы", позволяющие находить решение задачи с заданной точностью.
+\par В рамках данной лабораторный работы был реализован один из алгоритмов численного многомерного интегрирования с использованием много шаговой схемы - метод трапеций.
+\addcontentsline{toc}{section}{Введение}
+
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы необходимо реализовать последовательную и параллельную реализации алгоритма численного многомерного интегрирования с использованием много шаговой схемы методом трапеций, проверить корректность работы алгоритмов, провести эксперименты для оценки эффективности параллелизации. По полученным результатам сделать выводы.
+\par Для реализации параллельной версии необходимо использовать библиотеки OpenMP и Intel Threading Building Blocks. Для проверки корректности работы алгоритмов используется Google Testing Framework.
+\newpage
+
+% Описание алгоритмов
+\section*{Описание алгоритмов}
+\addcontentsline{toc}{section}{Описание алгоритмов}
+Для удобства рассмотрим случай применения метода трапеций, для вычисления одномерных интегралов, а потом поясним, какие появятся различия при вычислении интегралов многомерных.
+\par Метод трапеций — метод численного интегрирования функции одной переменной, заключающийся в замене на каждом элементарном отрезке подынтегральной функции на многочлен первой степени, то есть линейную функцию. Пусть имеется функция $f$ заданная на отрезке $[a,b]$, а так же имеется некая сетка разбивающая $[a,b]$ на $n$ отрезков, тогда интеграл может быть вычислен как:
+\[\int_{a}^{b}f(x)\approx \sum_{i=0}^{n}\frac{f(x_{i})+x_{i+1}}{2}(x_{i+1}-x_{i})\]
+Но если использовать сетку с равномерным интервалом $\Delta x$ то форма может быть упрощена до:
+\[\int_{a}^{b}f(x)\approx \Delta x(\sum_{i=1}^{n-1}f(x_{i})+\frac{x_{0}+x_{n}}{2})\]
+\par В случае вычисления многомерных интегралов формула никак не изменяется, просто теперь вместо одномерной сетки мы используем многомерную. Тогда проход проводится не по отрезкам а по набору многомерных параллелепипедов, значение функции вычисляется в их угле с наименьшими координатами.
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Данный алгоритм может быть крайне просто распараллелен, так как все вычисления на каждой итерации проводятся полностью независимо, а так же благодаря свойству аддитивности интегралов.
+\par После того, как мы провели разбиение фигуры на набор блоков необходимо эти блоки перечислить(мысленно пронумеровать), далее можно разделить весь диапазон блоков между потоками, каждый из них проведёт вычисления на своей части блоков, после чего результат их работы сложим и получим результат.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Для вычисления интеграла последовательным способом следует вызвать функцию:
+\begin{lstlisting}
+double integrate(const std::function<double(std::vector<double>)>& f,
+    const std::vector<double>& from, const std::vector<double>& to,
+    uint64_t steps);
+\end{lstlisting}
+\par Входными параметрами функции являются: интегрируемая функция, координаты противоположных углов интегрируемой фигуры (в конкретной реализации предполагается что фигура представляет собой многомерный параллелепипед) и частоту разбиения.
+\par Для вычисления интеграла с использованием нескольких потоков следует вызвать функцию:
+\begin{lstlisting}
+double integrate_parallel(const std::function<double(std::vector<double>)> &f,
+                 const std::vector<double> &from, const std::vector<double> &to,
+                 uint64_t steps, size_t threads_count);
+\end{lstlisting}
+\par Входные параметры функции идентичны пердыдущей
+
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с Google Testing Framework.
+\par Каждый тест подразумевает вычисление интеграла для некой произвольной, заранее заданной фигуры параллельным и последовательным способом, при проводится замер времени затраченного на получение результата.
+\par Для успешного прохождения теста требуется, чтобы отклонение между последовательной и параллельной версиями находилось в заданных тестом рамках. Прохождение всех тестов подтверждает корректность работы написанной программы.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Эксперименты для оценки эффективности проводились на ПК со следующими характеристиками:
+
+\begin{itemize}
+\item Процессор: AMD Ryzen 7 2700 Eight-Core Processor 3.20 GHz;
+\item Оперативная память: 16 ГБ 3000 MHz;
+\item ОС: Microsoft Windows 10 Pro Build 19042.985.
+\end{itemize}
+
+\par Для замеров производительности алгоритм запускался для функции $\sin(x)\cdot y$ с различной частотой разбиения.
+
+\begin{table}[!h]
+\caption{Результаты экспериментов}
+\centering
+\begin{tabular}{lllll}
+Частота & Последовательная & OpenMP & TBB & Потоки C++ \\
+2000    & 0.36                    & 0.03       & 0.04          & 0.03    \\
+5000    & 2.18                    & 0.24       & 0.24          & 0.24    \\
+10000   & 9.11                    & 1.11       & 0.97          & 1.01    \\
+15000   & 20.79                   & 2.56       & 2.21          & 2.23    \\
+\end{tabular}
+\end{table}
+
+\par Исходя из результатов экспериментов, можно сделать вывод о том, что параллельная реализация работает быстрее, чем последовательная, при этом ускорение от параллелизма увеличивается с ростом числа вершин.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения лабораторной работы были реализованы последовательная и параллельная реализации алгоритма численного многомерного интегрирования с использованием много шаговой схемы методом трапеций.
+\par Проведённые эксперименты показали эффективность параллельного исполнения данного алгоритма.
+\par Кроме того, были написаны тесты с использованием Google Testing Framework, необходимые для подтверждения корректности работы программы.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{wikishell} Википедия: Trapezoidal rule [Электронный ресурс] // URL: \url {https://en.wikipedia.org/wiki/Trapezoidal_rule} (дата обращения: 01.05.2020)
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\par Последовательная версия
+\begin{lstlisting}
+double integrate(const std::function<double(std::vector<double>)>& f,
+    const std::vector<double>& from, const std::vector<double>& to,
+    uint64_t steps) {
+    if (steps == 0) {
+        throw std::runtime_error("Wrong steps count");
+    }
+    if (from.size() != to.size()) {
+        throw std::runtime_error("Wrong range");
+    }
+    if (from.empty() || to.empty()) {
+        throw std::runtime_error("Range is empty");
+    }
+
+    double block_size = 1;
+    size_t blocks_count = 1;
+    std::vector<double> deltas(from.size());
+    std::vector<size_t>dimension_divider(from.size());
+
+    for (size_t i = 0; i < from.size(); i++) {
+        deltas[i] = (to[i] - from[i]) / static_cast<double>(steps);
+        block_size *= deltas[i];
+        dimension_divider[i] = blocks_count;
+        blocks_count *= steps;
+    }
+
+    double result = 0.0;
+    std::vector<double> block_coordinates(from.size());
+    for (size_t i = 1; i < blocks_count - 1; i++) {
+        for (size_t j = 0; j < from.size(); j++) {
+            block_coordinates[j] = from[j] + (i / dimension_divider[j] % steps)
+                * deltas[j];
+        }
+        result += f(block_coordinates);
+    }
+    result += (f(from) + f(to)) / 2;
+    result *= block_size;
+    return result;
+}
+\end{lstlisting}
+
+\par OpenMP Версия
+\begin{lstlisting}
+double integrate_parallel(const std::function<double(std::vector<double>)>& f,
+    const std::vector<double>& from, const std::vector<double>& to,
+    uint64_t steps) {
+    if (steps == 0) {
+        throw std::runtime_error("Wrong steps count");
+    }
+    if (from.size() != to.size()) {
+        throw std::runtime_error("Wrong range");
+    }
+    if (from.empty() || to.empty()) {
+        throw std::runtime_error("Range is empty");
+    }
+
+    double block_size = 1;
+    size_t blocks_count = 1;
+    std::vector<double> deltas(from.size());
+    std::vector<size_t>dimension_divider(from.size());
+
+    for (size_t i = 0; i < from.size(); i++) {
+        deltas[i] = (to[i] - from[i]) / static_cast<double>(steps);
+        block_size *= deltas[i];
+        dimension_divider[i] = blocks_count;
+        blocks_count *= steps;
+    }
+
+    double result = 0.0;
+    #pragma omp parallel shared(dimension_divider, from, to, f, steps, blocks_count, deltas)
+    {
+        std::vector<double> block_coordinates(from.size());
+        #pragma omp for reduction(+ : result)
+        for (int32_t i = 1; i < static_cast<int64_t>(blocks_count - 1); i++) {
+            for (size_t j = 0; j < from.size(); j++) {
+                block_coordinates[j] = from[j] + (i / dimension_divider[j] % steps)
+                    * deltas[j];
+            }
+            result += f(block_coordinates);
+        }
+    }
+
+    result += (f(from) + f(to)) / 2;
+    result *= block_size;
+    return result;
+}
+\end{lstlisting}
+
+\par Intel TBB версия
+\begin{lstlisting}
+double integrate_parallel(const std::function<double(std::vector<double>)>& f,
+    const std::vector<double>& from, const std::vector<double>& to,
+    uint64_t steps) {
+    if (steps == 0) {
+        throw std::runtime_error("Wrong steps count");
+    }
+    if (from.size() != to.size()) {
+        throw std::runtime_error("Wrong range");
+    }
+    if (from.empty() || to.empty()) {
+        throw std::runtime_error("Range is empty");
+    }
+
+    double block_size = 1;
+    size_t blocks_count = 1;
+    std::vector<double> deltas(from.size());
+    std::vector<size_t>dimension_divider(from.size());
+
+    for (size_t i = 0; i < from.size(); i++) {
+        deltas[i] = (to[i] - from[i]) / static_cast<double>(steps);
+        block_size *= deltas[i];
+        dimension_divider[i] = blocks_count;
+        blocks_count *= steps;
+    }
+
+    double result = 0.0;
+    result = tbb::parallel_reduce(tbb::blocked_range<int32_t>(1, static_cast<int32_t>(blocks_count - 1)), 0.0,
+        [&dimension_divider, &from, &f, &steps, &deltas]
+        (tbb::blocked_range<int> range, double state_result) {
+        std::vector<double> block_coordinates(from.size());
+        for (int32_t i = range.begin(); i < range.end(); i++) {
+            for (size_t j = 0; j < from.size(); j++) {
+                block_coordinates[j] = from[j] + (i / dimension_divider[j] % steps)
+                    * deltas[j];
+            }
+            state_result += f(block_coordinates);
+        }
+        return state_result;
+    }, std::plus<double>());
+
+    result += (f(from) + f(to)) / 2;
+    result *= block_size;
+    return result;
+}
+\end{lstlisting}
+
+\par Версия на потоках С++
+\begin{lstlisting}
+double integrate_parallel(const std::function<double(std::vector<double>)> &f,
+    const std::vector<double> &from, const std::vector<double> &to, uint64_t steps, size_t threads_count) {
+    if (steps == 0) {
+        throw std::runtime_error("Wrong steps count");
+    }
+    if (from.size() != to.size()) {
+        throw std::runtime_error("Wrong range");
+    }
+    if (from.empty() || to.empty()) {
+        throw std::runtime_error("Range is empty");
+    }
+    if (threads_count == 0) {
+        throw std::runtime_error("Threads cant be zero count");
+    }
+
+    double block_size = 1;
+    size_t blocks_count = 1;
+    std::vector<double> deltas(from.size());
+    std::vector<size_t>dimension_divider(from.size());
+
+    for (size_t i = 0; i < from.size(); i++) {
+        deltas[i] = (to[i] - from[i]) / static_cast<double>(steps);
+        block_size *= deltas[i];
+        dimension_divider[i] = blocks_count;
+        blocks_count *= steps;
+    }
+
+    double result = 0.0;
+
+    auto partial_integral = [&dimension_divider, &from, &f, &steps, &deltas]
+        (size_t block_begin, size_t block_end) {
+        std::vector<double> block_coordinates(from.size());
+        double state_result = 0.0;
+        for (size_t i = block_begin; i < block_end; i++) {
+            for (size_t j = 0; j < from.size(); j++) {
+                block_coordinates[j] = from[j] + (i / dimension_divider[j] % steps)
+                    * deltas[j];
+            }
+            state_result += f(block_coordinates);
+        }
+        return state_result;
+    };
+
+    std::vector<std::future<double>> futures(0);
+    size_t part = (blocks_count - 2) / threads_count;
+    for (size_t i = 0; i < threads_count - 1; i++) {
+        futures.push_back(std::async(partial_integral, 1 + i * part, 1 + (i + 1) * part));
+    }
+    futures.push_back(std::async(partial_integral, 1 + (threads_count - 1) * part, blocks_count - 1));
+
+    for (size_t i = 0; i < threads_count; i++) {
+        result += futures[i].get();
+    }
+
+    result += (f(from) + f(to)) / 2;
+    result *= block_size;
+    return result;
+}
+\end{lstlisting}
+
+
+\end{document}
