@@ -375,7 +375,7 @@ std::vector < std::pair<int, int>> JarvisAlgTbb(const std::vector<std::pair<int,
                 }
                 return local_next;
             },
-            [&curr](const std::pair<int, int>& next, const std::pair<int,
+            [&curr](const std::pair<int, int>& next, const std::pair<int, 
                 int>& local_next) -> const std::pair<int, int> {
                 int temp = Around(curr, next, local_next);
                 if (temp > 0) {
