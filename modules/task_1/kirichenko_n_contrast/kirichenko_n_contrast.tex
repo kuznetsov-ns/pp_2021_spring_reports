@@ -97,34 +97,66 @@
 Алгоритм повышения контраста полутонового изображения посредством линейной растяжки гистограммы заключается в следующем:
 \begin{enumerate}
 \item Найти $min$ и $max$.
-\item Пересчитать старые значения интенсивности для всех пикселей по формуле $f^{-1}(y)$ = (y - $y_{min}$) * ${\frac{255}{y_{max} - y_{min}}}$.
+\item Пересчитать старые значения интенсивности для всех пикселей по формуле $f^{-1}(y)$ = $((y - y_{min}) * 255) / ({{y_{max} - y_{min}})}$.
 \end{enumerate}
 \newpage
 
 \section*{Описание схемы распараллеливания}
 \addcontentsline{toc}{section}{Описание схемы распараллеливания}
+\par В данном алгоритме, распараллеливание происходит путем разбиения данных на части и передачи их на потоки.
+\par Первым шагом идет разбиение изображения на части, в которых находятся локальные   $min$ и $max$, а потом находятся глобальные $min$ и $max$.
+\par Заключающим шагом является пересчитывание старых значений интенсивности каждым потоком по формуле $f^{-1}(y)$.
 
 \newpage
 
 \section*{Описание программной реализации}
-\addcontentsline{toc}{section}{Описание программной реализации}\
-
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Для  последовательного алгоритма следует вызвать функцию:
+\begin{lstlisting}
+Result Contrast(const Result& rm);
+\end{lstlisting}
+\par Входным параметром передается изображение
+\par Для изменения контраста полутонового изображения с использованием нескольких потоков следует вызвать функции:
+\begin{lstlisting}
+Result Contrastomp(const Result& rm);
+Result Contrasttbb(const Result& rm);
+Result Contraststd(const Result& rm);
+\end{lstlisting}
+\par Входным параметром все так же является изображение.
 \newpage
 
 \section*{Результаты экспериментов}
 \addcontentsline{toc}{section}{Результаты экспериментов}
 Вычислительные эксперименты проводились на оборудовании со следующей аппаратной конфигурацией:
 \begin{itemize}
-\item Процессор: 
-\item Оперативная память: 
-\item ОС: 
+\item Процессор: Intel(R) Core(TM) i7-2600K CPU @ 3.40 GHz, 3400 МГц, ядер 4;
+\item Оперативная память: 16 ГБ (DDR3), 1200 MHz;
+\item ОС: Microsoft Windows 10 pro 
 \end{itemize}
+\par Изображение 10000*10000
+\\
+\begin{table}[!h]
+\centering
+\begin{tabular}{lllll}
+Версия & Время (сек) & Ускорение  \\
+Seq   & 9.13 & -  \\
+OpenMP  & 4.38 & 2.084  \\
+TBB  & 2.59 & 3.525  \\
+Std  & 3.15 & 2.898  \\
+\end{tabular}
+\caption{Результаты экспериментов}
+\end{table}
 
 \newpage
 
 \section*{Заключение}
 \addcontentsline{toc}{section}{Заключение}
-
+\par В ходе лабораторной работы, мы разработали последовательную и параллельные реализации алгоритма повышения контраста полутонового изображения посредством линейной растяжки гистограммы с использованием  OpenMP, TBB и std::thread.
+\par Для подтверждения корректности работы программы разработан и доведен до успешного
+выполнения набор тестов с использованием библиотеки модульного тестирования Google C++
+Testing Framework.
+\par По данным экспериментов удалось сравнить время работы параллельных и последовательного
+алгоритмов. Выявлено, что параллельный алгоритм повышения контраста полутонового изображения посредством линейной растяжки гистограммы показывает высокую эффективность на достаточно большом объеме данных.
 \newpage
 
 \begin{thebibliography}{1}
@@ -143,6 +175,179 @@
 \section*{Приложение}
 \addcontentsline{toc}{section}{Приложение}
 В данном разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\begin{lstlisting}
+// contrast.h
+#include <iostream>
+#include <cstdint>
+#include <random>
+#include <vector>
+#include <cassert>
+#include <ctime>
+#include <algorithm>
+#include <limits>
+#include <utility>
 
+using Result = std::vector<int>;
+
+Result RandomI(int l, int k);
+Result Contrast(const Result& rm);
+Result Contrastomp(const Result& rm);
+Result Contrasttbb(const Result& rm);
+Result Contraststd(const Result& rm);
+\end{lstlisting}
+\begin{lstlisting}
+//contrast.cpp
+#include "../../../modules/task_4/kirichenko_n_contrast/contrast.h"
+#include "../../../3rdparty/unapproved/unapproved.h"
+
+Result RandomI(int l, int k) {
+    if (l <= 0 || k <= 0)
+        throw std::runtime_error("Incorrect data!");
+    static std::mt19937 random(time(0));
+    Result res(l * k);
+    for (int i = 0; i < l; i++) {
+        for (int j = 0; j < k; j++) {
+            res[i * l + j] = random() % 256;
+        }
+    }
+    return res;
+}
+
+Result Contrast(const Result& rm) {
+    Result outcome(rm.size());
+    int max = 0;
+    int min = 255;
+    for (int i = 0; i < static_cast<int>(rm.size()); i++) {
+        if (min > rm[i])
+            min = rm[i];
+        if (max < rm[i])
+            max = rm[i];
+    }
+    for (int i = 0; i < static_cast<int>(rm.size()); i++) {
+        outcome[i] = (rm[i] - min) * (255 / (max - min));
+    }
+    return outcome;
+}
+
+Result Contrastomp(const Result& rm) {
+    Result outcome(rm.size());
+    int const num_threads = 4;
+    omp_set_num_threads(num_threads);
+    int max_n[num_threads], min_n[num_threads];
+    int max = 0, min = 255;
+#pragma omp parallel
+    {
+       int nT = omp_get_thread_num();
+        min_n[nT] = 255;
+        max_n[nT] = 0;
+#pragma omp for
+        for (int i = 0; i < static_cast<int>(rm.size()); i++) {
+            if (min_n[nT] > rm[i])
+                min_n[nT] = rm[i];
+            if (max_n[nT] < rm[i])
+                max_n[nT] = rm[i];
+        }
+    }
+#pragma omp for
+    for (int i = 0; i < num_threads; i++) {
+        if (min_n[i] < min)
+            min = min_n[i];
+        if (max_n[i] > max)
+            max = max_n[i];
+    }
+#pragma omp for
+    for (int i = 0; i < static_cast<int>(rm.size()); i++) {
+        outcome[i] = ((rm[i] - min) * 255) / (max - min);
+    }
+    return outcome;
+}
+
+Result Contrasttbb(const Result& rm) {
+    Result outcome(rm.size());
+    int min = 255, max = 0;
+
+    int const numThreads = 4;
+
+    tbb::task_scheduler_init init(numThreads);
+
+    size_t gs = ((rm.size() / 1000) > 1 ? (rm.size() / 1000) : 1);
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, rm.size(), gs),
+        [&](const tbb::blocked_range<size_t> &r) {
+            for (size_t i = r.begin(); i != r.end(); ++i) {
+                if (rm[i] > max) {
+                    max = rm[i];
+                }
+                if (rm[i] < min) {
+                    min = rm[i];
+                }
+            }
+        }, tbb::simple_partitioner());
+
+    tbb::parallel_for(0, static_cast<int>(rm.size()), [&](const int i) {
+        outcome[i] = ((rm[i] - min) * 255) / (max - min);
+        });
+    return outcome;
+}
+
+Result Contraststd(const Result& rm) {
+    Result outcome(rm.size());
+    int min = 255, max = 0;
+
+    int const numThreads = 4;
+
+    int delta = static_cast<int>(rm.size()) / numThreads;
+    std::vector<int> limits(numThreads + 1);
+    for (int i = 0; i < numThreads; i++) {
+        limits[i] = i * delta;
+    }
+
+    limits[numThreads] = static_cast<int>(rm.size());
+
+    std::vector <std::pair<int, int>> min_max_arr(numThreads);
+
+    std::vector<std::thread> threads;
+
+    for (int i = 0; i < numThreads; i++) {
+        std::thread thr([&rm, &limits, &min_max_arr](int id_thread) -> void {
+            std::pair<int, int> result(255, 0);
+            for (int i = limits[id_thread]; i < limits[id_thread + 1]; i++) {
+                if (rm[i] > result.second) {
+                    result.second = rm[i];
+                }
+                if (rm[i] < result.first) {
+                    result.first = rm[i];
+                }
+            }
+            min_max_arr[id_thread] = result;
+            }, i);
+        threads.emplace_back(std::move(thr));
+    }
+    for (int i = 0; i < numThreads; i++) {
+        threads[i].join();
+    }
+
+    for (auto& temp : min_max_arr) {
+        if (temp.second > max) {
+            max = temp.second;
+        }
+        if (temp.first < min) {
+            min = temp.first;
+        }
+    }
+
+    std::vector<std::thread> threads1;
+    for (int i = 0; i < numThreads; i++) {
+        std::thread thr([&](const int i) {
+            for (int j = limits[i]; j < limits[i + 1]; j++)
+                outcome[j] = ((rm[j] - min) * 255) / (max - min);
+            }, i);
+        threads1.emplace_back(std::move(thr));
+    }
+    for (int i = 0; i < numThreads; i++) {
+        threads1[i].join();
+    }
+    return outcome;
+}
+\end{lstlisting}
 
 \end{document}
