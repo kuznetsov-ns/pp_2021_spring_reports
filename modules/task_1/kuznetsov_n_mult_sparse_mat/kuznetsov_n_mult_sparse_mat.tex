@@ -1,0 +1,459 @@
+\documentclass{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[english, russian]{babel}
+\usepackage{amssymb, amsfonts, amsmath, color, enumerate, indentfirst, geometry, listings}
+\usepackage[pdftex]{graphicx} 
+
+\geometry{a4paper, left=2cm, right=2cm, top=2cm, bottom=2cm}
+\definecolor{darkgreen}{rgb}{0.0, 0.5, 0.0}
+\lstset{
+	language=C++,
+	basicstyle=\footnotesize,
+	numbers=left,
+	numberstyle=\tiny,
+	numberfirstline=true,
+	numbersep=5pt,
+	keywordstyle=\color{blue}\bfseries,
+	commentstyle=\color{darkgreen},
+	stringstyle=\color{red},
+	showspaces=false,
+	showstringspaces=false,
+	captionpos=t,
+	breaklines=true,
+	breakatwhitespace=false,
+	extendedchars=true,
+	frame=tb,
+	title=\lstname,
+}
+
+\begin{document}
+	
+\begin{titlepage}
+	
+	\begin{center}
+		\LargeМинистерство науки и высшего образования Российской Федерации\\[\baselineskip]
+		Федеральное государственное автономное образовательное\\
+		учреждение высшего образования \\
+		Национальный исследовательский Нижегородский государственный\\
+		университет им. Н.И. Лобачевского\\[\baselineskip]
+		Институт информационных технологий, математики и механики \\
+	\end{center}
+	
+	\vspace{4em}
+	
+	\begin{center}
+		\textbf{\LARGEОтчет по лабораторной работе} \\
+	\end{center}
+
+	\begin{center}
+		\textbf{\LARGE«Умножение разреженных матриц. Элементы комплексного типа. Формат хранения матрицы - столбцовый (CCS).»} \\
+	\end{center}
+	
+	\vspace{10em}
+	
+	\hfill\parbox{6cm}{
+		\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-3 \\ Кузнецов Н.С. \\
+		\\
+		\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, к.т.н., \\ Сысоев А. В.
+	}
+	
+	\vspace{\fill}
+	
+	\begin{center} 
+		Нижний Новгород \\ 2021 
+	\end{center}
+	
+\end{titlepage}
+
+\setcounter{page}{2}
+
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+\par При постановке и решении различных задач возникает потребность в использовании так называемых разреженных матриц. Необходимость в применении такого рода  математических объектов появляется, например, в задачах оптимизации, в решении дифференциальных уравнений в частных производных, в теории графов. Как правило, методы хранения и алгоритмы обработки разреженных матриц существенно усложнены вследствие учета разреженной структуры. В этом случае многие алгоритмы являются более трудоемкими в сравнении с методами обработки обычных матриц. Следовательно, важно уметь применять эффективные методы хранения и обработки разреженных матриц.
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В данной лабораторной работе необходимо:
+\begin{enumerate}
+\item Реализовать последовательный алгоритм умножения разреженных матриц в столбцовом формате(CCS).
+\item Реализовать параллельный алгоритм умножения разреженных матриц в столбцовом формате(CCS) с использованием технологии OpenMP.
+\item Реализовать параллельный алгоритм умножения разреженных матриц в столбцовом формате(CCS) с использованием технологии TBB.
+\item Провести вычислительные эксперементы и сравнить время работы трех алгоритмов.
+\item Сделать вывод на основе полученных результатов.
+\end{enumerate}
+\newpage
+
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+\par В общем случае матрица называется разреженной, если  процент ее ненулевых элементов мал. Пусть m - число строк, а n - число столбцов матрицы. NZ - количество ее ненулевых элементов. В данной работе будут использованы матрицы, для которых выполняется равенство $NZ = \sqrt{m*n}$. Сами элементы — вещественные числа (в программной реализации будут использоваться числа типа double).
+\par Используемый в данной работе формат хранения матриц — столбцовый. Широко известен как CCS (Compressed Column Storage), в котором подразумевается хранение только ненулевых элементов. Характерные особенности данного формата заключаются в следующем:
+\begin{itemize}
+	\item матрица хранится в виде трех массивов:
+	\begin{itemize}
+		\item массив значений ненулевых элементов Value, которые в матрице располагаются построчно, сверху вниз;
+		\item массив номеров строк Row;
+		\item массив индексов начала столбцов ColIndex;
+	\end{itemize}
+	\item j-ый элемент в ColIndex указывает на начало j-го столбца;
+	\item j-ый столбец в массиве Value располагается в диапазоне от ColIndex[j] до (ColIndex[j + 1] – 1) включительно. Столбец j является нулевым, если выполняется равенство ColIndex[j] = ColIndex[j + 1];
+	\item удобный доступ и навигация по столбцам матрицы.
+\end{itemize}
+\par Пусть A и B — матрицы в формате CCS размерностей $(m_{1}, n_{1})$ и $(m_{2}, n_{2})$ соответственно. Напомним, что умножение двух матриц A и B возможно только при выполнении условия $n_{1} = m_{2}$. Если данное условие выполняется, то результатом матричного умножения является C = A * B, где C — матрица, которая хранится в формате CCS размерности $(m_{1}, n_{2})$. Алгоритм умножения двух разреженных матриц, хранящихся в столбцовом формате, заключается выполнении следующих действий:
+\begin{itemize}
+	\item инициализация структуры данных для результирующей матрицы C;
+	\item транспонирование матрицы A (нахождение $A^{T}$);
+	\item последовательное перемножение каждого столбца матрицы B на каждый из столбцов матрицы $A^{T}$ и запись в результирующую матрицу C полученных результатов.
+\end{itemize}
+\newpage
+
+\section*{Описание схемы распараллеливания}
+\addcontentsline{toc}{section}{Описание схемы распараллеливания}
+\par Описанная далее схема распараллеливания предназначена для использования в системах с общей памятью.
+\par Из описания работы алгоритма видно, что одной из самых трудоемких операций в процессе работы является перемножение столбца одной матрицы на все столбцы другой матрицы. То есть, в процессе вычислений перебираются столбцы матрицы B, после чего дальнейшая работа с ними происходит независимо. Следовательно, удобнее всего организовать параллелизм путем распределения столбцов матрицы B по потокам. То есть, каждый поток работает только с  некоторыми столбцами матрицы B, производя с ними необходимые вычисления. 
+\par Согласно описанию алгоритма, необходима последовательная запись результатов в результирующую матрицу C. Однако, потоки могут помешать друг другу сделать это корректно. Для исключения такой ситуации применение механизмов синхронизации приведет лишь к существенным накладным расходам, что отрицательно скажется на эффективности алгоритма. В связи с этим, в данной работе в каждом потоке создаются два локальных рабочих буфера, куда записываются частичные результаты для массивов Value, Row матрицы C. 
+\par Отметим, что в ходе вычислений синхронизация записи в массив ColIndex не требуется, так как в процессе работы каждый поток обращается только к "своей"\ части массива, что говорит о том, что доступ к ColIndex осуществляется независимо.
+\par После завершения вычислений каждым из потоков все локальные данные по каждому столбцу обрабатываются одним главным потоком, который формирует результат и записывает его в результирующую матрицу C.
+\newpage
+
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Для хранения матрицы в формате CCS использована структура CcsMatrix со следующими основными полями:
+\begin{itemize}
+	\item int M — количество строк матрицы;
+	\item int N — количество столбцов матрицы;
+	\item int not\_zero\_nubers — количество ненулевых элементов матрицы;
+	\item vector<double> value — массив значений Value;
+	\item vector<int> row — массив Row;
+	\item vector<int> colIndex — массив ColIndex.
+\end{itemize}
+\par В каждой версии алгоритма присутствуют следующие методы:
+\begin{itemize}
+	\item transposeMatrix — метод, который транспонирует матрицу. На вход поступает константный указатель на матрицу, которую требуется транспонировать. Результат работы метода — объект типа CcsMatrix. Реализация метода одинакова для всех версий алгоритма;
+	\item scalarMultiplication — метод, в котором реализовано скалярное умножение двух столбцов матрицы. Входные параметры — константные указатели на матрицы и индексы столбцов, которые требуется перемножить. Результатом работы данной функции является число типа double. Реализация метода одинакова для всех версий алгоритма;
+	\item matrixMultiplicate — метод, в котором реализовано непосредственно умножение двух матриц. Последовательность выполняемых действий описана в разделе "Описание алгоритма". Результатом работы метода является объект типа CcsMatrix. Реализация метода разная для каждой версии алгоритма, особенности каждой из них приведены ниже.
+\end{itemize}
+
+\subsection*{Последовательная версия}
+\addcontentsline{toc}{subsection}{Последовательная версия}
+\par Данная версия реализована строго в соответствии с описанием алгоритма. Все действия выполняются последовательно одним потоком. Параллелизм отсутствует. Дополнительной памяти для промежуточных результатов не требуется.
+
+\subsection*{OpenMP-версия}
+\addcontentsline{toc}{subsection}{OpenMP-версия}
+\par Данная версия реализована в соответствии с описанием алгоритма и схемой распараллеливания. Организация параллельной секции осуществляется при помощи директивы \#pragma omp parallel. В начале параллельной секции в каждом потоке создаются локальные буферы local\_value и local\_row, куда записываются промежуточные результаты в процессе вычислений. Распределение столбцов матрицы B по потокам организовано путем распараллеливания цикла for при помощи директивы \#pragma omp for schedule (static). Завершение цикла автоматически синхронизируется, после чего основной поток master обрабатывает промежуточные данные, записывает их в ColIndex и выделяет память для массивов Value и Row результирующей матрицы C. Далее следует директива \#pragma omp barrier для синхронизации потоков, так как по умолчанию секция master не синхронизируется. После этого каждый поток записывает промежуточные данные из своих локальных буферов в массивы результирующей матрицы, после чего происходит завершение работы параллельной области.
+
+\subsection*{TBB-версия}
+\addcontentsline{toc}{subsection}{TBB-версия}
+\par Данная версия реализована в соответствии с описанием алгоритма и схемой распараллеливания. В начале главный поток выделяет память под массивы value и row, куда остальные потоки будут записывать промежуточные результаты. Распределение столбцов матрицы B по потокам организовано путем распараллеливания цикла for при помощи функции parallel\_for. Первым аргументом передается одномерное итерационное пространство blocked\_range c параметром grainsize, равным 10. Вторым аргументом передается функтор, в котором реализовано частичное перемножение двух матриц, которое выполняется каждым потоком. После завершения цикла основной поток master обрабатывает промежуточные данные, записывает их в ColIndex и выделяет память для массивов Value и Row результирующей матрицы C. Далее основной поток записывает промежуточные данные из буферов value и row в массивы результирующей матрицы.
+\newpage
+
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+\par Характеристики системы:
+\begin{itemize}
+	\item процессор Intel Core i3-7100 3.90 GHz;
+	\item оперативная память 8 GB;
+	\item операционная система Windows 10;
+	\item количество ядер 2.
+\end{itemize}
+\par Эксперименты заключаются в замере времени выполнения умножения двух разреженных матриц. Для удобства используются квадратные матрицы. Входные данные — случайно сгенерированные матрицы порядка N. Замер времени осуществляется при помощи библиотеки chrono. Результаты экспериментов представлены в таблицах ниже:
+\begin{table}[htbp]
+	\centering
+	\begin{tabular}{|c|c|c|c|c|} \hline 
+		Версия & Последовательная & OpenMP & TBB\\ \hline 
+		Порядок матрицы & \multicolumn{3}{|c|}{время, миллисекунд} \\ \hline 
+		500 & 4 & 22 & 6 \\ \hline 
+		1000 & 18 & 42 & 21 \\ \hline 
+		5000 & 437 & 271 & 244 \\ \hline 
+		10000 & 1743 & 1071 & 930 \\ \hline 
+		25000 & 10934 & 6184 & 5581 \\ \hline 
+		40000 & 28220 & 15581 & 14611 \\ \hline 
+	\end{tabular}
+	\caption{Время выполнения}
+\end{table}
+
+\begin{table}[htbp]
+	\centering
+	\begin{tabular}{|c|c|c|c|} \hline 
+		Версия & OpenMP & TBB \\ \hline 
+		Порядок матрицы & \multicolumn{2}{|c|}{ускорение} \\ \hline 
+		500 & 0,18 & 0,66 \\ \hline 
+		1000 & 0,43 & 0,86 \\ \hline 
+		5000 & 1,61 & 1,79 \\ \hline 
+		10000 & 1,63 & 1,87 \\ \hline 
+		25000 & 1,77 & 1,96 \\ \hline 
+		40000 & 1,81 & 1,93 \\ \hline 
+	\end{tabular}
+	\caption{Коэффициент ускорения}
+\end{table}
+\newpage
+
+\section*{Описание подтверждения корректности}
+\addcontentsline{toc}{section}{Описание подтверждения корректности}
+\par В данной работе помимо самих алгоритмов реализованы unit тесты с использованием GoogleTest для проверки корректности работы методов. Тестируются следующие ситуации:
+\begin{itemize}
+	\item корректное создание матрицы;
+	\item умножение вектора на вектор;
+	\item умножение матрицы на вектор;
+	\item умножение вектора на матрицу;
+	\item умножение матрицы на матрицу.
+\end{itemize}
+\par Данные тесты были реализованы и успешно выполнены для всех четырех версий метода, что в свою очередь подтверждает корректность всех реализованных в данной работе версий алгоритма умножения разреженных матриц, хранящихся в столбцовом формате.
+\newpage
+
+\section*{Выводы}
+\addcontentsline{toc}{section}{Выводы}
+\par Исходя из результатов проведения экспериментов можно сделать следующие выводы:
+\begin{itemize}
+	\item если объем решаемой задачи сравнительно невелик и она не является трудоемкой, то использование параллельных версий алгоритмов нецелесообразно, так как затраты на создание потоков и организацию параллельных вычислений превышают затраты на решение задачи последовательным методом. В рамках данной работы применение параллельных алгоритмов оправдано, если порядок матрицы $N \ge 5000$;
+	\item TBB-версия оказалась эффективнее других параллельных версий. В данной работе это связано с тем, что работа между потоками распределялась динамически, в отличие от других версий, в которых использовалось статическое распределение задач;
+	\item при большой нагрузке версия std::thread оказалась менее эффективной. В данной работе это связано с тем, что задачи между потоками не распределялась автоматически. Балансировка нагрузки осуществлялась вручную статически;
+	\item если решаемая задача является трудоемкой, то ускорение работы параллельных версий алгоритма относительно близко к числу работающих потоков при вычислениях.
+\end{itemize}
+\newpage
+
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+\par В рамках данной работы были реализованы последовательный и параллельные версии алгоритмов умножения разреженных матриц, хранящихся в столбцовом формате. Также были проведены эксперименты, оценивающие реализованные методы. Результаты показали, что TBB-версия является эффективнее других реализаций, а ускорение появляется тогда, когда ресурсов на организацию параллелизма тратится не больше, чем на решение задачи в последовательном случае. Корректность реализованных версий алгоритмов подтверждена проведенными тестами.
+\newpage
+
+\section*{Литература}
+\addcontentsline{toc}{section}{Литература}
+\begin{enumerate}
+	\item Корняков К.В., Мееров И.Б., Сиднев А.А., Сысоев А.В., Шишков А.В.
+	Инструменты параллельного программирования в системах с общей
+	памятью. – Учебное пособие / Под ред. проф. В.П. Гергеля. – Н. Новгород: Изд-во Нижегородского госуниверситета, 2010. – 201 с.
+	\item Джордж А., Лю Дж. Численное решение больших разреженных систем уравнений. – М.: Мир, 1984.
+	\item Писсанецки С. Технология разреженных матриц. — М.: Мир,1988.
+\end{enumerate}
+\newpage
+
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\begin{lstlisting}
+//sparse_matrix.h
+
+// Copyright 2021 Kuznetsov Nikita
+#ifndef MODULES_TASK_3_KUZNETSOV_N_MULT_SPARSE_MAT_TBB_SPARSE_MATRIX_H_
+#define MODULES_TASK_3_KUZNETSOV_N_MULT_SPARSE_MAT_TBB_SPARSE_MATRIX_H_
+#include <vector>
+
+struct CcsMatrix {
+    int M, N;
+    int not_zero_number;
+
+    std::vector<double> value;
+    std::vector<int> row;
+    std::vector<int> colIndex;
+
+    CcsMatrix(int _M, int _N, int nz);
+    CcsMatrix() = default;
+};
+
+double measurementOfTime(int M1, int N1, int N2, int num_threads);
+bool operator==(const CcsMatrix& m1, const CcsMatrix& m2);
+CcsMatrix generateMatrix(int M, int N);
+CcsMatrix transposeMatrix(const CcsMatrix* m);
+double scalarMultiplication(const CcsMatrix* transposed_m, const CcsMatrix* m,
+    int i, int j);
+CcsMatrix matrixMultiplicate(const CcsMatrix* m1, const CcsMatrix* m2);
+
+#endif  // MODULES_TASK_3_KUZNETSOV_N_MULT_SPARSE_MAT_TBB_SPARSE_MATRIX_H_
+
+
+//sparse_matrix.cpp
+
+// Copyright 2021 Kuznetsov Nikita
+#include <tbb/tbb.h>
+#include <random>
+#include <algorithm>
+#include <cstring>
+#include <vector>
+#include <ctime>
+#include <cmath>
+#include "../../modules/task_3/kuznetsov_n_mult_sparse_mat_tbb/sparse_matrix.h"
+
+CcsMatrix::CcsMatrix(int _M, int _N, int nz) {
+    if (_M <= 0 || _N <= 0) throw "wrong size";
+    M = _M;
+    N = _N;
+    colIndex.resize(_N + 1);
+    not_zero_number = nz;
+    value.resize(nz);
+    row.resize(nz);
+}
+
+double measurementOfTime(int M1, int N1, int N2, int num_threads) {
+    if (M1 <= 0 || N1 <= 0 || N2 <= 0) throw "wrong size";
+    if (num_threads <= 0) throw "wrong number of threads";
+
+    CcsMatrix m1(generateMatrix(M1, N1));
+    CcsMatrix m2(generateMatrix(N1, N2));
+
+    tbb::task_scheduler_init init(num_threads);
+
+    tbb::tick_count t1 = tbb::tick_count::now();
+    matrixMultiplicate(&m1, &m2);
+    tbb::tick_count t2 = tbb::tick_count::now();
+
+    init.terminate();
+
+    return (t2 - t1).seconds();
+}
+
+bool operator==(const CcsMatrix& m1, const CcsMatrix& m2) {
+    return m1.value == m2.value && m1.row == m2.row &&
+        m1.colIndex == m2.colIndex && m1.M == m2.M;
+}
+
+CcsMatrix generateMatrix(int M, int N) {
+    if (M <= 0 || N <= 0) throw "wrong size";
+    int nz = 0, nz_in_col = 0, tmp = 0;
+    std::mt19937 gen;
+    std::vector<int> row;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    nz = static_cast<int>(sqrt(M*N));
+    nz_in_col = (nz / N == 0) ? 1 : nz / N;
+
+    CcsMatrix m(M, N, 0);
+    m.not_zero_number = nz_in_col * N;
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < nz_in_col; j++) {
+            m.value.push_back(gen() % static_cast<int>(M*N));
+            tmp = gen() % static_cast<int>(M);
+            while (std::find(row.begin(), row.end(), tmp) != row.end())
+                tmp = gen() % static_cast<int>(M);
+            m.row.push_back(tmp);
+        }
+        m.colIndex[i] = i * nz_in_col;
+    }
+    m.colIndex[N] = N * nz_in_col;
+    return m;
+}
+
+CcsMatrix transposeMatrix(const CcsMatrix* m) {
+    int i, j, k1, k2, iindex, rindex, row, tmp, s = 0;
+    double v;
+    CcsMatrix res(m->N, m->M, m->not_zero_number);
+
+    for (i = 0; i < m->not_zero_number; i++)
+        res.colIndex[m->row[i] + 1]++;
+
+    for (i = 1; i <= m->M; i++) {
+        tmp = res.colIndex[i];
+        res.colIndex[i] = s;
+        s += tmp;
+    }
+
+    for (i = 0; i < m->N; i++) {
+        k1 = m->colIndex[i];
+        k2 = m->colIndex[i + 1];
+        row = i;
+        for (j = k1; j < k2; j++) {
+            v = m->value[j];
+            rindex = m->row[j];
+            iindex = res.colIndex[rindex + 1];
+            res.value[iindex] = v;
+            res.row[iindex] = row;
+            res.colIndex[rindex + 1]++;
+        }
+    }
+    return res;
+}
+
+double scalarMultiplication(const CcsMatrix* transposed_m, const CcsMatrix* m,
+    int i, int j) {
+    double res = 0;
+    int k = 0;
+    for (k = transposed_m->colIndex[i]; k < transposed_m->colIndex[i + 1]; k++)
+        for (int l = m->colIndex[j]; l < m->colIndex[j + 1]; l++)
+            if (transposed_m->row[k] == m->row[l]) {
+                res += transposed_m->value[k] * m->value[l];
+                break;
+            }
+    return res;
+}
+
+class Multiplicator {
+ private:
+    CcsMatrix transposed_A, B;
+    std::vector<double>* value;
+    std::vector<int>* row;
+    std::vector<int>* resColIndex;
+
+ public:
+    Multiplicator(const CcsMatrix* _transposed_A, const CcsMatrix* _B,
+        std::vector<double>* _value, std::vector<int>* _row,
+        std::vector<int>* _resColIndex) : transposed_A(*_transposed_A), B(*_B),
+        value(_value), row(_row), resColIndex(_resColIndex) {}
+    void operator()(const tbb::blocked_range<int>& r) const {
+        int colNZ = 0, first_col = B.N;
+        double value_tmp;
+        int begin = r.begin(), end = r.end();
+
+        for (int j = begin; j < end; j++) {
+            if (j < first_col) first_col = j;
+
+            colNZ = 0;
+            for (int i = 0; i < transposed_A.N; i++) {
+                value_tmp = scalarMultiplication(&transposed_A, &B, i, j);
+                if (value_tmp != 0) {
+                    value[j].push_back(value_tmp);
+                    row[j].push_back(i);
+                    colNZ++;
+                }
+            }
+            (*resColIndex)[j] = colNZ;
+        }
+    }
+};
+
+CcsMatrix matrixMultiplicate(const CcsMatrix* m1, const CcsMatrix* m2) {
+    if (m1->N != m2->M) throw "m1 and m2 are incompatible";
+
+    CcsMatrix res(m1->M, m2->N, 0);
+    CcsMatrix transposed_m1(transposeMatrix(m1));
+    int N = res.N;
+    std::vector<double>* value = new std::vector<double>[N];
+    std::vector<int>* row = new std::vector<int>[N];
+
+    int grainsize = 10;
+    tbb::parallel_for(tbb::blocked_range<int>(0, m2->N, grainsize),
+    Multiplicator(&transposed_m1, m2, value, row, &res.colIndex));
+
+    int nz = 0;
+    for (int j = 0; j < N; j++) {
+        int tmp = res.colIndex[j];
+        res.colIndex[j] = nz;
+        nz += tmp;
+    }
+    res.colIndex[N] = nz;
+
+    res.value.resize(res.colIndex.back());
+    res.row.resize(res.colIndex.back());
+
+    int count = 0;
+    double tmp;
+    for (int i = 0; i < N; i++) {
+        int size = value[i].size();
+        if (size > 0) {
+            memcpy(&res.value[count], &value[i][0],
+                size * sizeof(tmp));
+            memcpy(&res.row[count], &row[i][0],
+                size * sizeof(count));
+            count += size;
+        }
+    }
+
+    delete[] value;
+    delete[] row;
+
+    return res;
+}
+\end{lstlisting}
+\end{document}
