@@ -1,0 +1,528 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\addto\captionsrussian{\renewcommand \contentsname {\LARGE Содержание}}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ\\
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+\textbf{"Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского" (ННГУ)}
+\end{center}
+
+\begin{center}
+\textbf{Институт информационных технологий, математики и механики}
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+Отчет по лабораторной работе \\
+\end{center}
+\begin{center}
+\textbf{\Large«Построение выпуклой оболочки - проход Джарвиса.»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-3 \\ Гурылев Н. С.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+% содержание
+\tableofcontents{}
+\clearpage
+
+\begin{center}
+\section*{Введение}
+\end{center}
+\addcontentsline{toc}{section}{Введение}
+\parАлгоритм Джарвиса (или алгоритм обхода Джарвиса, или алгоритм заворачивания подарка) определяет последовательность элементов множества, образующих выпуклую оболочку для этого множества. Метод можно представить как обтягивание верёвкой множества вбитых в доску гвоздей. Алгоритм работает за время O(nh), где n — общее число точек на плоскости, h — число точек в выпуклой оболочке.
+\par Для практических целей выпуклые оболочки полезны тем, что они компактно хранят всю необходимую информацию о множестве точек, что позволяет быстро отвечать на разнообразные запросы на этом множестве.
+\par Выпуклые оболочки можно рассматривать в любом пространстве, но мы в этой лабораторной  работе ограничимся двумерным.
+\newpage
+
+\begin{center}
+\section*{Постановка задач}
+\end{center}
+\addcontentsline{toc}{section}{Постановка задач}
+В рамках данной лабораторной работы необходимо:
+\begin{enumerate}
+\item Реализовать последовательный алгоритм построения выпуклой оболочки методом Джарвиса.
+\item Реализовать параллельный алгоритм построения выпуклой оболочки методом Джарвиса с использованием технологии OpenMP.
+\item Реализовать параллельный алгоритм построения выпуклой оболочки методом Джарвиса с использованием технологии TBB.
+\item Провести вычислительные эксперементы, а так же проверить корректность работы при помощи тестов, создданых с помощью Google C ++ Testing Framework.
+\item Сделать вывод на основе полученных результатов.
+\end{enumerate}
+\newpage
+
+\begin{center}
+\section*{Описание алгоритма}
+\end{center}
+\addcontentsline{toc}{section}{Описание алгоритма}
+\textbf{Алгоритм построения выпуклой оболочки методом Джарвиса:}
+\par Выберем какую-нибудь точку p0, которая гарантированно попадёт в выпуклую оболочку. Например, нижнюю, а если таких несколько, то самую левую из них.
+\par Дальше будем действовать так: найдём самую «правую» точку от последней добавленной (то есть точку с минимальным полярным углом) и добавим её в оболочку. Будем так итеративно добавлять точки, пока не «замкнёмся», то есть пока самой правой точкой не станет p0.
+\par Алгоритм Джарвиса также называют алгоритмом заворачивания подарка: мы каждый раз находим самый близкий «угол».
+\par Для каждой точки выпуклой оболочки (обозначим их количество за h) мы из всех оставшихся O(n) точек будем искать оптимальную, что суммарно будет работать за O(nh).
+\par Для краткости, будем считать, что все точки различны, имеют целочисленные координаты, а также что нет трёх точек на одной прямой.
+\newpage
+
+\begin{center}
+\section*{Схема распараллеливания}
+\end{center}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+\par Основной идеей распараллеливания алгоритма построения выпуклой оболочки методом Джарвиса является разбиение массива точек на блоки. Кол-вл блоков будет равняться кол-ву потоков.
+\par При условии, что наш массив точек не будет делиться нацело на число потоков, то у нас появится остаток. Для того, чтобы посчитать остаток, мы учитываем эти точки в блоке последнего потока.
+\par Далее мы говорим каждому потоку искать свою локальную точку и после завершения, сравнивать с точкой главного потока.
+\newpage
+
+\begin{center}
+\section*{Описание программной реализации}
+\end{center}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Реализация последовательного алгоритма построения выпуклой оболочки методом Джарвиса представлена функцией:
+\begin{lstlisting}
+  std::vector < std::pair<int, int>> JarvisAlg(const std::vector<std::pair<int, int>>& points);
+\end{lstlisting}
+В качетве входного параметра передается вектор наших точек. На выходе вектор, содержащий МВО.
+\par Реализация параллельных алгоритмов построения выпуклой оболочки методом Джарвиса представления функциями:
+\begin{lstlisting}
+  std::vector < std::pair<int, int>> JarvisAlgTbb(const std::vector<std::pair<int, int>>&points);
+\end{lstlisting}
+\begin{lstlisting}
+  std::vector < std::pair<int, int>> JarvisAlgOmp(const std::vector<std::pair<int, int>>&points);
+\end{lstlisting}
+На входе и выходе аналогичные параметры по сравнению с последовательной функцией.
+\newpage
+
+\begin{center}
+\section*{Подтверждение корректности}
+\end{center}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+\par Для подтверждения корректности в программе реализована система тестов, разработанная с помощью использования Google C++ Testing Framework.
+\par Она включает в себя тесты, проверяющие все алгоритмы написанной программы. А в паралльленой версии сравниваются значения последовательного алгоритма построения выпуклой оболочки методом Джарвиса с параллельным.
+\par Успешное прохождение данных тестов доказывает корректность работы всей программы.
+\par Дополнительно для подтверждения корректности в программе реализова-на демонстрация работы алгоритма визуально с использованием библиотекиOpenCV.
+\newpage
+
+\begin{center}
+\section*{Результаты эксперементов}
+\end{center}
+\addcontentsline{toc}{section}{Результаты эксперементов}
+\par Вычислительные эксперименты для оценки эффективности алгоритма умножения двух разреженных матриц в столбцовом формате хранения проводились на оборудовании со следующей аппаратной конфигурацией:
+\begin{enumerate}
+\item Процессор: Intel(R) Core(TM) i5-4460 CPU @ 3.20GHz 3.20GHz, 4 ядра.
+\item Оперативная память: 8 Gb;
+\item Операционная система: Windows 10;
+\end{enumerate}
+В рамках нашего теста происходило вычисление на разном кол-ве точек: 1500000, 2000000 и 2500000.
+\begin{table}[!h]
+\caption{Сравнение последовательного алгоритма с OpenMP}
+\centering
+\begin{tabular}{|p{4cm}|p{4cm}|p{4cm}|p{3cm}|}
+\hline
+Кол-во точек & Последовательный алгоритм,сек & Параллельный алгоритм,сек & Ускорение  \\\hline
+1500000 & 0.032486 & 0.0333403 & 1.0877  \\\hline
+2000000  & 0.425559 & 0.1280879 & 3.351  \\\hline
+2500000  & 0.708678 & 0.3276799 & 3.926  \\\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Сравнение последовательного алгоритма с TBB}
+\centering
+\begin{tabular}{|p{4cm}|p{4cm}|p{4cm}|p{3cm}|}
+\hline
+Размер матрицы & Последовательный алгоритм,сек & Параллельный алгоритм,сек & Ускорение  \\\hline
+1500000  & 0.232486 & 0.0769763 & 1.238  \\\hline
+2000000  & 0.300169 & 0.0869188 & 3.726  \\\hline
+2500000  & 0.413325 & 0.1247168 & 3.882  \\\hline
+\end{tabular}
+\end{table}
+
+\par Исходя из результатов таблицы можно смело сделать вывод, что при распараллеливании мы выигрываем во времени. Самое максимальное ускокрение показало реузльтат в 4 раза.
+\newpage
+
+\begin{center}
+\section*{Заключение}
+\end{center}
+\addcontentsline{toc}{section}{Заключение}
+\par В ходе данной лабораторной работы было реализовано 3 алгоритма: последовательная версия построения выпуклой оболочки методом Джарвиса; паралельное с использованием технологии OpenMP; параллельное с использование технологии Tbb. Также были разработаны тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework, необходимые для подтверждения корректности работы программы.
+\par Перед мной стояла основная задача - преимущество параллельной реализации перед последовательной. Как можно заметить из реузльтатов показательных значений таблицы, это удалось выполнить.
+\newpage
+
+\addcontentsline{toc}{section}{Литература}
+\begin{thebibliography}{}
+\bibitem{1} Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\bibitem{2} https://ru.wikipedia.org/wiki/АлгоритмДжарвиса (дата обращения: 20.03.2021).
+\bibitem{3} https://algorithmica.org/ru/convex-hulls (дата обращения: 20.03.2021).
+\end{thebibliography}{}
+\newpage
+
+\begin{center}
+\section*{Приложение}
+\end{center}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\begin{lstlisting}
+// convex_hull_jarvis.h
+
+// Copyright 2021 Gurylev Nikita
+
+#ifndef MODULES_TASK_3_GURYLEV_N_CONVEX_HULL_JARVIS_CONVEX_HULL_JARVIS_H_
+#define MODULES_TASK_3_GURYLEV_N_CONVEX_HULL_JARVIS_CONVEX_HULL_JARVIS_H_
+
+#include <tbb/tbb.h>
+#include <vector>
+#include <utility>
+
+std::vector<std::pair<int, int>> getRandomPoint(int n);
+std::pair<int, int> SLeftMPoint(const std::vector<std::pair<int, int>>& points);
+bool Dist(const std::pair<int, int> current,
+    const std::pair<int, int> next, const std::pair<int, int> temp);
+double Around(const std::pair<int, int>& A, const std::pair<int, int>& B,
+    const std::pair<int, int>& C);
+std::vector < std::pair<int, int>> JarvisAlg(const std::vector<std::pair<int,
+    int>>& points);
+std::vector < std::pair<int, int>> JarvisAlgOmp(const std::vector<std::pair<int,
+    int>>&points);
+std::vector < std::pair<int, int>> JarvisAlgTbb(const std::vector<std::pair<int,
+    int>>&points);
+
+#endif  // MODULES_TASK_3_GURYLEV_N_CONVEX_HULL_JARVIS_CONVEX_HULL_JARVIS_H_
+
+
+// convex_hull_jarvis.cpp
+
+// Copyright 2021 Gurylev Nikita
+
+#include <random>
+#include <vector>
+#include <ctime>
+#include <utility>
+
+#include "tbb/parallel_reduce.h"
+#include "tbb/blocked_range.h"
+#include "../../../modules/task_3/gurylev_n_convex_hull_jarvis/convex_hull_jarvis.h"
+
+std::vector<std::pair<int, int>> getRandomPoint(int size) {
+    if (size <= 0) {
+        throw("Invalid size!");
+    }
+    std::vector<std::pair<int, int>> points(size);
+    std::default_random_engine random;
+    random.seed(static_cast<unsigned int>(std::time(0)));
+    for (int i = 0; i < size; i++) {
+        int x = random() % 100;
+        int y = random() % 100;
+        points[i] = std::make_pair(x, y);
+    }
+    return points;
+}
+
+std::pair<int, int> SLeftMPoint(const std::vector<std::pair<int,
+    int>>& points) {
+    std::pair<int, int> point_left = points[0];
+    for (size_t i = 1; i < points.size(); i++) {
+        if (points[i] < point_left)
+            point_left = points[i];
+    }
+    return point_left;
+}
+
+bool Dist(const std::pair<int, int> curr,
+    const std::pair<int, int> next, const std::pair<int,
+    int> tmp) {
+    int dist_next_curr = (next.first - curr.first) * (next.first - curr.first) +
+        (next.second - curr.second) * (next.second - curr.second);
+    int dist_tmp_curr = (tmp.first - curr.first) * (tmp.first - curr.first) +
+        (tmp.second - curr.second) * (tmp.second - curr.second);
+    if (dist_next_curr < dist_tmp_curr)
+        return true;
+    return false;
+}
+
+double Around(const std::pair<int, int>& A,
+    const std::pair<int, int>& B, const std::pair<int, int>& C) {
+    return (C.first - A.first) * (B.second - A.second) -
+        (C.second - A.second) * (B.first - A.first);
+}
+
+std::vector < std::pair<int, int>> JarvisAlg(const std::vector<std::pair<int,
+    int>>& points) {
+    size_t count_points = points.size();
+    if (count_points == 0) {
+        throw("Error");
+    }
+    std::pair<int, int> base = SLeftMPoint(points);
+    std::vector < std::pair<int, int>> convex_hull;
+    convex_hull.push_back(base);
+
+    std::pair<int, int> curr = base;
+    std::pair<int, int> next;
+    do {
+        next = curr == points[0] ? points[1] : points[0];
+
+        for (size_t i = 0; i < count_points; i++) {
+            double tmp = Around(curr, next, points[i]);
+            if (tmp > 0) {
+                next = points[i];
+            } else if (tmp == 0) {
+                if (Dist(curr, next, points[i])) {
+                    next = points[i];
+                }
+            }
+        }
+        curr = next;
+        convex_hull.push_back(next);
+    } while (curr != base);
+    convex_hull.pop_back();
+    return convex_hull;
+}
+
+std::vector < std::pair<int, int>> JarvisAlgTbb(const std::vector<std::pair<int,
+    int>>&points) {
+    int count_points = static_cast<int>(points.size());
+    if (count_points == 0)
+        throw("Error");
+    std::pair<int, int> base = tbb::parallel_reduce(
+        tbb::blocked_range<size_t>(1, count_points),
+        points[0],
+        [&points](tbb::blocked_range<size_t> r, std::pair<int,
+            int> local_base) -> const std::pair<int, int> {
+            auto begin = r.begin(), end = r.end();
+            for (auto i = begin; i != end; i++) {
+                if (points[i] < local_base)
+                    local_base = points[i];
+            }
+            return local_base;
+        },
+        [](const std::pair<int, int>& a, const std::pair<int,
+            int>& b) -> const std::pair<int, int> {
+            return a < b ? a : b;
+        });
+
+    std::vector<std::pair<int, int>> convex_hull;
+    convex_hull.push_back(base);
+    std::pair<int, int> curr = base;
+    std::pair<int, int> next;
+    do {
+        next = curr == points[0] ? points[1] : points[0];
+
+        curr = tbb::parallel_reduce(
+            tbb::blocked_range<size_t>(0, count_points),
+            next,
+            [&curr, &points](tbb::blocked_range<size_t> r, std::pair<int,
+                int> local_next) -> const std::pair<int, int> {
+                auto begin = r.begin(), end = r.end();
+                for (auto i = begin; i != end; i++) {
+                    int temp = Around(curr, local_next, points[i]);
+                    if (temp > 0) {
+                        local_next = points[i];
+                    } else if (temp == 0) {
+                        if (Dist(curr, local_next, points[i]))
+                            local_next = points[i];
+                    }
+                }
+                return local_next;
+            },
+            [&curr](const std::pair<int, int>& next, const std::pair<int,
+                int>& local_next) -> const std::pair<int, int> {
+                int temp = Around(curr, next, local_next);
+                if (temp > 0) {
+                    return local_next;
+                } else if (temp == 0) {
+                    if (Dist(curr, next, local_next))
+                        return local_next;
+                }
+                return next;
+            });
+        next = curr;
+        convex_hull.push_back(next);
+    } while (curr != base);
+    convex_hull.pop_back();
+    return convex_hull;
+}
+
+std::vector < std::pair<int, int>> JarvisAlgOmp(const std::vector<std::pair<int,
+    int>>&points) {
+    int count_points = static_cast<int>(points.size());
+    if (count_points == 0)
+        throw("Error");
+    std::pair<int, int> base = points[0];
+#pragma omp parallel shared(points)
+    {
+        std::pair<int, int> local_base(base);
+#pragma omp for
+        for (int i = 1; i < count_points; i++) {
+            if (points[i] < local_base)
+                local_base = points[i];
+        }
+#pragma omp critical
+        {
+            if (local_base < base)
+                base = local_base;
+        }
+    }
+    std::vector<std::pair<int, int>> convex_hull;
+    convex_hull.push_back(base);
+    std::pair<int, int> curr = base;
+    std::pair<int, int> next;
+    do {
+        next = curr == points[0] ? points[1] : points[0];
+#pragma omp parallel shared(points)
+        {
+            std::pair<int, int> local_next = next;
+#pragma omp for
+            for (int i = 0; i < count_points; i++) {
+                int tmp = Around(curr, local_next, points[i]);
+                if (tmp > 0) {
+                    local_next = points[i];
+                } else if (tmp == 0) {
+                    if (Dist(curr, local_next, points[i])) {
+                        local_next = points[i];
+                    }
+                }
+            }
+#pragma omp critical
+            {
+                int tmp = Around(curr, next, local_next);
+                if (tmp > 0) {
+                    next = local_next;
+                } else if (tmp == 0) {
+                    if (Dist(curr, next, local_next)) {
+                        next = local_next;
+                    }
+                }
+            }
+        }
+        curr = next;
+        convex_hull.push_back(next);
+    } while (curr != base);
+    convex_hull.pop_back();
+    return convex_hull;
+}
+
+
+// main.cpp
+
+// Copyright 2021 Gurylev Nikita
+
+#include <gtest/gtest.h>
+#include <vector>
+#include <utility>
+
+#include "./convex_hull_jarvis.h"
+#include "tbb/tick_count.h"
+
+TEST(ConvexHull, test1) {
+    std::vector<std::pair<int, int>> points = getRandomPoint(1550000);
+    tbb::tick_count time1 = tbb::tick_count::now();
+    std::vector<std::pair<int, int>> alg_seq = JarvisAlg(points);
+    tbb::tick_count time2 = tbb::tick_count::now();
+    std::cout << "Seq time: " <<
+        static_cast<double>((time2 - time1).seconds()) << std::endl;
+    time1 = tbb::tick_count::now();
+    std::vector<std::pair<int, int>> alg_tbb = JarvisAlgTbb(points);
+    time2 = tbb::tick_count::now();
+    std::cout << "Tbb time: " <<
+        static_cast<double>((time2 - time1).seconds()) << std::endl;
+    ASSERT_EQ(alg_seq, alg_tbb);
+}
+
+TEST(ConvexHull, test2) {
+    std::vector<std::pair<int, int>> points = getRandomPoint(2000000);
+    tbb::tick_count time1 = tbb::tick_count::now();
+    std::vector<std::pair<int, int>> alg_seq = JarvisAlg(points);
+    tbb::tick_count time2 = tbb::tick_count::now();
+    std::cout << "Seq time: " <<
+        static_cast<double>((time2 - time1).seconds()) << std::endl;
+    time1 = tbb::tick_count::now();
+    std::vector<std::pair<int, int>> alg_tbb = JarvisAlgTbb(points);
+    time2 = tbb::tick_count::now();
+    std::cout << "Tbb time: " <<
+        static_cast<double>((time2 - time1).seconds()) << std::endl;
+    ASSERT_EQ(alg_seq, alg_tbb);
+}
+
+TEST(ConvexHull, test3) {
+    std::vector<std::pair<int, int>> points = { std::pair<int, int>(0, 0),
+        std::pair<int, int>(3, 3), std::pair<int, int>(6, 6),
+        std::pair<int, int>(7, 7), std::pair<int, int>(9, 9) };
+    std::vector<std::pair<int, int>> alg_seq = JarvisAlg(points);
+    std::vector<std::pair<int, int>> alg_tbb = JarvisAlgTbb(points);
+    ASSERT_EQ(alg_seq, alg_tbb);
+}
+
+TEST(ConvexHull, test4) {
+    std::vector<std::pair<int, int>> points = { std::pair<int, int>(0, 0),
+        std::pair<int, int>(34, 26), std::pair<int, int>(21, 39),
+        std::pair<int, int>(0, 50), std::pair<int, int>(4, 15),
+        std::pair<int, int>(36, 41), std::pair<int, int>(16, 35),
+        std::pair<int, int>(8, 27), std::pair<int, int>(50, 50),
+        std::pair<int, int>(50, 0) };
+    std::vector<std::pair<int, int>> alg_seq = JarvisAlg(points);
+    std::vector<std::pair<int, int>> alg_tbb = JarvisAlgTbb(points);
+    ASSERT_EQ(alg_seq, alg_tbb);
+}
+
+TEST(ConvexHull, test5) {
+    std::vector<std::pair<int, int>> points = { std::pair<int, int>(3, 8),
+        std::pair<int, int>(60, 11), std::pair<int, int>(90, 40),
+        std::pair<int, int>(60, 55),
+        std::pair<int, int>(13, 33) };
+    std::vector<std::pair<int, int>> alg_seq = JarvisAlg(points);
+    std::vector<std::pair<int, int>> alg_tbb = JarvisAlgTbb(points);
+    ASSERT_EQ(alg_seq, alg_tbb);
+}
+\end{lstlisting}
+\end{document}
