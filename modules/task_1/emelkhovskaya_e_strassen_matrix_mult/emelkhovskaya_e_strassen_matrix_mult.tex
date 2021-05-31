@@ -1,0 +1,167 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+\usepackage{xcolor}
+
+\renewcommand{\thesection}{\arabic{section}}
+\setlength{\parskip}{3mm}
+\geometry{a4paper,top=20mm,bottom=20mm,left=20mm,right=15mm}
+\setlist{nolistsep, itemsep=0.5cm,parsep=0pt}
+
+\lstset{
+  language=c++,
+  backgroundcolor=\color{gray!5},
+  basicstyle=\fontsize{12}{12}\ttfamily,
+  columns=fullflexible,
+  breakatwhitespace=false,
+  breaklines=true,
+  captionpos=b,
+  commentstyle=\color{green},
+  keepspaces=true,
+  keywordstyle=\color{blue},
+  numbers=none,
+  stringstyle=\color{red},
+  title=\lstname
+}
+
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Умножение плотных матриц. Алгоритм Штрассена.»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-1 \\ Емельховская Екатерина Евгеньевна\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.
+}
+
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+\tableofcontents
+\newpage
+
+
+\section{Введение и постановка задачи}
+\par Алгоритм Штрассена предназначен для быстрого умножения матриц. В отичие от обычного умножения его сложность равна примерно n в степени 2.81, а кол-во перемножений равно 7, а не 8, что дает существенный выйгрыш на больших матрицах.
+\par В рамках данной лабораторной работы мы запрограммируем последовательную реализацию этого алгоритма, а также попробуем распараллелить его через tbb и openmp на языке прораммирования С++.
+
+\newpage
+\section{Описание алгоритма}
+\par Изначально мы имеем 2 квадратные матрицы: A и B. Результатом их перемножения является также квадратная матрица C. Условно мы делим все эти матрицы на 4 равных блока и условно введем обозначения для каждой: например, для матрицы A: A11, A12, A21, A22 и т.д. для матриц B и C.
+\par Как уже говорилось ранее, для обычного перемножения матриц требуется 8 перемножений, в то время как для алгоритма Штрассена требуется всего 7, вот они:
+\par 
+\verb|M1=(A11 + A22)*(B11 + B22)|
+
+\verb|M2=(A21 + A22)*B11|
+
+\verb|M3=A11*(B12 - B22)|
+
+\verb|M4=A22*(B21 - B11)|
+
+\verb|M5=(A11 + A12)*B22|
+
+\verb|M6=(A21 - A11)*(B11 + B12)|
+
+\verb|M7=(A12 - A22)*(B21 + B22)|
+
+\par Через Mi мы вычисляем результируюзую матрицу C. А далее мы опять делим матрицы и рекурсивно вычисляем подматрицы Mi до тех пор, пока матрицы не станут маленькими.
+
+\verb|C11=M1+M4-M5+M7|
+
+\verb|C12=M3+M5|
+
+\verb|C21=M2+M4|
+
+\verb|C22=M1-M2+M3+M6|
+
+
+\newpage
+\section{Распараллеливание}
+\par Алгоритм Штарссена можно распараллелить путем запуска параллельного выполнения операций для Mi. Эта идея будет актуальна и для tbb и для openmp.
+
+\par OpenMp:
+\par Для реализации алгоритма через openmp мы используем директиву 
+\par
+\verb|#pragma omp parallel sections shared()|. Она нужна для того, чтобы запустить подсчеты Mi параллельно, в скобочках через shared указываются части исходных матриц, которые являются общими данными для каждого из потоков. И уже в этой директиве мы для каждого умножения прописываем директиву \verb|#pragma omp section|. А для каждого маленького кусочка матрицы мы уже используем последовательное умножение матриц.
+
+\par Tbb:
+\par Подход для tbb аналогичен. Но вместо прошлых директив мы используем
+\verb|tbb::task_group tasks| и \verb|tasks.run| для параллельного запуска tbb задач в отдельных потоках.
+
+
+\newpage
+\section{Результаты}
+\par Тесты проводились на матрицах размерности 2048 на 2048
+
+\begin{tabular}{|c|c|c|}
+OpenMP & TBB &  Последовательная \\
+2,34 & 2,85 & 6.54 
+\end{tabular}
+
+
+
+
+
+
+
+
+\newpage
+\section{Заключение}
+\par В результате выполнения лабораторной работы мы написали последовательную реализацию алгоритма Штрассена,  а также нам удалось распараллелить часть с умножениями через библиотеки tbb и openmp. В ходе замеров времени мы выяснили, что tbb и openmp дают существенный выйгрыш во времни. Стоит учесть что это работает особенно хорошо на матрицах начиная от размерности 64 на 64.
+
+
+
+\newpage
+\section{Литература}
+\begin{enumerate}
+\item Антонов А.С. "Параллельное программирование с использованием технологии OpenMP: Учебное пособие".-М.: Изд-во МГУ, 2009. - 77 с. 19.04.2020)
+\end{enumerate}
+
+
+\end{document}
