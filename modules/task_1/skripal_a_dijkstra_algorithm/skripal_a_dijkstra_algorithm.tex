@@ -1,0 +1,960 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\newenvironment{pseudocode}[1][htb]
+  {\renewcommand{\algorithmcfname}{Алгоритм}
+   \begin{algorithm}[#1]%
+  }{\end{algorithm}}
+
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\LargeПоиск кратчайших путей из одной вершины (алгоритм Дейкстры)} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-2 \\ Скрипаль А.Д.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.
+}
+
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Алгоритм Дейкстры — алгоритм на графах, изобретённый нидерландским учёным Эдсгером Дейкстрой в 1959 году. Находит все кратчайшие пути из одной изначально заданной вершины графа до всех остальных. С его помощью, при наличии всей необходимой информации, можно, например, узнать какую последовательность дорог лучше использовать, чтобы добраться из одного города до каждого из многих других, или в какие страны выгодней экспортировать нефть и тому подобное.
+\par Минусом данного метода является невозможность обработки графов, в которых имеются ребра с отрицательным весом, т. е. если, например, некоторая система предусматривает убыточные для вашей фирмы маршруты, то для работы с ней следует воспользоваться отличным от алгоритма Дейкстры методом.
+\par В данной лабораторной работе будет рассмотрен алгоритм Дейкстры для нахождения крайтчайшего пути в графе от заданной начальной и конечной вершины с использованием технологий параллельных вычислений.
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В данной лабораторной работе необходимо разработать несколько функций с поддержкой различных технологий параллелизма, реализующих алгоритм Дейкстры для нахождения кратчайшего пути.
+\par По итогу в лабораторной работе должны быть реализованы:
+\begin{itemize}
+\item последовательный метод алгоритма Дейкстры;
+\item параллельный метод алгоритма Дейкстры с помощью технологии OpenMP;
+\item параллельный метод алгоритма Дейкстры с помощью технологии TBB;
+\item набор автоматических тестов с использованием Google C++ Testing Framework, подтверждающий корректность результатов для каждой из технологий;
+\end{itemize}
+\par После проведения тестирований и замеров времени для каждой из технологий необходимо сделать соответствующие выводы на основе полученных результатов.
+
+\newpage
+
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+Пусть дан взвешенный неориентированный граф G(V, E), где V~--- множество вершин, E~--- множество ребер.
+\par Каждой вершине приписывается вес – это вес пути от начальной вершины до данной. Также каждая вершина может быть посещена. Если вершина посещена, то путь от нее до начальной вершины кратчайший, если нет – то временный. Обходя граф, алгоритм считает для каждой вершины маршрут, и, если он оказывается кратчайшим, отмечает вершину посещенной. Весом данной вершины становится вес пути. Для всех соседей данной вершины алгоритм также рассчитывает вес, при этом ни при каких условиях не выделяя их посещенными. Алгоритм заканчивает свою работу, дойдя до конечной вершины, просмотрев все вершины.
+\par Чтобы вывести кратчайший путь, необходимо рассматривать вершины с конца. Мы знаем длину пути для каждой вершины, рассматриваем конечную вершину, и для всех вершин, с которой она связана, находим длину пути, вычитая вес соответствующего ребра из длины пути конечной вершины. Если в результате мы получим значение, которое совпадает с длиной пути рассматриваемой вершины, то именно из нее был осуществлен переход в конечную вершину. Отмечаем эту вершину на искомом пути.
+Продолжаем эти действия, пока не дойдем до начальной вершины.
+
+\newpage
+
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+В алгоритме Дейкстры можно распараллелить два основных момента внутри главного цикла, который обходит граф по всем вершинам:
+\begin{itemize}
+\item нахождение вершины с минимальным расстоянием до начальной вершины;
+\item перезаписывание расстояний от начальной вершины до всех непройденных вершин, смежных с вершиной из первого пункта;
+\end{itemize}
+\newpage
+
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Для программной реализации алгоритма понадобится два вектора: вектор visit – для хранения информации о посещенных вершинах и dist, в который будут заноситься найденные кратчайшие пути. Каждая вершина изначально отмечена как не посещенная, т. е. элементам вектора visit присвоено значение false. В вектор dist записывается такое число, которое заведомо больше любого потенциального пути (в данной реализации это максимальное значение типа int). Также необходим вектор res, где будет храниться наш результат, а именно кратчайший путь для заданных вершин. Далее действуем согласно описанному выше алгоритму.
+\begin{lstlisting}
+ std::vector<int> dist(size, max_weight);
+ std::vector<bool> visit(size, false);
+ std::vector<int> res;
+\end{lstlisting}
+\parДля задания графа мы используем функцию getGraph, которая случайным образом генерирует необходимый нам граф (size - количество вершин в графе).
+\begin{lstlisting}
+std::vector<int> getGraph(int size) { ... }
+\end{lstlisting}
+\par Каждая функция, будь то параллельный или последовательный метод, выглядит следующим образом:
+\begin{lstlisting}
+std::vector<int> seqDijkstras(std::vector<int> graph, int start, int end) { ... }
+\end{lstlisting}
+\par В качестве входных параметров передаются: граф и номер начальной и конечной вершины, для которой необходимо найти кратчайший путь. Теперь разберем более подробно особенности параллельных реализаций алгоритма Дейкстры. 
+
+\subsection*{OpenMP}
+\addcontentsline{toc}{subsection}{OpenMP}
+Для распараллеливания алгоритма была создана параллельная секция с помощью следующей директивы:
+\par \verb|#pragma omp parallel firstprivate(min_weight, min_index)| 
+\par Внутри данной параллельной секции с помощью директивы: 
+\par\verb|#pragma omp parallel for | 
+\par распараллеливается цикл нахождения вершины с наименьшим расстоянием до заданной начальной вершины. Переменные \verb| min_weight, min_index | с помощью параметра \verb|firstprivate| создаются локальными для каждого потока и инициализируются значениями исходных переменных. Таким образом, каждый поток находит свою локальную вершину с минимальным расстоянием. Для того, чтобы найти среди всех вершин глобальную вершину с минимальным расстоянием создается критическая секция с помощью директивы \verb|#pragma omp critical|. В данную критичесую секцию каждый поток по очереди заходит, сравнивает свою локальную вершину с глобальной и если локальная вершина имеет расстояние меньшее, чем у глобальной вершины, то локальная вершина становится глобальной. В конце будет найдена общая вершина с наименьшим расстоянием до начальной.
+\par Для распараллеливания цикла, в котором перезаписывались расстояния от начальной до всех непройденных вершин, смежных с найденной использовалась директива \verb|#pragma omp parallel for|.
+
+\subsection*{TBB}
+\addcontentsline{toc}{subsection}{TBB}
+В версии TBB используется специальный инструмент:
+\par\verb|tbb::parallel_reduce(...)|
+\par с помощью которого можно распараллелить нахождение вершины с наименьшим расстоянием. На вход подается: \par\verb|tbb::blocked_range<int>(0, size, grainsize)| 
+\par итерационное пространство с указанными границами [0; size), где size~--- количество вершин графа, глобальная вершину, которая имеет изначально максимальное расстояние до начальной вершины и лямбда-функция \par\verb|[&](const tbb::blocked_range<int>& range, Min local) | 
+\par которая производит нахождение локального минимума (Min - это структура, содержащая вес и номер вершины) 
+\par Также нужно передать еще одну лямбда-функцию, которая производит редукцию наших данных, а именно сравнивает между собой вершины по расстоянию.
+\par Для распараллеливания цикла, в котором перезаписывались расстояния от начальной вершины до всех непройденных смежных вершин, использовался инструмент  \verb|tbb::parallel_for(...)|. На вход подается одномерное итерационное пространство \verb|tbb::blocked_range|, а также лямбда-функция, производящая необходимые вычисления.
+\newpage
+
+
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью использования Google C++ Testing Framework.
+\par Набор включает в себя тесты, проверяющие корректность работы различных параллельных версий алгоритма Дейкстры в сравнении с последовательной версией. Графы создаются случайным образом, что обеспечивает более достоверную проверку работы.
+\par Успешное прохождение всех тестов доказывает корректность работы системы.
+
+\newpage
+
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности алгоритма Дейкстра для нахождения крайтшайших путей в графе проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel Core i5-8250U, 1600 MHz, 4 ядра;
+\item Оперативная память: 12 GB DDR4;
+\item ОС: Microsoft Windows 10 Home.
+\end{itemize}
+
+\par Эксперименты проводились на графе с \verb|10 000| вершинами. 
+\par Результаты экспериментов:
+\begin{table}[!h]
+\centering
+\begin{tabular}{lllll}
+Кол-во потоков & Последовательно,с & OpenMP,с & Ускорение  \\
+2 & 0.919297 & 0.556642 & 1.65  \\
+4 & 0.919297 & 0.391076 & 2.35  \\
+8 & 0.919297 & 0.310836 & 2.96 
+\end{tabular}
+\caption{Результаты вычислительных экспериментов OpenMP}
+\end{table}
+
+\begin{table}[!h]
+\centering
+\begin{tabular}{lllll}
+Кол-во потоков & Последовательно,с & TBB,с & Ускорение  \\
+2 & 0.919297 & 0.559033 & 1.64  \\
+4 & 0.919297 & 0.423855 & 2.17  \\
+8 & 0.919297 & 0.399306 & 2.3 
+\end{tabular}
+\caption{Результаты вычислительных экспериментов TBB}
+\end{table}
+
+
+\par По результатам экспериментов видно, что параллельная реализация работает быстрее, чем последовательная для всех технологий. OpenMP показывает результат лучше, нежели TBB. Отсюда можно сделать вывод, что библиотека TBB не очень подходит для алгоритмов, связанных с графами. По крайней мере, это видно в алгоритме Дейкстра. Видимо у OpenMP есть свои оптимизации, позволяющие использовать параллелизм более эффективно.
+\newpage
+
+
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате лабораторной работы были разработаны последовательная и параллельные реализации алгоритма Дейкстры.
+Как и планировалось параллельные версии действительно работают эффективнее, чем последовательная, о чем говорят результаты экспериментов, проведенных в ходе работы.
+Проведя анализ, наиболее эффективной оказалась технология OpenMP, менее эффективной технология TBB.
+\par Кроме того, были разработаны и доведены до успешного выполнения тесты, созданные для данной программы с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+
+\newpage
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Sysoev} Сысоев А.В., Мееров И.Б., Свистунов А.Н., Курылев А.Л., Сенин А.В., Шишков А.В., Корняков К.В., Сиднев А.А. «Параллельное программирование в системах с общей памятью. Инструментальная поддержка». Учебно-методические материалы по программе повышения квалификации «Технологии высокопроизводительных вычислений для обеспечения учебного процесса и научных исследований». Нижний Новгород, 2007, 110 с. 
+\bibitem{Wiki1} Wikipedia: the free encyclopedia [Электронный ресурс] // URL: https://en.wikipedia.org/wiki/
+\bibitem{Sidnev} А.А. Сиднев, А.В. Сысоев, И.Б. Мееров Библиотека Intel Threading Building Blocks – краткое описание, 2007, 29 с. 
+\end{thebibliography}
+\newpage
+
+
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+
+\par 1. Последовательная реализация.
+\begin{lstlisting}
+// Copyright 2021 Skripal Andrey
+#ifndef MODULES_TASK_1_SKRIPAL_A_DIJKSTRA_ALGORITHM_DIJKSTRA_ALGORITHM_H_
+#define MODULES_TASK_1_SKRIPAL_A_DIJKSTRA_ALGORITHM_DIJKSTRA_ALGORITHM_H_
+#include <vector>
+
+std::vector<int> getGraph(int size);
+std::vector<int> seqDijkstras(std::vector<int> graph, int start, int end);
+
+#endif  // MODULES_TASK_1_SKRIPAL_A_DIJKSTRA_ALGORITHM_DIJKSTRA_ALGORITHM_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Skripal Andrey
+#include "../../../modules/task_1/skripal_a_dijkstra_algorithm/dijkstra_algorithm.h"
+#include <ctime>
+#include <random>
+
+std::vector<int> getGraph(int size) {
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::vector<int> graph(size*size);
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            if (i == j) {
+                graph[i*size + j] = 0;
+            } else {
+                if (j < i) {
+                    graph[i*size + j] = graph[j*size   + i];
+                } else {
+                    graph[i*size + j] = gen() % 100;
+                }
+            }
+        }
+    }
+    return graph;
+}
+
+std::vector<int> seqDijkstras(std::vector<int> graph, int start, int end) {
+    int size = sqrt(graph.size());
+    int max_weight = std::numeric_limits<int>::max();
+
+    std::vector<int> dist(size, max_weight);
+    std::vector<bool> visit(size, false);
+    std::vector<int> res;
+    start--;
+    end--;
+
+    int min_index = max_weight;
+    dist[start] = 0;
+
+    for (int i = 0; i < size-1; i++) {
+        int min_weight = max_weight;
+        for (int j = 0; j < size  ; j++) {
+            if (!visit[j] && dist[j] <= min_weight) {
+                min_weight = dist[j];
+                min_index = j;
+            }
+        }
+         visit[min_index] = true;
+
+        for (int k = 0; k < size  ; k++) {
+            if (!visit[k] && dist[min_index] != max_weight &&
+                graph[min_index*size + k] &&
+                dist[min_index] + graph[min_index*size+ k] < dist[k]) {
+                dist[k] = dist[min_index] + graph[min_index*size+ k];
+            }
+        }
+    }
+    res.push_back(end + 1);
+    int weight = dist[end];
+
+    while (end != start) {
+        for (int i = 0; i < size; i++) {
+            if (graph[end * size + i] > 0) {
+                int tmp = weight - graph[end * size + i];
+                if (dist[i] == tmp) {
+                    weight = tmp;
+                    end = i;
+                    res.push_back(i + 1);
+                }
+            }
+        }
+    }
+
+    return res;
+}
+
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Skripal Andrey
+#include <gtest/gtest.h>
+#include <vector>
+#include "../../../modules/task_1/skripal_a_dijkstra_algorithm/dijkstra_algorithm.h"
+
+TEST(Deikstra_Algorithm, 6_vertex) {
+    std::vector<int> graph = { 0, 7, 9, 0, 0, 14,
+                               7, 0, 10, 12, 0, 0,
+                               9, 10, 0, 11, 0, 2,
+                               0, 12, 11, 5, 6, 0,
+                               0, 0, 5, 6, 0, 9,
+                               14, 0, 2, 0, 9, 0 };
+
+    std::vector<int> res1 = { 5, 6, 3, 1 };
+    std::vector<int> res2 = seqDijkstras(graph, 1, 5);
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, 4_vertex) {
+    std::vector<int> graph = { 0, 2, 1, 4,
+                               2, 0, 5, 1,
+                               1, 5, 0, 7,
+                               4, 1, 7, 0 };
+
+    std::vector<int> res1 = { 4, 2, 1 };
+    std::vector<int> res2 = seqDijkstras(graph, 1, 4);
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, 5_vertex) {
+    std::vector<int> graph = { 0, 9, 4, 0, 11,
+                               9, 0, 5, 7, 2,
+                               4, 5, 0, 3, 1,
+                               0, 7, 3, 0, 2,
+                               11, 2, 1, 2, 0 };
+
+    std::vector<int> res1 = { 4, 5, 2 };
+    std::vector<int> res2 = seqDijkstras(graph, 2, 4);
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, 5_vertex2) {
+    std::vector<int> graph = { 0, 9, 4, 0, 11,
+                               9, 0, 5, 7, 2,
+                               4, 5, 0, 3, 1,
+                               0, 7, 3, 0, 2,
+                               11, 2, 1, 2, 0 };
+
+    std::vector<int> res1 = { 5, 3, 1 };
+    std::vector<int> res2 = seqDijkstras(graph, 1, 5);
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, 7_vertex) {
+    std::vector<int> graph = { 0, 2, 0, 7, 0, 5, 10,
+                               2, 0, 0, 1, 4, 9, 0,
+                                0, 0, 0, 17, 0, 3, 3,
+                                7, 1, 17, 0, 1, 4, 2,
+                                0, 4, 0, 1, 0, 6, 0,
+                                5, 9, 3, 4, 6, 0, 1,
+                                10, 0, 3, 2, 0, 1, 0 };
+
+    std::vector<int> res1 = { 7, 4, 2, 1 };
+    std::vector<int> res2 = seqDijkstras(graph, 1, 7);
+    ASSERT_EQ(res1, res2);
+}
+
+
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\par 2. Реализация на OpenMP.
+\begin{lstlisting}
+// Copyright 2021 Skripal Andrey
+#ifndef MODULES_TASK_2_SKRIPAL_A_DIJKSTRA_ALGORITHM_DIJKSTRA_ALGORITHM_H_
+#define MODULES_TASK_2_SKRIPAL_A_DIJKSTRA_ALGORITHM_DIJKSTRA_ALGORITHM_H_
+#include <vector>
+
+std::vector<int> getGraph(int size);
+std::vector<int> seqDijkstras(std::vector<int> graph, int start, int end);
+std::vector<int> parallelDijkstras(std::vector<int> graph, int start, int end);
+
+#endif  // MODULES_TASK_2_SKRIPAL_A_DIJKSTRA_ALGORITHM_DIJKSTRA_ALGORITHM_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Skripal Andrey
+#include "../../../modules/task_2/skripal_a_dijkstra_algorithm/dijkstra_algorithm.h"
+#include <omp.h>
+#include <ctime>
+#include <random>
+
+std::vector<int> getGraph(int size) {
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::vector<int> graph(size*size);
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            if (i == j) {
+                graph[i*size + j] = 0;
+            } else {
+                if (j < i) {
+                    graph[i*size + j] = graph[j*size   + i];
+                } else {
+                    graph[i*size + j] = gen() % 100;
+                }
+            }
+        }
+    }
+    return graph;
+}
+
+std::vector<int> seqDijkstras(std::vector<int> graph, int start, int end) {
+    int size = sqrt(graph.size());
+    int max_weight = std::numeric_limits<int>::max();
+
+    std::vector<int> dist(size, max_weight);
+    std::vector<bool> visit(size, false);
+    std::vector<int> res;
+    start--;
+    end--;
+
+    int min_index = max_weight;
+    dist[start] = 0;
+
+    for (int i = 0; i < size - 1; i++) {
+        int min_weight = max_weight;
+        for (int j = 0; j < size; j++) {
+            if (!visit[j] && dist[j] <= min_weight) {
+                min_weight = dist[j];
+                min_index = j;
+            }
+        }
+        visit[min_index] = true;
+
+        for (int k = 0; k < size; k++) {
+            if (!visit[k] && dist[min_index] != max_weight &&
+                graph[min_index*size + k] &&
+                dist[min_index] + graph[min_index*size + k] < dist[k]) {
+                dist[k] = dist[min_index] + graph[min_index*size + k];
+            }
+        }
+    }
+    res.push_back(end + 1);
+    int weight = dist[end];
+
+    while (end != start) {
+        for (int i = 0; i < size; i++) {
+            if (graph[end * size + i] > 0) {
+                int tmp = weight - graph[end * size + i];
+                if (dist[i] == tmp) {
+                    weight = tmp;
+                    end = i;
+                    res.push_back(i + 1);
+                }
+            }
+        }
+    }
+
+    return res;
+}
+
+std::vector<int> parallelDijkstras(std::vector<int> graph, int start, int end) {
+    auto size = static_cast<int>(sqrt(graph.size()));
+    int max_weight = std::numeric_limits<int>::max();
+
+    std::vector<int> dist(size, max_weight);
+    std::vector<bool> visit(size, false);
+    std::vector<int> res;
+
+    int min_index2 = max_weight;
+    int min_index = max_weight;
+    start--;
+    end--;
+
+    dist[start] = 0;
+
+    for (int i = 0; i < size-1; i++) {
+        int min_weight = max_weight;
+        int min_weight2 = max_weight;
+#pragma omp parallel firstprivate(min_weight, min_index)
+        {
+#pragma omp for
+            for (int j = 0; j < size; j++) {
+                if (!visit[j] && dist[j] <= min_weight) {
+                    min_weight = dist[j];
+                    min_index = j;
+                }
+            }
+#pragma omp critical
+            if (min_weight < min_weight2) {
+                min_weight2 = min_weight;
+                min_index2 = min_index;
+            }
+        }
+         visit[min_index2] = true;
+#pragma omp parallel
+        {
+#pragma omp for
+             for (int k = 0; k < size; k++) {
+                 if (!visit[k] && dist[min_index2] != max_weight &&
+                     graph[min_index2*size + k] &&
+                     dist[min_index2] + graph[min_index2*size + k] < dist[k]) {
+                     dist[k] = dist[min_index2] + graph[min_index2*size + k];
+                 }
+             }
+        }
+    }
+
+
+    res.push_back(end + 1);
+    int weight = dist[end];
+
+    while (end != start) {
+        for (int i = 0; i < size; i++) {
+            if (graph[end * size + i] > 0) {
+                int tmp = weight - graph[end * size + i];
+                if (dist[i] == tmp) {
+                    weight = tmp;
+                    end = i;
+                    res.push_back(i + 1);
+                }
+            }
+        }
+    }
+
+    return res;
+}
+
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Skripal Andrey
+#include <gtest/gtest.h>
+#include <omp.h>
+#include <vector>
+#include <iostream>
+#include "../../../modules/task_2/skripal_a_dijkstra_algorithm/dijkstra_algorithm.h"
+
+TEST(Deikstra_Algorithm, test1) {
+    int size = 10000;
+    int start = 1;
+    int end = 10000;
+    double t1, t2;
+    std::vector<int> graph = getGraph(size);
+    t1 = omp_get_wtime();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "parallel Time: " << t2 - t1 << std::endl;
+    t1 = omp_get_wtime();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "seq Time: " << t2 - t1 << std::endl;
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, test2) {
+    int size = 12;
+    int start = 2;
+    int end = 11;
+    double t1, t2;
+    std::vector<int> graph = getGraph(size);
+    t1 = omp_get_wtime();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "parallel Time: " << t2 - t1 << std::endl;
+    t1 = omp_get_wtime();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "seq Time: " << t2 - t1 << std::endl;
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, test3) {
+    int size = 14;
+    int start = 4;
+    int end = 13;
+    double t1, t2;
+    std::vector<int> graph = getGraph(size);
+    t1 = omp_get_wtime();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "parallel Time: " << t2 - t1 << std::endl;
+    t1 = omp_get_wtime();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "seq Time: " << t2 - t1 << std::endl;
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, test4) {
+    int size = 10;
+    int start = 1;
+    int end = 7;
+    double t1, t2;
+    std::vector<int> graph = getGraph(size);
+    t1 = omp_get_wtime();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "parallel Time: " << t2 - t1 << std::endl;
+    t1 = omp_get_wtime();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "seq Time: " << t2 - t1 << std::endl;
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, test5) {
+    int size = 16;
+    int start = 2;
+    int end = 15;
+    double t1, t2;
+    std::vector<int> graph = getGraph(size);
+    t1 = omp_get_wtime();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "parallel Time: " << t2 - t1 << std::endl;
+    t1 = omp_get_wtime();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = omp_get_wtime();
+    std::cout << "seq Time: " << t2 - t1 << std::endl;
+    ASSERT_EQ(res1, res2);
+}
+
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+\par 3. Реализация на TBB.
+\begin{lstlisting}
+// Copyright 2021 Skripal Andrey
+#ifndef MODULES_TASK_3_SKRIPAL_A_DIJKSTRA_ALGORITHM_DIJKSTRA_ALGORITHM_H_
+#define MODULES_TASK_3_SKRIPAL_A_DIJKSTRA_ALGORITHM_DIJKSTRA_ALGORITHM_H_
+#include <vector>
+
+std::vector<int> getGraph(int size);
+std::vector<int> seqDijkstras(std::vector<int> graph, int start, int end);
+std::vector<int> parallelDijkstras(std::vector<int> graph, int start, int end);
+
+#endif  // MODULES_TASK_3_SKRIPAL_A_DIJKSTRA_ALGORITHM_DIJKSTRA_ALGORITHM_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Skripal Andrey
+#include "../../../modules/task_3/skripal_a_dijkstra_algorithm/dijkstra_algorithm.h"
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <tbb/parallel_reduce.h>
+#include <tbb/task_scheduler_init.h>
+#include <ctime>
+#include <random>
+
+
+std::vector<int> getGraph(int size) {
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::vector<int> graph(size*size);
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            if (i == j) {
+                graph[i*size + j] = 0;
+            } else {
+                if (j < i) {
+                    graph[i*size + j] = graph[j*size   + i];
+                } else {
+                    graph[i*size + j] = gen() % 100;
+                }
+            }
+        }
+    }
+    return graph;
+}
+
+std::vector<int> seqDijkstras(std::vector<int> graph, int start, int end) {
+    auto size = static_cast<int>(sqrt(graph.size()));
+    int max_weight = std::numeric_limits<int>::max();
+
+    std::vector<int> dist(size, max_weight);
+    std::vector<bool> visit(size, false);
+    std::vector<int> res;
+    start--;
+    end--;
+
+    int min_index = max_weight;
+    dist[start] = 0;
+
+
+    for (int i = 0; i < size - 1; i++) {
+        int min_weight = max_weight;
+        for (int j = 0; j < size; j++) {
+            if (!visit[j] && dist[j] <= min_weight) {
+                min_weight = dist[j];
+                min_index = j;
+            }
+        }
+        visit[min_index] = true;
+
+        for (int k = 0; k < size; k++) {
+            if (!visit[k] && dist[min_index] != max_weight &&
+                graph[min_index*size + k] &&
+                dist[min_index] + graph[min_index*size + k] < dist[k]) {
+                dist[k] = dist[min_index] + graph[min_index*size + k];
+            }
+        }
+    }
+    res.push_back(end + 1);
+    int weight = dist[end];
+
+    while (end != start) {
+        for (int i = 0; i < size; i++) {
+            if (graph[end * size + i] > 0) {
+                int tmp = weight - graph[end * size + i];
+                if (dist[i] == tmp) {
+                    weight = tmp;
+                    end = i;
+                    res.push_back(i + 1);
+                }
+            }
+        }
+    }
+
+    return res;
+}
+
+
+std::vector<int> parallelDijkstras(std::vector<int> graph, int start, int end) {
+    auto size = static_cast<int>(sqrt(graph.size()));
+    int max_weight = std::numeric_limits<int>::max();
+
+    std::vector<int> dist(size, max_weight);
+    std::vector<bool> visit(size, false);
+    std::vector<int> res;
+    start--;
+    end--;
+
+    dist[start] = 0;
+
+    struct Min {
+        int min_weight;
+        int min_index;
+    } global;
+
+    global.min_index = max_weight;
+
+    int threads = 4;
+    int grainsize = size / threads;
+    tbb::task_scheduler_init init(threads);
+
+    for (int i = 0; i < size - 1; i++) {
+        global.min_weight = max_weight;
+
+        global = tbb::parallel_reduce
+            (tbb::blocked_range<int>(0, size, grainsize),
+            global, [&](const tbb::blocked_range<int>& range, Min local) {
+            for (int j = range.begin(); j < range.end(); j++) {
+                if (!visit[j] && dist[j] < local.min_weight) {
+                    local.min_weight = dist[j];
+                    local.min_index = j;
+                }
+            }
+             return local;
+        },
+            [](Min a, Min b) {
+            if (a.min_weight < b.min_weight) return a;
+            return b;
+        });
+
+
+        visit[global.min_index] = true;
+
+        tbb::parallel_for(tbb::blocked_range<int>(0, size, grainsize),
+            [&](const tbb::blocked_range<int>& range) {
+        for (int k = range.begin(); k < range.end(); k++) {
+            if (!visit[k] && dist[global.min_index] != max_weight &&
+                graph[global.min_index*size + k] &&
+                dist[global.min_index] +
+                graph[global.min_index*size + k] < dist[k]) {
+                dist[k] = dist[global.min_index] +
+                graph[global.min_index*size + k];
+            }
+        }
+        });
+    }
+
+
+    res.push_back(end + 1);
+    int weight = dist[end];
+
+    while (end != start) {
+        for (int i = 0; i < size; i++) {
+            if (graph[end * size + i] > 0) {
+                int tmp = weight - graph[end * size + i];
+                if (dist[i] == tmp) {
+                    weight = tmp;
+                    end = i;
+                    res.push_back(i + 1);
+                }
+            }
+        }
+    }
+
+    return res;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Skripal Andrey
+#include <gtest/gtest.h>
+#include <tbb/tick_count.h>
+#include <vector>
+#include <iostream>
+#include "../../../modules/task_3/skripal_a_dijkstra_algorithm/dijkstra_algorithm.h"
+
+
+TEST(Deikstra_Algorithm, test1) {
+    int size = 10000;
+    int start = 1;
+    int end = 10000;
+    tbb::tick_count t1, t2;
+    std::vector<int> graph = getGraph(size);
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "parallel Time: " << (t2 - t1).seconds() << std::endl;
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "seq Time: " << (t2 - t1).seconds() << std::endl;
+
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, test2) {
+    int size = 80;
+    int start = 2;
+    int end = 66;
+    tbb::tick_count t1, t2;
+    std::vector<int> graph = getGraph(size);
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "parallel Time: " << (t2 - t1).seconds() << std::endl;
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "seq Time: " << (t2 - t1).seconds() << std::endl;
+
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, test3) {
+    int size = 90;
+    int start = 4;
+    int end = 89;
+    tbb::tick_count t1, t2;
+    std::vector<int> graph = getGraph(size);
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "parallel Time: " << (t2 - t1).seconds() << std::endl;
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "seq Time: " << (t2 - t1).seconds() << std::endl;
+
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, test4) {
+    int size = 50;
+    int start = 12;
+    int end = 49;
+    tbb::tick_count t1, t2;
+    std::vector<int> graph = getGraph(size);
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "parallel Time: " << (t2 - t1).seconds() << std::endl;
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "seq Time: " << (t2 - t1).seconds() << std::endl;
+
+    ASSERT_EQ(res1, res2);
+}
+
+TEST(Deikstra_Algorithm, test5) {
+    int size = 120;
+    int start = 10;
+    int end = 111;
+    tbb::tick_count t1, t2;
+    std::vector<int> graph = getGraph(size);
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res1 = parallelDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "parallel Time: " << (t2 - t1).seconds() << std::endl;
+
+    t1 = tbb::tick_count::now();
+    std::vector<int> res2 = seqDijkstras(graph, start, end);
+    t2 = tbb::tick_count::now();
+    std::cout << "seq Time: " << (t2 - t1).seconds() << std::endl;
+
+    ASSERT_EQ(res1, res2);
+}
+
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+
+\end{document}
