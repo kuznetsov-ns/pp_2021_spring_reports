@@ -1,5 +1,5 @@
 \documentclass{report}
-
+\usepackage{pgfplots}
 \usepackage[T2A]{fontenc}
 \usepackage[utf8]{luainputenc}
 \usepackage[english, russian]{babel}
@@ -13,6 +13,7 @@
 \usepackage{graphicx}
 \usepackage{indentfirst}
 \usepackage{tocloft}
+\pgfplotsset{compat=1.9}
 
 \geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
 \setlength{\parskip}{0.5cm}
@@ -266,6 +267,45 @@ Matrix MultCRS_STD(const Matrix& A, const Matrix& B);
 \caption{Результаты вычислительных экспериментов STD.}
 \end{table}
 \newpage
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis} [
+    legend pos = north west, 
+    ymin = 4, 
+    grid = major
+]
+\legend{ 
+	$\  OMP$, 
+	$\  TBB$, 
+	$\  STD$
+};
+\addplot table {
+	x     y
+   1000   4.17
+   4900   4.15534
+   10000  4.672
+   22500  4.696
+};
+\addplot table {
+	x     y
+   1000   5.00538
+   4900   5.1078
+   10000  5.33004
+   22500  5.96654
+};
+\addplot table {
+	x     y
+   1000    4.33159
+   4900    4.4092
+   10000   4.50334
+   22500   4.99031
+};
+\end{axis}
+\end{tikzpicture}
+\caption{Ускорение вычислений}
+\label{fig:apsp}
+\end{figure}
 \par В данной лабораторной работе наилучшее ускорение получилось добиться при использовании технологии TBB. Данный инструмент использует максимальные возможности системы благодаря своей архитектуре. Из полученных данных, можно сделать вывод, что улучшение производительности заметнее всего на матрицах, чей размер достаточно велик. Небольшие матрицы не могут дать высоко коэффициента ускорения.
 \newpage
 \section*{Заключение}
