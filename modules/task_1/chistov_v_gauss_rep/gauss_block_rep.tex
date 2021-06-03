@@ -1,0 +1,558 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Линейная фильтрация изображений (блочное разбиение). Ядро Гаусса 3x3.»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-2 \\ Чистов В.М.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Бывают случаи, когда необходимо, по каким-либо причинам, изменить изображение с помощью определенного фильтра. В частности, иногда нужно избавиться от шума, либо просто размыть изображение, применив фильтр Гаусса. Но с увеличением объема данных - увеличивается время их обработки. Поэтому для достижения наибольшей производительности можно воспользоваться распараллеливанием процесса фильтрации изображения. Для этого можно цикл, проходящий по всем пикселям изображения, равномерно "раскидать" по процессам для достижения прироста скорости работы программы.
+\par В данной лабораторной работе будет рассмотрена фильтрация изображения фильтром Гаусса с ядром Гаусса 3х3. Этот вид обработки изображения будет распараллелен между процессами, что сильно уменьшит время её выполнения.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В лабораторной работе необходимо реализовать последовательную и 3 параллельные реализации линейной фильтрации изображений с блочным разбиением с ядром Гаусса 3х3. По полученным результатам сделать выводы.
+\par Для реализации параллельных версий необходимо использовать средства OMP, TBB, std::thread. Для проверки корректности работы алгоритмов требуется использовать Google C++ Testing Framework.
+\newpage
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+Прежде чем приступить к алгоритму фильтра Гаусса, необходимо создать ядро Гаусса размером 3х3. Для этого нам необходимо 2 параметра: радиус и сигма. Радиус для данной задачи равен 1, т.к. по условию ядро Гаусса 3х3. В качестве сигма можно задать любое число: чем оно больше, тем сильнее размытие результирующего изображения. Используя эти параметры, с помощью определённой формулы инициализируем ячейки ядра Гаусса, которые нам понадобятся в другой функции.
+\par Наконец, алгоритм Фильтра Гаусса заключается в следующем:
+\begin{itemize}
+\item Для каждого пикселя исходного изображения рассматривается область соседних пикселей. Размер этой области зависит от размера ядра Гаусса. В нашем случае эта область - 3х3.
+\item Значение каждого пикселя из этой области умножается на значение из соответствующей ячейки в ядре Гаусса, и полученный результат от произведения прибавляется к заранее созданной переменной sum. Так мы обходим все значения из области.
+\item По координатам пикселя исходного изображения, для которого рассматривалась область соседних пикселей, для нового изображения кладётся значение специально созданной переменной sum.
+\end{itemize}
+\par В итоге мы обойдём все значения по пикселям исходного изображения и получим новые значения для тех же пикселей в новом изображении.
+
+\newpage
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Для распараллеливания алгоритма фильтра Гаусса необходимо распределить итерации в цикле обхода изображения по пикселям по процессам.
+
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Для начала, разберемся с последовательной линейной фильтрацией изображения фильтром Гаусса. Данная функция выполняется на одном процессе:
+\begin{lstlisting}
+std::vector<double> Gauss_Sequential(std::vector<double> image, int width, int height);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ссылка на вектор, в котором находятся значения пикселей исходного изображения.
+\item ширина изображения в пикселях.
+\item высота изображения в пикселях.
+\end{itemize}
+\par Параллельных фильтраций изображения вызываем следующей функции:
+\begin{lstlisting}
+std::vector<double> Gauss_Parallel_tbb(std::vector<double> image, int width, int height);
+\end{lstlisting}
+\begin{lstlisting}
+std::vector<double> Gauss_Parallel_omp(std::vector<double> image, int width, int height);
+\end{lstlisting}
+\begin{lstlisting}
+std::vector<double> Gauss_Parallel_std(std::vector<double> image, int width, int height);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ссылка на вектор, в котором находятся значения пикселей исходного изображения.
+\item ширина изображения в пикселях.
+\item высота изображения в пикселях.
+\end{itemize}
+\par Для реализации последовательной и параллельной филтрации Гаусса необходима функция, которая формирует ядро Гаусса.
+\begin{lstlisting}
+std::vector<double> Gauss_Core(int size, double dev);
+\end{lstlisting}
+\par В качестве входных данных передаются радиус и сигма.
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, написанных с помощью использования Google C++ Testing Framework.
+\par Набор представляет из себя тесты, которые сравнивают время работы алгоритмов и результирующие вектора между собой.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельной линейной фильтрации изображения фильтром Гаусса производились на компьютере со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel COre i5-4460, 3200 MHz, ядер: 4;
+\item Оперативная память: 16 384 МБ (DDR3), 1600 MHz;
+\item ОС: Microsoft Windows 10 Pro.
+\end{itemize}
+
+\par Первый эксперимент проведем на небольшом массиве на 10х10 элементов, чтобы убедиться в работоспособности всех алгоритмов и сравнить итоговые вектора со значениями цветов пискелей между собой. Время работы и параллельных и последовательного алгоритма ничтожно малы, поэтому объективного сравнения мы не получим.
+\par Проведем эксперимент на следующих изображениях:
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов}
+\centering
+\begin{tabular}{p{3cm} p{3cm} p{3cm} p{3cm} p{3cm}}
+Изображение    & OMP        & TBB       & std::thread  & Последовательно   \\
+751x422        & 0.0089432  & 0.0093124 & 0.0092364 & 0.0147293 \\
+1920x1080      & 0.0315655  & 0.0335544 & 0.0325654 & 0.0485753  \\
+3840x2160      & 0.134321  & 0.121859 & 0.120394 & 0.195986
+\end{tabular}
+\end{table}
+
+\par Исходя из результатов, можно сделать вывод, что все приведенные выше реализации схожи по времени работы, а небольшие различия во времени - не более, чем погрешность. 
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате лабораторной работы были разработаны последовательная и параллельные реализации линейной фильтрации изображения фильтром Гаусса с ядром Гаусса 3х3 с помощью блочного разбиения.
+\par Основной задачей данной лабораторной работы была реализация параллельных версий, которые должны быть эффективнее последовательной. Эксперименты показывают, что параллельные варианты работают быстрее, чем последовательный.
+\par Кроме того, были разработаны и доведены до успешного выполнения тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+\newpage
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Gergel}
+Гергель В. П. Теория и практика параллельных вычислений. – 2007. 
+\bibitem{Gergel}
+Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\bibitem{Korneev}
+Корнеев В. Д. Параллельное программирование в MPI //Новосибирск: Изд-во СО РАН. – 2000.
+\bibitem{Algorithm}
+Фильтр Гаусса: URL: https://habr.com/ru/post/324070/
+\bibitem{Algorithm}
+URL: https://techcave.ru/posts/66-filtry-v-opencv-average-i-gaussianblur.html
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\begin{lstlisting}
+//GaussBlock.h
+
+// Copyright 2021 Chistov Vladimir
+
+#include <vector>
+#include <tbb/parallel_for.h>
+#include <tbb/task_scheduler_observer.h>
+#include <tbb/blocked_range2d.h>
+
+std::vector<double> Gauss_Sequential(std::vector<double> image,
+    int width, int height);
+std::vector<double> Gauss_Parallel_omp(std::vector<double> image,
+    int width, int height);
+std::vector<double> Gauss_Parallel_tbb(std::vector<double> image,
+    int width, int height);
+std::vector<double> Gauss_Parallel_std(std::vector<double> image,
+    int width, int height);
+std::vector<double> CalcVec(std::vector<double> image, int width,
+    int height);
+std::vector<double> GenRandVec(int size);
+std::vector<double> Gauss_Core(int size, double dev = 2.0);
+
+
+//GaussBlock.cpp
+
+// Copyright 2021 Chistov Vladimir
+
+#define _USE_MATH_DEFINES
+#include <omp.h>
+#include <math.h>
+#include <cmath>
+#include <cstdint>
+#include <stdexcept>
+#include <iostream>
+#include <vector>
+#include <random>
+#include <ctime>
+#include "gauss_block.h"
+
+std::vector<double> Gauss_Sequential(std::vector<double> calc, int width,
+    int height) {
+    std::vector<double> core = Gauss_Core(3);
+    std::vector<double> res(width * height);
+    
+    for (int x = 1; x < width + 1; x++) {
+        for (int y = 1; y < height + 1; y++) {
+            double sum = 0;
+            for (int i = -1; i < 2; i++) {
+                for (int j = -1; j < 2; j++) {
+                    sum += calc[(height + 2) * (x + i) + y + j] *
+                        core[3 * (i + 1) + j + 1];
+                }
+            }
+            res[height * (x - 1) + (y - 1)] = sum;
+        }
+    }
+    return res;
+}
+
+std::vector<double> Gauss_Parallel_omp(std::vector<double> calc, int width,
+    int height) {
+    std::vector<double> res(width * height);
+    std::vector<double> core = Gauss_Core(3);
+    
+#pragma omp parallel
+    {
+#pragma omp for collapse(2) schedule(static)
+        for (int x = 1; x < width + 1; x++) {
+            for (int y = 1; y < height + 1; y++) {
+                double sum = 0;
+                for (int i = -1; i < 2; i++) {
+                    for (int j = -1; j < 2; j++) {
+                        sum += calc[(height + 2) * (x + i) + y + j] *
+                            core[3 * (i + 1) + j + 1];
+                    }
+                }
+                res[height * (x - 1) + (y - 1)] = sum;
+            }
+        }
+    }
+    return res;
+}
+
+std::vector<double> Gauss_Parallel_tbb(std::vector<double> calc, int width,
+    int height) {
+    std::vector<double> core = Gauss_Core(3);
+    std::vector<double> res(width * height);
+
+    tbb::task_scheduler_observer init;
+    tbb::parallel_for(
+        tbb::blocked_range2d<int>(1, width + 1, 1, height + 1),
+        [&](tbb::blocked_range2d<int> r) {
+            for (int x = r.rows().begin(); x != r.rows().end(); ++x) {
+                for (int y = r.cols().begin(); y != r.cols().end(); ++y) {
+                    double sum = 0;
+                    for (int i = -1; i < 2; i++) {
+                        for (int j = -1; j < 2; j++) {
+                            sum += calc[(height + 2) * (x + i) + y + j] *
+                                core[3 * (i + 1) + j + 1];
+                        }
+                    }
+                    res[height * (x - 1) + (y - 1)] = sum;
+                }
+            }
+        });
+
+    return res;
+}
+
+std::vector<double> Gauss_Parallel_std(std::vector<double> calc, int width,
+    int height) {
+    std::vector<double> core = Gauss_Core(3);
+    std::vector<double> res(width * height);
+
+    const int nthreads = std::thread::hardware_concurrency();
+    std::thread* threads = new std::thread[nthreads];
+
+    int height1 = height + 2;
+    int width1 = width + 2;
+
+    int blockSideNum = static_cast<int>(std::sqrt(nthreads));
+    int blockHeight = height1 / blockSideNum + height1 % blockSideNum;
+    int blockWidth = width1 / blockSideNum + width1 % blockSideNum;
+
+    for (int i = 0; i < nthreads; i++) {
+        threads[i] = std::thread([&](int thread) {
+            int x1 = (thread % blockSideNum) * blockWidth + 1;
+            int x2 = std::min(x1 + blockWidth, width1 - 1);
+            int y1 = (thread / blockSideNum) * blockHeight + 1;
+            int y2 = std::min(y1 + blockHeight, height1 - 1);
+            for (int x = x1; x < x2; x++) {
+                for (int y = y1; y < y2; y++) {
+                    double sum = 0;
+                    for (int i = -1; i < 2; i++) {
+                        for (int j = -1; j < 2; j++) {
+                            sum += calc[(height + 2) * (x + i) + y + j] *
+                                core[3 * (i + 1) + j + 1];
+                        }
+                    }
+                    res[height * (x - 1) + (y - 1)] = sum;
+                }
+            }
+        }, i);
+    }
+
+    for (int i = 0; i < nthreads; i++) {
+        threads[i].join();
+    }
+    delete[] threads;
+
+    return res;
+}
+
+std::vector<double> CalcVec(std::vector<double> image, int width,
+    int height) {
+    std::vector<double> calc((width + 2) * (height + 2));
+    for (int x = 0; x < width + 2; x++) {
+        for (int y = 0; y < height + 2; y++) {
+            if ((x == 0) || (y == 0) || (x == width + 1) || (y == height + 1)) {
+                calc[x * (height + 2) + y] = 0;
+            }
+            else {
+                calc[x * (height + 2) + y] = image[(x - 1) * height + y - 1];
+            }
+        }
+    }
+    return calc;
+}
+
+std::vector<double> GenRandVec(int size) {
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::vector<double> vec(size);
+    for (int i = 0; i < size; i++) {
+        vec[i] = gen() % 256;
+    }
+    return vec;
+}
+
+std::vector<double> Gauss_Core(int size, double dev) {
+    double sum = 0;
+    double s = 2.0 * dev * dev;
+    int rad = size / 2;
+    std::vector<double> core(size * size);
+    for (int i = -rad; i <= rad; i++) {
+        for (int j = -rad; j <= rad; j++) {
+            double res = (std::exp(-(i * i + j * j) / s) );
+            core[size * (i + rad) + j + rad] = res;
+            sum += res;
+        }
+    }
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            core[size * i + j] /= sum;
+        }
+    }
+    return core;
+}
+
+
+
+//main.cpp
+
+// Copyright 2020 Chistov Vladimir
+
+#include <vector>
+#include<conio.h>
+#include <iostream> // for standard I/O
+#include <string>   // for strings
+#include <iomanip>  // for controlling float print precision
+#include <sstream>  // string to number conversion
+#include <clocale>
+#include <omp.h>
+#include <opencv2/highgui/highgui_c.h>
+#include <opencv2/core/core.hpp>        // Basic OpenCV structures (cv::Mat, Scalar)
+#include <opencv2/imgproc/imgproc.hpp>  // Gaussian Blur
+#include <opencv2/highgui/highgui.hpp>  // OpenCV window I/O
+#include <opencv2/videoio.hpp>
+#include "gauss_block.h"
+using namespace std;
+using namespace cv;
+
+int main(int argc, char** argv) {
+	//omp_set_num_threads(4);
+	double time1, time2, time3, time4, time5, time6, time7, time8, resS, resP1, resP2, resP3;
+
+	Mat default_image = imread("image1.jpg");
+	
+	vector<double> mas_b1(default_image.rows * default_image.cols);
+	vector<double> mas_g1(default_image.rows * default_image.cols);
+	vector<double> mas_r1(default_image.rows * default_image.cols);
+	for (int i = 0; i < default_image.rows; i++) {
+		for (int j = 0; j < default_image.cols; j++) {
+			Vec3b color = default_image.at<Vec3b>(i,j);
+			mas_b1[i * default_image.cols + j] = color[0];
+			mas_g1[i * default_image.cols + j] = color[1];
+			mas_r1[i * default_image.cols + j] = color[2];
+		}
+	}
+
+	Mat New_Image = default_image;
+	int width = default_image.rows;
+	int height = default_image.cols;
+	int size = height * width;
+
+	vector<double> mas_b = CalcVec(mas_b1, width, height);
+	vector<double> mas_g = CalcVec(mas_g1, width, height);
+	vector<double> mas_r = CalcVec(mas_r1, width, height);
+
+    if (default_image.empty()) {
+		cout << "Error: the image has been incorrectly loaded." << endl;
+		system("pause");
+		return 0;
+	} else {
+		imshow("Default Image", default_image);
+	}
+
+	
+
+	time3 = omp_get_wtime();
+	std::vector<double> seq_b = Gauss_Sequential(mas_b, width, height);
+	std::vector<double> seq_g = Gauss_Sequential(mas_g, width, height);
+	std::vector<double> seq_r = Gauss_Sequential(mas_r, width, height);
+	time4 = omp_get_wtime();
+	resS = time4 - time3;
+
+	time1 = omp_get_wtime();
+	std::vector<double> par1_b = Gauss_Parallel_omp(mas_b, width, height);
+	std::vector<double> par1_g = Gauss_Parallel_omp(mas_g, width, height);
+	std::vector<double> par1_r = Gauss_Parallel_omp(mas_r, width, height);
+	time2 = omp_get_wtime();
+	resP1 = time2 - time1;
+
+	time5 = omp_get_wtime();
+	std::vector<double> par2_b = Gauss_Parallel_tbb(mas_b, width, height);
+	std::vector<double> par2_g = Gauss_Parallel_tbb(mas_g, width, height);
+	std::vector<double> par2_r = Gauss_Parallel_tbb(mas_r, width, height);
+	time6 = omp_get_wtime();
+	resP2 = time6 - time5;
+
+	time7 = omp_get_wtime();
+	std::vector<double> par3_b = Gauss_Parallel_std(mas_b, width, height);
+	std::vector<double> par3_g = Gauss_Parallel_std(mas_g, width, height);
+	std::vector<double> par3_r = Gauss_Parallel_std(mas_r, width, height);
+	time8 = omp_get_wtime();
+	resP3 = time8 - time7;
+
+	std::cout << "Time Parallel OMP = " << resP1 << std::endl <<
+		"Time Parallel TBB = " << resP2 << std::endl <<
+		"Time Parallel STD = " << resP3 << std::endl <<
+		"Time Sequential = " << resS << std::endl << std::endl;
+
+	Mat img_par1(default_image.size(), default_image.type());
+	for (int i = 0; i < default_image.rows; i++) {
+		for (int j = 0; j < default_image.cols; j++) {
+			Vec3b color = default_image.at<Vec3b>(i, j);
+			img_par1.at<Vec3b>(i, j)[0] = par1_b[i * default_image.cols + j];
+			img_par1.at<Vec3b>(i, j)[1] = par1_g[i * default_image.cols + j];
+			img_par1.at<Vec3b>(i, j)[2] = par1_r[i * default_image.cols + j];
+		}
+	}
+	imshow("img_par1.jpg", img_par1);
+
+	Mat img_par2(default_image.size(), default_image.type());
+	for (int i = 0; i < default_image.rows; i++) {
+		for (int j = 0; j < default_image.cols; j++) {
+			Vec3b color = default_image.at<Vec3b>(i, j);
+			img_par2.at<Vec3b>(i, j)[0] = par2_b[i * default_image.cols + j];
+			img_par2.at<Vec3b>(i, j)[1] = par2_g[i * default_image.cols + j];
+			img_par2.at<Vec3b>(i, j)[2] = par2_r[i * default_image.cols + j];
+		}
+	}
+	imshow("img_par2.jpg", img_par2);
+
+	Mat img_par3(default_image.size(), default_image.type());
+	for (int i = 0; i < default_image.rows; i++) {
+		for (int j = 0; j < default_image.cols; j++) {
+			Vec3b color = default_image.at<Vec3b>(i, j);
+			img_par3.at<Vec3b>(i, j)[0] = par3_b[i * default_image.cols + j];
+			img_par3.at<Vec3b>(i, j)[1] = par3_g[i * default_image.cols + j];
+			img_par3.at<Vec3b>(i, j)[2] = par3_r[i * default_image.cols + j];
+		}
+	}
+	imshow("img_par3.jpg", img_par3);
+
+
+	Mat img_seq(default_image.size(), default_image.type());
+	for (int i = 0; i < default_image.rows; i++) {
+		for (int j = 0; j < default_image.cols; j++) {
+			Vec3b color = default_image.at<Vec3b>(i, j);
+			img_seq.at<Vec3b>(i, j)[0] = seq_b[i * default_image.cols + j];
+			img_seq.at<Vec3b>(i, j)[1] = seq_g[i * default_image.cols + j];
+			img_seq.at<Vec3b>(i, j)[2] = seq_r[i * default_image.cols + j];
+		}
+	}
+	imshow("img_seq.jpg", img_seq);
+
+	waitKey();
+	return 0;
+}
+\end{lstlisting}
+
+\end{document}
