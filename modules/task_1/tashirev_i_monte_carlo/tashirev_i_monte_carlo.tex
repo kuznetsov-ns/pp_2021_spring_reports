@@ -1,0 +1,341 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+basicstyle=\footnotesize,
+keywordstyle=\color{blue}\ttfamily,
+stringstyle=\color{red}\ttfamily,
+commentstyle=\color{green}\ttfamily,
+morecomment=[l][\color{magenta}]{\#},
+tabsize=4,
+breaklines=true,
+breakatwhitespace=true,
+title=\lstname,
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Интегрирование многомерных интеграллов методом Монте-Карло»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-3 \\ Таширев И.Э.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А.В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+Метод Монте-Карло — это группа численных методов, основанных на
+получении большого количества реализаций случайного процесса, который
+формируется таким образом, чтобы его вероятностные характеристики
+совпадали с аналогичными величинами решаемой задачи.
+\par Для вычисления интегралов на компьютере используются так называемые численные методы, позволяющие находить решение задачи с заданной точностью.
+\par Моделирование по методу Монте-Карло дает гораздо более полное
+представление о возможных событиях. Оно позволяет судить не только о том,
+что может произойти, но и о том, какова вероятность того или иного исхода.
+Характер полученных данных при использовании метода позволяет создавать
+графики различных последствий, а также вероятностей их наступления.
+Преимущество метода в том, что после финальных расчетов можно
+увидеть, какие факторы оказывают наибольшее воздействие на итоговые
+результаты.
+\addcontentsline{toc}{section}{Введение}
+
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы необходимо:
+\begin{enumerate}
+\item Изучить теоретические основы метода Монте-Карло.
+\item Реализовать последовательную и параллельные реализации алгоритма. вычисления многомерных интегралов методом Монте-Карло.
+\item Проверить корректность работы алгоритмов.
+\item Провести эксперименты для оценки эффективности параллелизации.
+\item Сделать соответвующие выводы на основе полученных результатов.
+\end{enumerate}
+\par Для реализации параллельных версий необходимо использовать библиотеки OpenMP и Intel Threading Building Blocks. Для проверки корректности работы использовать Google Testing Framework.
+\newpage
+
+% Описание алгоритмов
+\section*{Описание алгоритмов}
+\addcontentsline{toc}{section}{Описание алгоритмов}
+Предположим, необходимо взять интеграл от некоторой функции. Воспользуемся неформальным геометрическим описанием интеграла и будем понимать его как площадь под графиком этой функции.
+\par Пусть имеется интеграл: $\int\limits_a^b f(x)dx$ , где $$ a\le x \le b $$
+
+Рассмотрим случайную величину u, равномерно распределённую на отрезке интегрирования [a,b]. Тогда $f(u)$ также будет случайной величиной, причём её математическое ожидание выражается как
+$$E f(u)=\int\limits_{a}^{b}f(x)\varphi(x)dx$$
+где $\varphi(x)$ — плотность распределения случайной величины u, равная 
+$\frac {1} {b-a}$ на участке [a,b]. Таким образом, искомый интеграл выражается как
+$$\int\limits_a^b f(x)dx = (b-a) E f(u),$$
+но математическое ожидание случайной величины $f(u)$ можно легко оценить, смоделировав эту случайную величину и посчитав выборочное среднее.
+
+Далее случайно выбираются N точек, равномерно распределённых на [a,b], для каждой точки $u_i$ вычисляем $f(u_i)$. Затем вычисляем выборочное среднее: 
+$$\frac{1}{N}\sum _{{i=1}}^{{N}}f(u_{i})$$
+
+В итоге получаем оценку интеграла:
+
+$$\int \limits _a^bf(x)\,dx\approx \frac {b-a}{N}\sum _{i=1}^{N}f(u_{i})$$
+
+Точность оценки зависит только от количества точек N.
+\par В случае вычисления многомерных интегралов формула никак не изменяется, просто вместо одномерного интеграла используется многомерный. Тогда проход проводится по параллелепипедам или другим многомерным объектам.
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+\par Идея параллельной функции метода Монте-Карло состоит в том, что итерации цикла делятся между потоками, после разбиения интеграла каждый поток получает одинаковое количество итераций, эти потоки проводят вычисления в своём диапазоне, далее складывается результат их работы.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Последовательный алгоритм многомерного интегрирования методом Монте-Карло вызывается функцией:
+\begin{lstlisting}
+double seqMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps);
+\end{lstlisting}
+\par Где входными параметрами функции являются: интегрируемая функция, которая выбрана для вычисления интеграла, следующими параметрами являются границы отрезков a и b, последним параметром является частота разбиения.
+\subsection*{OpenMP}
+\addcontentsline{toc}{subsection}{OpenMP}
+\par Параллельный алгоритм OpenMP вызывается функцией:
+\begin{lstlisting}
+double ompMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps);
+\end{lstlisting}
+\par Распараллеливание с помощью директивы:
+\par\verb|#pragma omp parallel shared(r) reduction(+ : res)|
+\subsection*{TBB}
+\addcontentsline{toc}{subsection}{TBB}
+\par Параллельный алгоритм TBB:
+\begin{lstlisting}
+double tbbMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps);
+\end{lstlisting}
+\par Распараллеливание ведётся через операцию редукии: \verb| tbb::parallel_reduce|
+\par На вход поступает \verb|tbb::blocked_range<size_t>(0, steps)|
+\par Входные параметры функции для обеих параллельных реализаций идентичны последовательной.
+
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности программы представлен набор тестов, разработанных с использованием Google Testing Framework.
+\par Тесты подразумевают вычисление интеграла для заранее заданной функции параллельным и последовательным способом, также проводится замер времени затраченного на получение результата.
+\par Также представлен тест для определения отрицательных значений разбиений в интеграле.
+\par Для успешного прохождения теста требуется, чтобы отклонение между последовательной и параллельной версиями находилось в заданных тестом рамках. \par Успешное прохождение всех тестов доказывает корректность работы данных реализаций.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Эксперименты для оценки эффективности проводились на ПК со следующими характеристиками:
+
+\begin{itemize}
+\item Процессор: AMD Ryzen 5 3500U 2.10 Ггц, ядер: 4, логических процессоров: 8;
+\item Оперативная память: 8 ГБ DDR4 2400 МГц;
+\item ОС: Microsoft Windows 10 Pro Build 19042.985.
+\end{itemize}
+\par Замеры параллельных версий производились на 4 потоках.
+\begin{table}[!h]
+\caption{Результаты экспериментов}
+\centering
+\begin{tabular}{lllll}
+Частота разбиения & Последовательная & OpenMP & TBB \\
+100000    & 0.07                    & 0.02       & 0.004  \\
+150000    & 0.11                    & 0.03       & 0.007  \\
+200000   & 0.15                    & 0.04       & 0.01  \\
+250000   & 0.17                   & 0.05       & 0.01  \\
+\end{tabular}
+\end{table}
+
+\par Можно сделать вывод о том, что параллельная реализация работает быстрее, чем последовательная, причём ускорение более заметно на большем числе разбиений.
+\par Самой эффективной оказалась реализация с использованием TBB технологий.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения данной лабораторной работы были реализованы последовательная и параллельная реализации алгоритма вычисления многомерных интегралов методом Монте-Карло.
+\par Параллельные реализации доказали свою эффективность, благодаря использованию тестов, созданных для данной программы с использованием Google C++ TestingFramework.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem {wikishell} Википедия:https://ru.wikipedia.org/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%9C%D0%BE%D0%BD%D1%82%D0%B5-%D0%9A%D0%B0%D1%80%D0%BB%D0%BE
+\bibitem {Sobol} Соболь И.М. Популярные лекции по математике 1968. Выпуск 46.
+Метод Монте-Карло. М.: Наука, 1968. — 64 с.
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\par Последовательная версия
+\begin{lstlisting}
+double seqMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps) {
+    if (steps <= 0)
+        throw "integral is negative";
+    double res = 0.0;
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+
+    int mult = a.size();
+    double S = 1;
+    for (int i = 0; i < mult; i++)
+        S *= (b[i] - a[i]);
+
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    std::vector<double> r1(mult);
+    for (int i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+
+    for (int i = 0; i < steps; ++i) {
+        for (int j = 0; j < mult; ++j)
+            r1[j] = r[j](gen);
+        res += f(r1);
+    }
+
+    res *= S / steps;
+    return res;
+}
+\end{lstlisting}
+
+\par OpenMP Версия
+\begin{lstlisting}
+double ompMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps) {
+    if (steps <= 0)
+        throw "integral is negative";
+    double res = 0.0;
+    int mult = a.size();
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    for (int i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+    int num_th;
+    #pragma omp parallel shared(r) reduction(+ : res)
+    {
+        num_th = omp_get_num_threads();
+        std::mt19937 gen;
+        gen.seed(static_cast<unsigned int>(time(0)));
+        std::vector<double> r1(mult);
+        for (int i = 0; i < steps; ++i) {
+            for (int j = 0; j < mult; ++j)
+                r1[j] = r[j](gen);
+            res += f(r1);
+        }
+    }
+    #pragma omp master
+    {
+        double S = 1;
+        for (int i = 0; i < mult; i++)
+            S *= (b[i] - a[i]);
+        res *= S / (num_th * steps);
+    }
+    return res;
+}
+\end{lstlisting}
+
+\par Intel TBB версия
+\begin{lstlisting}
+double tbbMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps) {
+    if (steps <= 0)
+        throw "integral is negative";
+    double res = 0.0;
+    int mult = a.size();
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    for (int i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+
+    res = tbb::parallel_reduce(
+                tbb::blocked_range<size_t>(0, steps), 0.0,
+                [&](tbb::blocked_range<size_t> range, double running_total) {
+                    std::mt19937 gen;
+                    gen.seed(static_cast<unsigned int>(time(0)));
+                    std::vector<double> r1(mult);
+                    for (size_t i = range.begin(); i != range.end(); ++i) {
+                        for (int j = 0; j < mult; ++j)
+                            r1[j] = r[j](gen);
+                        running_total += f(r1);
+                    }
+
+                    return running_total;
+                }, std::plus<double>() );
+
+    double S = 1;
+    for (int i = 0; i < mult; i++)
+        S *= (b[i] - a[i]);
+    res *= S / steps;
+
+    return res;
+}
+\end{lstlisting}
+\end{document}
