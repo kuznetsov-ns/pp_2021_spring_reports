@@ -1,0 +1,499 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+    basicstyle=\footnotesize,
+    keywordstyle=\color{blue}\ttfamily,
+    stringstyle=\color{red}\ttfamily,
+    commentstyle=\color{green}\ttfamily,
+    morecomment=[l][\color{magenta}]{\#},
+    tabsize=4,
+    breaklines=true,
+    breakatwhitespace=true,
+    title=\lstname,
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Сортировка Шелла с простым слиянием»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-2 \\ Булычев А. С.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+ Алгоритм сортировки Шелла схож с алгоритмом сортировки расческой и так же основан на сравнении элементов массива, расположенных на определенном расстоянии друг от друга, которое постепенно уменьшается до 1. Единственное отличие — сортировка расческой это усовершенствованная сортировка пузырьком, а сортировка Шелла - усовершенствованная сортировка вставками.
+\par
+При сортировке Шелла сначала сравниваются и сортируются между собой значения, стоящие один от другого на некотором расстоянии d . После этого процедура повторяется для некоторых меньших значений d, а завершается сортировка Шелла упорядочиванием элементов при d=1.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы нужно реализовать сортировку Шелла с простым слиянием.
+\par
+Требуется выполнить следующее:
+\par
+1.	Последовательный алгоритм сортировки.
+\par
+2.	Параллельный алгоритм сортировки на основе OpenMP.
+\par
+3.	Параллельный алгоритм сортировки на основе TBB.
+\par
+4.	Провести вычислительные эксперименты.
+\par
+5.	Сравнить время работы всех параллельных и последовательной реализаций.
+\newpage
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+Предположим, что у нас есть список длины N. На первом шаге мы разбиваем элементы на группы, где каждая группа включает в себя два элемента расположенных друг от друга на расстоянии N/2; они сравниваются между собой, и, в случае необходимости, меняются местами. На последующих шагах также происходят проверка и обмен, но расстояние d сокращается на d/2, и количество групп, соответственно, уменьшается. Постепенно расстояние между элементами уменьшается, и на d=1 проход по массиву происходит в последний раз. 
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+В начале все потоки вычисляют свою часть вектора (начальную позицию и длину).  
+\par
+Деление вектора происходит следующим образом: делим количество всех элементов вектора на количество потоков, остатки от деления распределяем между ними.
+\par
+После деления вектора каждый поток получает свой кусок вектора. Каждый поток сортирует свои кусочки и отправляет их в результирующий. В конце все полученные результаты складывает в нужные позиции результирующего вектора.
+\par
+В итоге результирующий вектор будет отсортирован и находиться он будет в нулевом потоке.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+В программе реализованы методы:
+\begin{itemize}
+\item[]•	std::vector<int> getRandomVector(int size) – генерирование рандомного вектора размерности size
+\end{itemize}
+\begin{itemize}
+\item[]•	std::vector<double> ShellSort(const std::vector<double> vec) – последовательный алгоритм 
+сортировки Шелла
+\end{itemize}
+\begin{itemize}
+\item[]•	std::vector<int> Merge(std::vector<int> vec1, std::vector<int> vec2) – слияние двух векторов
+\end{itemize}
+\begin{itemize}
+\item[]•	std::vector<int> ParallSort(std::vector<int> vec) – параллельный метод поразрядной сортировки для целых чисел с простым слиянием
+\end{itemize}
+\begin{itemize}
+\item[]•	std::vector<double> ShellsortOMP(const std::vector<double> vec, int numthreads)  – параллельный метод сортировки Шелла с простым слиянием на основе OpenMP
+\end{itemize}
+\begin{itemize}
+\item[]•	std::vector<double> ShellsortTBB(const std::vector<double> vec, int numthreads)  – параллельный метод сортировки Шелла с простым слиянием на основе TBB
+\end{itemize}
+\newpage
+%Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе реализован набор тестов с использованием библиотеки для модульного тестирования Google C++ Testing Framework. Тесты проверяют корректную работу последовательного и параллельных алгоритмов.
+\newpage
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Характеристики ПК:
+\begin{itemize}
+    \item Процессор: Intel® Core™ i7-8750H CPU @ 2.20GHz 2.20 GHz
+\end{itemize}
+\begin{itemize}
+    \item Оперативная память: 16,00 ГБ
+\end{itemize}
+\begin{itemize}
+    \item Операционная система: Windows 10
+\end{itemize}
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов}
+\centering
+\begin{tabular}{lllll}
+Количество процессов & Послед. время & Ускорение\\
+последовательный & 0.249709 & 1\\
+параллельный OpenMP & 0.0743377 & 3.4\\
+параллельный TBB  & 0.0718963 & 3.5\\
+\end{tabular}
+\end{table}
+\par
+В рамках эксперимента было вычислено время работы последовательного и параллельных алгоритмов сортировки. Размер исходного вектора - 1000000.
+\par
+В ходе эксперимента было доказано, что алгоритмы реализованы эффективно.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе работы были реализованы последовательный и параллельные алгоритмы сортировки. С задачей по реализации распараллеливания с использованием OpenMP и TBB, которые должны были быть эффективнее последовательной успешно справились, о чем и говорят результаты вычислительных экспериментов. В их результатах видим, что параллельные алгоритмы эффективнее последовательного более чем в 3 раза.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{} «Параллельное программирование на OpenMP»
+\\URL:\url {http://ccfit.nsu.ru/arom/data/openmp.pdf} 
+\bibitem{Sidnev} Сиднев А.А., Мееров И.Б., Сысоев А.В. «Разработка параллельных программ в системах с общей памятью с использованием библиотеки Intel Threading Building Blocks (TBB)».
+\\URL:\url {http://hpc-education.ru/files/lectures/meerov/ppt06.pdf} 
+\bibitem{} «Параллельное программирование. С++. Thread Support Library. Atomic Operations Library.»
+\\URL:\url {https://ppt-online.org/184002} 
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\begin{lstlisting}
+shell_sort_simple.h:
+
+// Copyright 2021 Bulychev Andrey
+#ifndef MODULES_TASK_3_BULYCHEV_A_SHELL_SORT_SIMPLE_TBB_SHELL_SORT_SIMPLE_TBB_H_
+#define MODULES_TASK_3_BULYCHEV_A_SHELL_SORT_SIMPLE_TBB_SHELL_SORT_SIMPLE_TBB_H_
+
+#include <vector>
+
+
+std::vector<double> getRandomVector(int size);
+std::vector<double> Shell_sort(const std::vector<double>& vec);
+std::vector<double> Merge(const std::vector<double>& vec1, const std::vector<double>& vec2);
+std::vector<double> Shell_sort_OMP(const std::vector<double>& vec, int num_threads = 4);
+std::vector<double> Shell_Sort_tbb(const std::vector<double>& vec, int num_threads = 4);
+
+
+#endif  // MODULES_TASK_3_BULYCHEV_A_SHELL_SORT_SIMPLE_TBB_SHELL_SORT_SIMPLE_TBB_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+shell_sort_simple.cpp:
+
+// Copyright 2021 Bulychev Andrey
+#include <omp.h>
+#include <random>
+#include <ctime>
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include "../../../modules/task_2/bulychev_a_shell_sort_simple_omp/shell_sort_simple_omp.h"
+
+
+std::vector<double> getRandomVector(int size) {
+  if (size < 0) {
+    throw "Error size";
+  }
+  std::vector<double> vec(size);
+  std::mt19937 gen;
+  gen.seed(static_cast<unsigned int>(time(0)));
+  for (int i = 0; i < size; i++) vec[i] = gen() % 10000;
+  return vec;
+}
+
+std::vector<double> Shell_sort(const std::vector<double>& vec) {
+  std::vector<double> tmp(vec);
+  for (int step = tmp.size() / 2; step != 0; step /= 2) {
+    for (int i = step; i < static_cast<int>(tmp.size()); i++) {
+      for (int j = i - step; j >= 0 && tmp[j] > tmp[j + step]; j -= step) {
+        double aV = tmp[j];
+        tmp[j] = tmp[j + step];
+        tmp[j + step] = aV;
+      }
+    }
+  }
+  return tmp;
+}
+
+std::vector<double> Merge(const std::vector<double>& vec1,
+                          const std::vector<double>& vec2) {
+  int size1 = vec1.size();
+  int size2 = vec2.size();
+  std::vector<double> tmp(size1 + size2);
+  int i = 0, j = 0;
+  for (int k = 0; k < size1 + size2; k++) {
+    if (i > size1 - 1) {
+      double a = vec2[j];
+      tmp[k] = a;
+      j++;
+    } else {
+      if (j > size2 - 1) {
+        double a = vec1[i];
+        tmp[k] = a;
+        i++;
+      } else {
+        if (vec1[i] < vec2[j]) {
+          double a = vec1[i];
+          tmp[k] = a;
+          i++;
+        } else {
+          double b = vec2[j];
+          tmp[k] = b;
+          j++;
+        }
+      }
+    }
+  }
+  return tmp;
+}
+
+
+std::vector<double> Shell_sort_OMP(const std::vector<double>& vec, int num_threads) {
+    std::vector<double> myvec(vec);
+    if (vec.size() == 1) {
+      return myvec;
+    }
+    if (static_cast<int>(vec.size()) < num_threads) {
+        return Shell_sort(vec);
+    }
+    omp_set_num_threads(num_threads);
+
+    int delta = vec.size() / num_threads;
+    std::vector<double> local_vec;
+
+#pragma omp parallel private(local_vec) shared(myvec, delta)
+    {
+        int num_thread = omp_get_thread_num();
+        if (num_thread == num_threads - 1) {
+            local_vec = std::vector<double>(myvec.size() - delta * (num_threads - 1));
+        } else {
+            local_vec = std::vector<double>(delta);
+        }
+
+        if (num_thread == num_threads - 1) {
+            std::copy(myvec.begin() + delta * (num_threads - 1), myvec.end(), local_vec.begin());
+        } else {
+            std::copy(myvec.begin() + delta * num_thread,
+                myvec.begin() + delta * (num_thread + 1), local_vec.begin());
+        }
+        local_vec = Shell_sort(local_vec);
+
+#pragma omp barrier
+        if (num_thread == 0) {
+            myvec = local_vec;
+        }
+
+#pragma omp barrier
+#pragma omp critical
+        if (num_thread != 0) {
+            myvec = Merge(myvec, local_vec);
+        }
+    }
+    return myvec;
+}
+
+std::vector<double> Shell_Sort_tbb(const std::vector<double>& vec, int num_threads) {
+    std::vector<double> copy(vec);
+    if (vec.size() == 1) {
+        return copy;
+    }
+
+    if (static_cast<int>(vec.size()) < num_threads) {
+      return Shell_sort(vec);
+    }
+    int local_size = vec.size() / num_threads;
+
+    std::vector<double> tmp;
+    std::vector<std::vector<double>> local_vec;
+
+    for (int num_thread = 0; num_thread < num_threads; num_thread++) {
+        if (num_thread == num_threads - 1) {
+            tmp.insert(tmp.end(), copy.begin() + local_size * num_thread, copy.end());
+        } else {
+            tmp.insert(tmp.end(), copy.begin() + local_size * num_thread,
+                copy.begin() + local_size * (num_thread + 1));
+        }
+        local_vec.push_back(tmp);
+        tmp.clear();
+    }
+
+    tbb::task_scheduler_init init(num_threads);
+
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, local_vec.size(), 1),
+    [&local_vec](const tbb::blocked_range<size_t>& range){
+        for (size_t i = range.begin(); i != range.end(); ++i) {
+            local_vec[i] = Shell_sort(local_vec[i]);
+        }
+    }, tbb::simple_partitioner());
+
+    init.terminate();
+    std::vector<double> merged = local_vec[0];
+    for (size_t i = 1; i < local_vec.size(); ++i) {
+        merged = Merge(merged, local_vec[i]);
+    }
+
+    return merged;
+}
+
+
+\end{lstlisting}
+\begin{lstlisting}
+main.cpp:
+
+// Copyright 2021 Bulychev Andrey
+#include <tbb/tbb.h>
+#include <omp.h>
+#include <gtest/gtest.h>
+#include <vector>
+#include <algorithm>
+#include "./shell_sort_simple.h"
+
+
+TEST(Parallel_OMP, correct_work_parallel_sort) {
+    std::vector<double> vec = getRandomVector(100);
+    ASSERT_NO_THROW(Shell_sort_OMP(vec));
+}
+
+TEST(Parallel_OMP, work_parallel_sort_with_size_one) {
+    std::vector<double> vec = getRandomVector(1);
+    ASSERT_NO_THROW(Shell_sort_OMP(vec));
+}
+
+TEST(Parallel_OMP, compare_seq_and_parall) {
+    std::vector<double> vec = getRandomVector(100);
+    std::vector<double> seq = Shell_sort(vec);
+    std::vector<double> omp = Shell_sort_OMP(vec);
+    ASSERT_EQ(seq, omp);
+}
+
+TEST(Parallel_OMP, compare_seq_and_parall_with_bug_size) {
+    std::vector<double> vec = getRandomVector(100);
+    std::vector<double> seq = Shell_sort(vec);
+    std::vector<double> omp = Shell_sort_OMP(vec);
+    ASSERT_EQ(seq, omp);
+}
+
+TEST(Parallel_OMP, check_time) {
+    std::vector<double> vec = getRandomVector(1000000);
+
+    double start = omp_get_wtime();
+    std::vector<double> omp = Shell_sort_OMP(vec);
+    double end = omp_get_wtime();
+    std::cout << "Parallel sort time: " << end - start << std::endl;
+
+    start = omp_get_wtime();
+    std::vector<double> seq = Shell_sort(vec);
+    end = omp_get_wtime();
+    std::cout << "Sequent sort time: " << end - start << std::endl;
+
+    ASSERT_EQ(seq, omp);
+}
+
+TEST(Parallel_TBB, correct_work_parallel_sort) {
+  std::vector<double> vec = getRandomVector(100);
+  ASSERT_NO_THROW(Shell_Sort_tbb(vec));
+}
+
+TEST(Parallel_TBB, work_parallel_sort_with_size_one) {
+  std::vector<double> vec = getRandomVector(1);
+  ASSERT_NO_THROW(Shell_Sort_tbb(vec));
+}
+
+TEST(Parallel_TBB, compare_seq_and_parall) {
+  std::vector<double> vec = getRandomVector(100);
+  std::vector<double> seq = Shell_sort(vec);
+  std::vector<double> omp = Shell_Sort_tbb(vec);
+  ASSERT_EQ(seq, omp);
+}
+
+TEST(Parallel_TBB, compare_seq_and_parall_with_bug_size) {
+  std::vector<double> vec = getRandomVector(100);
+  std::vector<double> seq = Shell_sort(vec);
+  std::vector<double> omp = Shell_Sort_tbb(vec);
+  ASSERT_EQ(seq, omp);
+}
+
+TEST(Parallel_TBB, check_time) {
+  std::vector<double> vec = getRandomVector(1000000);
+
+  tbb::tick_count start = tbb::tick_count::now();
+  std::vector<double> omp = Shell_Sort_tbb(vec);
+  tbb::tick_count end = tbb::tick_count::now();
+  std::cout << "Parallel sort time: " << (end - start).seconds() << std::endl;
+
+  start = tbb::tick_count::now();
+  std::vector<double> seq = Shell_sort(vec);
+  end = tbb::tick_count::now();
+  std::cout << "Sequent sort time: " << (end - start).seconds() << std::endl;
+
+  ASSERT_EQ(seq, omp);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  MPI_Init(&argc, &argv);
+  ::testing::AddGlobalTestEnvironment(new GTestMPIListener::MPIEnvironment);
+  ::testing::TestEventListeners& listeners =
+      ::testing::UnitTest::GetInstance()->listeners();
+
+  listeners.Release(listeners.default_result_printer());
+  listeners.Release(listeners.default_xml_generator());
+
+  listeners.Append(new GTestMPIListener::MPIMinimalistPrinter);
+  return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+    \end{document}
