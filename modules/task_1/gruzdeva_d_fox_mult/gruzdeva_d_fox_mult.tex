@@ -1,4 +1,4 @@
-\documentclass{report}
+\documentclass{article}
 
 \usepackage[T2A]{fontenc}
 \usepackage[utf8]{luainputenc}
@@ -100,116 +100,1088 @@
 
 % Введение
 \section*{Введение}
-\addcontentsline{toc}{section}{Введение}
-\par Блочное умножение матриц
+\addcontentsline{toc}{section}{1. Введение}
+\setcounter{section}{1}
+\par 
+Умножение матриц является базовой операцией в линейной алгебре и имеет множество применений в других областях, таких как
+статистика, физика, экономика и т.д. Однако она очень затратна - последовательная версия имеет алгоритмическую сложность 
+$\mathcal{O}(n^3)$, что довольно ресурсозатратно. В данной лабораторной работе мы реализуем алгоритм, уменьшающий сложность умножения
+путем разделения данных между потоками - алгоритм Фокса. 
 \newpage
 
 % Постановка задачи
 \section*{Постановка задачи}
-\addcontentsline{toc}{section}{Постановка задачи}
-\par В данном лабораторной работе требуется рассмотреть умножение матриц методом Фокса, реализовать последовательную
- и две параллельные версии этого метода (при помощи технологий OpenMP и TBB), провести эксперименты для оценки времени выполнения. 
- По полученным результатам сделать выводы.
+\addcontentsline{toc}{section}{2. Постановка задачи}
+\par 
+В данном лабораторной работе требуется рассмотреть умножение матриц методом Фокса, реализовать последовательную
+и две параллельные версии этого метода (при помощи технологий OpenMP и TBB), провести эксперименты для оценки времени выполнения. 
+Проанализировать полученные результаты, объяснить их.
 \newpage
 
 % Описание алгоритма
 \section*{Описание алгоритма}
-\addcontentsline{toc}{section}{Описание алгоритма}
-Алгоритм Фокса основан на блочном разбиении матрицы между вычислителями.\par
+\addcontentsline{toc}{section}{3. Описание алгоритма}
+\par
+Рассмотрим определение умножения матриц.
+\par
+Пусть даны две квадратные матрицы A и B с размерами \(n \times n\).
+\[ 
+	A = \left( 
+		\begin{matrix}
+			a_{00} & a_{0 1} & \ldots & a_{0(n-1)}\\
+			a_{10} & a_{1 1} & \ldots & a_{1(n-1)}\\
+			\vdots & \vdots & \ddots & \vdots\\
+			a_{(n-1)0} & a_{(n-1)1} & \ldots & a_{(n-1)(n-1)}\\
+		\end{matrix}
+	\right)
+\]
+\[
+	B = \left( 
+		\begin{matrix}
+			b_{00} & b_{0 1} & \ldots & b_{0(n-1)}\\
+			b_{10} & b_{1 1} & \ldots & b_{1(n-1)}\\
+			\vdots & \vdots & \ddots & \vdots\\
+			b_{(n-1)0} & b_{(n-1)1} & \ldots & b_{(n-1)(n-1)}\\
+		\end{matrix}
+	\right)
+\]
 
-Пусть  \( A= \left( a_{ij} \right) ,~~ B= \left( b_{ij} \right) ,~ i,j=\overline{0, n-1} \)  – квадратные матрицы размера  \( n \times n \) . Тогда:\par
+Тогда:
 
- \[ C=A \times B,~ c_{ij}=a_{i0}b_{0j}+a_{i1}b_{1j}+ \ldots +a_{i,n-1}b_{n-1,j}= \sum _{k=0}^{n-1}a_{ik}b_{kj} \] \par
+\par
+\[C=A \times B \]
+\[
+	C = \left( 
+		\begin{matrix}
+			c_{00} & c_{0 1} & \ldots & c_{0(n-1)}\\
+			c_{10} & c_{1 1} & \ldots & c_{1(n-1)}\\
+			\vdots & \vdots & \ddots & \vdots\\
+			c_{(n-1)0} & c_{(n-1)1} & \ldots & c_{(n-1)(n-1)}\\
+		\end{matrix}
+	\right), 
+\] 
 
- \( c_{ij} \)  – результат скалярного произведения i-ой строки матрицы A и j-ого столбца матрицы B.\par
+\par
+где $(c_{ij}) = \sum\limits_{k=0}^{n-1}a_{ik}b_{kj}$   – результат скалярного произведения i-ой строки матрицы A и j-ого столбца матрицы B.
 
- Пусть число вычислителей равно 4, а n = 4, тогда блочное разбиение будет выглядеть следующим образом:\par
+\par В алгоритме Фокса исходные матрицы делятся на блоки: каждой подзадаче даются свои подматрицы для подсчета результирующих 
+подматриц.
 
- \[ A_{00}= \left( \begin{matrix}
-a_{00}  &  a_{01}\\
-a_{10}  &  a_{11}\\
-\end{matrix}
- \right) ,~~A_{01}= \left( \begin{matrix}
-a_{02}  &   a_{03}\\
-a_{12}  &   a_{13}\\
-\end{matrix}
- \right)  \]  \[ A_{10}= \left( \begin{matrix}
-a_{20}  &  a_{21}\\
-a_{30}  &  a_{31}\\
-\end{matrix}
- \right) ,~~A_{11}= \left( \begin{matrix}
-a_{22}  &  a_{23}\\
-a_{32}  &  a_{33}\\
-\end{matrix}
- \right)  \] \par
+\par
+Предположим, что число подзадач равно 4, а n = 4.
+Тогда блочное разбиение будет выглядеть следующим образом:
 
+\par
+\[ A_{00}= \left( 
+	\begin{matrix}
+		a_{00}  &  a_{01}\\
+		a_{10}  &  a_{11}\\
+	\end{matrix}
+\right),
+~A_{01}= \left( 
+	\begin{matrix}
+		a_{02}  &   a_{03}\\
+		a_{12}  &   a_{13}\\
+	\end{matrix}
+\right)\] 
+\[ A_{10}= \left( 
+	\begin{matrix}
+		a_{20}  &  a_{21}\\
+		a_{30}  &  a_{31}\\
+	\end{matrix}
+\right),
+~A_{11}= \left( 
+	\begin{matrix}
+		a_{22}  &  a_{23}\\
+		a_{32}  &  a_{33}\\
+	\end{matrix}
+\right)\]
 
-\vspace{\baselineskip}
- Аналогично для B и C.\par
+\par
+\[B_{00}= \left(
+	\begin{matrix}
+		b_{00}  &  b_{01}\\
+		b_{10}  &  b_{11}\\
+	\end{matrix}
+\right),
+~B_{01}= \left(
+	\begin{matrix}
+		b_{02}  &   b_{03}\\
+		b_{12}  &   b_{13}\\
+	\end{matrix}
+\right)\]
+\[B_{10}= \left(
+	\begin{matrix}
+		b_{20}  &  b_{21}\\
+		b_{30}  &  b_{31}\\
+	\end{matrix}
+\right),
+~B_{11}= \left(
+	\begin{matrix}
+		b_{22}  &  b_{23}\\
+		b_{32}  &  b_{33}\\
+	\end{matrix}
+\right)\] 
 
-Сам алгоритм Фокса заключается в том, что на каждом шаге нужно выбрать подматрицу A в каждой строке, чтобы каждый вычислитель умножил полученную матрицу на имеющуюся подматрицу B, а затем отправил свою подматрицу B вышестоящему в схеме вычислителю.\par
+\par
+А сама результирующая матрица будет выглядеть следующим образом:
+\[C_{00} = A_{00} \times B_{00} + A_{01} \times B_{10}\]
+\[C_{01} = A_{00} \times B_{01} + A_{01} \times B_{11}\]
+\[C_{10} = A_{11} \times B_{10} + A_{10} \times B_{00}\]
+\[C_{11} = A_{11} \times B_{11} + A_{10} \times B_{01}\]
 
-Так как мы реализуем данный алгоритм на потоках, то нужды в передаче-получении подматриц у нас нет, что упрощает алгоритм.\par
+\par
+Алгоритм Фокса изначально разрабатывался для систем с распределенной памятью, и в них требовался обмен блоками между подзадачами.
+Мы же реализуем данный алгоритм на потоках (т.е. в системе с общей памятью), а значит, обмен между подзадачами не нужен.
 \newpage
 
-% Схема распараллеливания
-\section*{Схема распараллеливания}
-\addcontentsline{toc}{section}{Схема распараллеливания}
-
+% Программная реализация и схема распараллеливания
+\section*{Программная реализация и схема распараллеливания}
+\addcontentsline{toc}{section}{4. Программная реализация и схема распараллеливания}
+В данном разделе мы рассмотрим две схемы распараллеливания описанного выше алгоритма, а также рассмотрим общие для обеих схем функции.
+\par
+В функции \lstinline$std::vector<double> getRandomMatrix(int size, time_t seed)$ создается 
+\\
+матрица с помощью генератора случайных чисел
+\\
+\lstinline$std::uniform_real_distribution<double>$ из библиотеки \lstinline$<random>$. 
+\par 
+Функция \lstinline$std::vector<double> sequentialFoxMultiplication(std::vector<double> $
+\\
+\lstinline$matrixA, std::vector<double> matrixB, int blockSize)$ производит 
+\\ 
+последовательное умножение матриц \lstinline$matrixA$ и \lstinline$matrixB$. 
+\par
+Для обеих реализаций используется функция 
+\\ 
+\lstinline$std::vector<double> parallelFoxMultiplication(std::vector<double> matrixA,$
+\\
+\lstinline$std::vector<double> matrixB)$. Особенности ее реализации рассмотрим ниже.
 % Схема распараллеливания OpenMP
-\subsection{OpenMP}
-\addcontentsline{toc}{subsubsection}{OpenMP}
+\subsection*{OpenMP}
+\addcontentsline{toc}{subsection}{4.1. OpenMP}
+\setcounter{subsection}{1}
+До начала параллельной секции определим размеры сетки (как квадратный корень из количества потоков) и блоков матриц:
+\begin{lstlisting}
+	int gridSize = static_cast<int>(sqrt(threadCount));
+  int blockSize = size / gridSize;
+\end{lstlisting}
+Затем идет параллельная секция, ее определяет директива:
+\begin{lstlisting}
+	#pragma omp parallel
+\end{lstlisting}
+Получаем номер текущего потока:
+\begin{lstlisting}
+	int threadNumber = omp_get_thread_num();
+\end{lstlisting}
+При помощи него определяем вспомогательные индексы для определения границ требуемых подматриц:
+\begin{lstlisting}
+	int ii = threadNumber / static_cast<int>(sqrt(threadCount));
+  int jj = threadNumber %  static_cast<int>(sqrt(threadCount));
+\end{lstlisting}
+Затем запускаем цикл, подсчитывающий результирущую подматрицу:
+\begin{lstlisting}
+	for (int step = 0; step < gridSize; step++) {
+    for (int i = ii * blockSize; i < (ii + 1) * blockSize; i++) {
+      for (int j = jj * blockSize; j < (jj + 1) * blockSize; j++) {
+        for (int k = step * blockSize; k < (step + 1) * blockSize; k++) {
+          matrixC[i * size + j] += matrixA[i * size + k] *
+          matrixB[k * size + j];
+        }
+      }
+    }
+  }
+\end{lstlisting}
 \newpage
 
 % Схема распараллеливания TBB
-\subsection{TBB}
-\addcontentsline{toc}{subsubsection}{TBB}
+\subsection*{TBB}
+\addcontentsline{toc}{subsection}{4.2. TBB}
+В данном случае все еще проще - воспользуемся классом \lstinline$blocked_range2d$.
+Для начала создаем двухмерное пространство размером, как у результирущей матрицы:
+\begin{lstlisting}
+	tbb::parallel_for(
+    tbb::blocked_range2d<int, int>(0, size, 0, size),
+\end{lstlisting}
+Затем создаем в нем еще одно двухмерное подпространство:
+\begin{lstlisting}
+	[&](tbb::blocked_range2d<int, int> r)
+\end{lstlisting}
+Внутри этого подпространства заводим цикл для подсчета результирущей подматрицы:
+\begin{lstlisting}
+	for (int j = r.rows().begin(); j != r.rows().end(); j++) {
+		for (int i = r.cols().begin(); i != r.cols().end(); i++) {
+			for (int k = 0; k < size; k++) {
+				matrixC[j * size + i] += matrixA[j * size + k] *
+				matrixB[k * size + i];
+			}          
+		}
+  }
+\end{lstlisting} 
 \newpage
 
 % Результаты экспериментов
 \section*{Результаты экспериментов}
-\addcontentsline{toc}{section}{Результаты экспериментов}
+\addcontentsline{toc}{section}{5. Результаты экспериментов}
 \begin{itemize}
 \item Процессор: Intel Core i3-4130, 3400 MHz, физических ядер: 2, потоков: 4;
-\item Оперативная память: 8192 МБ (DDR3), 800 MHz;
+\item Оперативная память: 8192 МБ (DDR3), 1600 MHz;
 \item ОС: Microsoft Windows 10 Home, версия 2004 сборка 19041.572.
 \end{itemize}
 
-\par Для оценки времени работы рассмотренных выше реализаций сгенерируем случайные матрицы размерами 500x500, 1000x1000, 1500x1500
+\par Для оценки времени работы рассмотренных выше реализаций сгенерируем случайные матрицы размерами 100x100, 250x250, 500x500.
 \par Результаты экспериментов представлены в Таблице 1.
 
 \begin{table}[!h]
 \caption{Результаты вычислительных экспериментов}
 \renewcommand{\arraystretch}{1.8} 
 \centering
-\begin{tabular}{l*{4}{|l}}
+\begin{tabular}{|l*{4}{|l}}
 \hline
-& 500 & 1000 & 1500 \\
+Размер матрицы & 100 & 250 & 500 \\
 \hline
-Размер матрицы & 0 & 0 & 0 \\
+Последовательная реализация, с & 0.0031259 &  0.052267 & 0.458808 \\
 \hline
-Наивная реализация & 0 & 0 & 0  \\
+OpenMP, с & 0.0010245 & 0.0151383 & 0.121995 \\
 \hline
-Последовательная блочная реализация & 0 & 0 & 0 \\
+Ускорение OpenMP & 3.05 & 3.45 & 3.76 \\
 \hline
-OpenMP & 0 & 0 & 0 \\
+TBB, с & 0.0013307 & 0.0224133 & 0.165033 \\
 \hline
-Ускорение OpenMP & 0 & 0 & 0 \\
+Ускорение TBB & 2.35 & 2.33 & 2.78 \\
 \hline
-TBB & 0 & 0 & 0 \\
-\hline
-Ускорение TBB & 0 & 0 & 0 \\
 \end{tabular}
 \end{table}
 
-\par Из данных, представленных в Таблице 1 видно, что параллельная версия быстрее последовательной, а ее ускорение в общем случае пропорционально количеству запускаемых процессов. Такой хороший результат объясняется тем, что мы использовали относительно большое количество испытаний, из-за чего последовательная версия выполнялась гораздо дольше.
+\par Как можно видеть из Таблицы 1, параллельные версии быстрее последовательной. Однако версия OpenMP получилась производительнее,
+т.к. в версии TBB использовался класс \lstinline$blocked_range2d$ - он, по сути, аналогичен двумерному массиву. 
+Очевидно, что алгоритмическая сложность обхода двухмерного массива больше одномерного, так что для улучшения производительности можно 
+было воспользоваться \lstinline$blocked_range<int>(0, size * size)$. В этом случае мы бы рассматривали одномерное пространство и 
+накладные расходы на его создание были бы меньше.
+
+\par Для оценки корректности реализованных версий алгоритма было проведено тестирование на платформе C++ Testing Framework.
+\par Наборы тестов проверяли:
+\begin{itemize}
+	\item Корректность входных данных (матрицы должны быть одинакового размера)
+	\item Равенство полученных при помощи метода Фокса матриц с матрицами, подсчитанными наивным способом. 
+\end{itemize}
+
+\par Все программные комплексы успешно прошли тестирование, что говорит о корректности наших параллельных реализаций.
 \newpage
 
 % Заключение
 \section*{Заключение}
-\addcontentsline{toc}{section}{Заключение}
-\par Главной задачей данной лабораторной работы была реализация параллельной версии, которая должна была быть эффективнее последовательной. Эта задача была успешно достигнута, о чем говорят результаты экспериментов, проведенных в ходе работы.
-\par Кроме того, были разработаны и доведены до успешного выполнения тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+\addcontentsline{toc}{section}{6. Заключение}
+\par Мы разработали последовательную и две параллельные версии метода перемножения матриц Фокса.
+\par Нам удалось получить почти что четырехкратное ускорение для OpenMP версии (максимум 3.76), 
+и почти что трехкратное ускорение для TBB (максимум 2.78). 
+\par 
+Путем тестирования мы выяснили, что наши реализации корректны - результаты
+работы последовательных и параллельных версий одинаковы.
 \newpage
+
+% Список литературы
+\addcontentsline{toc}{section}{7. Список литературы}
+\begin{thebibliography}{1}
+\bibitem{Gergel} Гергель В.П., Стронгин Р.Г. Высокопроизводительные вычисления для многоядерных многопроцессорных систем. 
+— Н.Новгород: Изд-во ННГУ, 2010.
+\bibitem{Antonov} Антонов А.С. Параллельное программирование с использованием технологии
+OpenMP: Учебное пособие. — М.: Изд-во МГУ, 2009
+\bibitem{Voevodin} Воеводин В.В., Воеводин Вл.В. Параллельные вычисления. — СПб.: БХВ-Петербург, 2002. 
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\par
+Последовательная версия
+\par
+\lstinline$fox_mult.h$
+\begin{lstlisting}
+	// Copyright 2021 Gruzdeva Diana
+
+	#ifndef MODULES_TASK_1_GRUZDEVA_D_FOX_MULT_FOX_MULT_H_
+	#define MODULES_TASK_1_GRUZDEVA_D_FOX_MULT_FOX_MULT_H_
+
+	#include <vector>
+	#include <ctime>
+
+	std::vector<double> getRandomMatrix(int size, time_t seed);
+	std::vector<double> directMultiplication(std::vector<double> matrixA,
+                    std::vector<double> matrixB);
+	std::vector<double> foxMultiplication(std::vector<double> matrixA,
+                    std::vector<double> matrixB, int blockSize);
+
+	#endif  // MODULES_TASK_1_GRUZDEVA_D_FOX_MULT_FOX_MULT_H_
+\end{lstlisting}
+\par
+\lstinline$fox_mult.cpp$
+\begin{lstlisting}
+	// Copyright 2021 Gruzdeva Diana
+
+	#include "../../../modules/task_1/gruzdeva_d_fox_mult/fox_mult.h"
+	#include <random>
+	#include <vector>
+
+	std::vector<double> getRandomMatrix(int size, time_t seed) {
+  	std::vector<double> matrix(size * size);
+  	std::mt19937 gen((unsigned int)seed);
+  	std::uniform_real_distribution<double> dis(-10, 10);
+
+  	for (int i = 0; i < size * size; i++) {
+    	matrix[i] = dis(gen);
+  	}
+
+  	return matrix;
+	}
+
+	std::vector<double> directMultiplication(std::vector<double> matrixA,
+  	                  std::vector<double> matrixB) {
+  	if (matrixA.size() != matrixB.size()) {
+    	throw "Matrices sizes differ";
+ 	 }
+
+  	int size = static_cast<int>(sqrt(matrixA.size()));
+  	std::vector<double> matrixC(size * size);
+
+  	for (int i = 0; i < size; i++) {
+    	for (int j = 0; j < size; j++) {
+      	matrixC[i * size + j] = 0;
+      	for (int k = 0; k < size; k++) {
+        	matrixC[i * size + j] += matrixA[i * size + k]
+        	* matrixB[k * size + j];
+      	}
+    	}
+  	}
+
+  	return matrixC;
+	}
+
+	std::vector<double> foxMultiplication(std::vector<double> matrixA,
+  	                  std::vector<double> matrixB, int blockSize) {
+  	if (blockSize == 0) {
+    	throw "Block size cannot be zero";
+  	}
+
+  	if (blockSize < 0) {
+    	throw "Block size cannot negative";
+  	}
+
+  	if (matrixA.size() < (unsigned int)(blockSize * blockSize)) {
+    	throw "Block size cannot be larger than size of original matrices";
+  	}
+
+  	if (matrixA.size() != matrixB.size()) {
+    	throw "Matrice's sizes differ";
+  	}
+
+  	if (static_cast<int>(sqrt(matrixA.size())) % blockSize != 0) {
+    	throw "Cannot multiply matrices using this block size";
+  	}
+
+  	int size = static_cast<int>(sqrt(matrixA.size()));
+  	std::vector<double> matrixC(size * size);
+  	int blockCount = size / blockSize;
+
+  	for (int i = 0; i < size * size; i++) {
+    	matrixC[i] = 0;
+  	}
+
+  	for (int i = 0; i < size; i += blockCount) {
+    	for (int j = 0; j < size; j += blockCount) {
+      	for (int k = 0; k < size; k += blockCount) {
+        	for (int ii = i; ii < std::min(size, i + blockCount); ii++) {
+          	for (int jj = j; jj < std::min(size, j + blockCount); jj++) {
+            	for (int kk = k; kk < std::min(size, k + blockCount); kk++) {
+              	matrixC[ii * size + jj] += matrixA[ii * size + kk]
+              	* matrixB[kk * size + jj];
+            	}
+          	}
+        	}
+      	}
+    	}
+  	}
+  	return matrixC;
+	}
+\end{lstlisting}
+\par
+\lstinline$main.cpp$
+\begin{lstlisting}
+	// Copyright 2021 Gruzdeva Diana
+
+	#include <gtest/gtest.h>
+	#include "../../../modules/task_1/gruzdeva_d_fox_mult/fox_mult.h"
+
+	TEST(Matrix_Multiplication, CHECKING_DIRECT_MULTIPLICATION) {
+  	  std::vector<double> A = {1, 2, 3, 4,
+        	                     0, 1, 2, 3,
+      	                       0, 0, 1, 2,
+          	                   0, 0, 0, 1};
+
+    	std::vector<double> B = {1, 2, 3, 4,
+            	                 0, 1, 2, 3,
+              	               0, 0, 1, 2,
+                	             0, 0, 0, 1};
+
+    	std::vector<double> C = {1, 4, 10, 20,
+      	                       0, 1, 4, 10,
+        	                     0, 0, 1, 4,
+          	                   0, 0, 0, 1};
+
+    	std::vector<double> C_Calculated = directMultiplication(A, B);
+
+    	ASSERT_EQ(C_Calculated, C);
+	}
+
+	TEST(Matrix_Multiplication, CHECKING_FOX_MULTIPLICATION) {
+  	  std::vector<double> A = {1, 2, 3, 4,
+    	                         0, 1, 2, 3,
+      	                       0, 0, 1, 2,
+        	                     0, 0, 0, 1};
+
+    	std::vector<double> B = {1, 2, 3, 4,
+      	                       0, 1, 2, 3,
+        	                     0, 0, 1, 2,
+          	                   0, 0, 0, 1};
+
+    	std::vector<double> C = {1, 4, 10, 20,
+      	                       0, 1, 4, 10,
+        	                     0, 0, 1, 4,
+          	                   0, 0, 0, 1};
+
+ 		  std::vector<double> C_Calculated = foxMultiplication(A, B, 2);
+
+    	ASSERT_EQ(C_Calculated, C);
+	}
+
+	TEST(Matrix_Multiplication, CHECKING_FOX_MULT_DIFFERENT_BLOCK_SIZE) {
+  	  std::vector<double> A = {1, 2, 3, 4,
+    	                         0, 1, 2, 3,
+      	                       0, 0, 1, 2,
+        	                     0, 0, 0, 1};
+
+   	 std::vector<double> B = {1, 2, 3, 4,
+    	                         0, 1, 2, 3,
+      	                       0, 0, 1, 2,
+        	                     0, 0, 0, 1};
+
+    	std::vector<double> C = {1, 4, 10, 20,
+      	                       0, 1, 4, 10,
+        	                     0, 0, 1, 4,
+          	                   0, 0, 0, 1};
+
+ 	 	  std::vector<double> C_Calculated = foxMultiplication(A, B, 4);
+
+    	ASSERT_EQ(C_Calculated, C);
+	}
+
+	TEST(Matrix_Multiplication, EQUALITY_OF_DIRECT_AND_FOX_METHODS) {
+  	  std::vector<double> A = getRandomMatrix(4, time(0));
+
+    	std::vector<double> B = getRandomMatrix(4, time(0) + 1);
+
+    	std::vector<double> C1 = directMultiplication(A, B);
+
+    	std::vector<double> C2 = foxMultiplication(A, B, 2);
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Matrix_Multiplication, FOX_METHOD_WITH_DIFF_BLOCK_SIZE) {
+  	  std::vector<double> A = getRandomMatrix(4, time(0));
+
+    	std::vector<double> B = getRandomMatrix(4, time(0) + 1);
+
+    	std::vector<double> C1 = foxMultiplication(A, B, 4);
+
+    	std::vector<double> C2 = foxMultiplication(A, B, 2);
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Matrix_Multiplication, FOX_METHOD_WITH_DIFF_BLOCK_SIZE_LARGER) {
+  	  std::vector<double> A = getRandomMatrix(100, time(0));
+
+    	std::vector<double> B = getRandomMatrix(100, time(0) + 1);
+
+    	std::vector<double> C1 = foxMultiplication(A, B, 50);
+
+    	std::vector<double> C2 = foxMultiplication(A, B, 10);
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Matrix_Multiplication, THROW_DIFFERENT_MATRICES_SIZES) {
+  	  std::vector<double> A = getRandomMatrix(4, time(0));
+
+    	std::vector<double> B = getRandomMatrix(5, time(0) + 1);
+
+    	ASSERT_ANY_THROW(foxMultiplication(A, B, 1));
+	}
+
+	TEST(Matrix_Multiplication, THROW_LARGE_BLOCK_SIZE) {
+  	  std::vector<double> A = getRandomMatrix(4, time(0));
+
+    	std::vector<double> B = getRandomMatrix(4, time(0) + 1);
+
+    	ASSERT_ANY_THROW(foxMultiplication(A, B, 17));
+	}
+
+	TEST(Matrix_Multiplication, THROW_NEGATIVE_BLOCK_SIZE) {
+  	  std::vector<double> A = getRandomMatrix(4, time(0));
+
+    	std::vector<double> B = getRandomMatrix(4, time(0) + 1);
+
+    	ASSERT_ANY_THROW(foxMultiplication(A, B, -1));
+	}
+
+	TEST(Matrix_Multiplication, THROW_WRONG_BLOCK_SIZE) {
+  	  std::vector<double> A = getRandomMatrix(4, time(0));
+
+    	std::vector<double> B = getRandomMatrix(4, time(0) + 1);
+
+    	ASSERT_ANY_THROW(foxMultiplication(A, B, 5));
+	}
+
+	TEST(Matrix_Multiplication, THROW_NULL_BLOCK_SIZE) {
+  	  std::vector<double> A = getRandomMatrix(4, time(0));
+
+   		std::vector<double> B = getRandomMatrix(4, time(0) + 1);
+
+    	ASSERT_ANY_THROW(foxMultiplication(A, B, 0));
+	}
+\end{lstlisting}
+\par
+OpenMP
+\par
+\lstinline$fox_mult.h$
+\begin{lstlisting}
+	// Copyright 2021 Gruzdeva Diana
+
+	#ifndef MODULES_TASK_2_GRUZDEVA_D_FOX_MULT_FOX_MULT_H_
+	#define MODULES_TASK_2_GRUZDEVA_D_FOX_MULT_FOX_MULT_H_
+
+	#include <omp.h>
+	#include <vector>
+	#include <ctime>
+
+	std::vector<double> getRandomMatrix(int size, time_t seed);
+	std::vector<double> directMultiplication(std::vector<double> matrixA,
+	                    std::vector<double> matrixB);
+	std::vector<double> sequentialFoxMultiplication(std::vector<double> matrixA,
+ 		                  std::vector<double> matrixB, int blockSize);
+	std::vector<double> parallelFoxMultiplication(std::vector<double> matrixA,
+  	                  std::vector<double> matrixB, int threadCount);
+	#endif  // MODULES_TASK_2_GRUZDEVA_D_FOX_MULT_FOX_MULT_H_
+\end{lstlisting}
+\par
+\lstinline$fox_mult.cpp$
+\begin{lstlisting}
+	// Copyright 2021 Gruzdeva Diana
+
+	#include "../../../modules/task_2/gruzdeva_d_fox_mult/fox_mult.h"
+	#include <omp.h>
+	#include <random>
+	#include <vector>
+
+	std::vector<double> getRandomMatrix(int size, time_t seed) {
+  	std::vector<double> matrix(size * size);
+  	std::mt19937 gen((unsigned int)seed);
+  	std::uniform_real_distribution<double> dis(-10, 10);
+
+  	for (int i = 0; i < size * size; i++) {
+    	matrix[i] = dis(gen);
+  	}
+
+  	return matrix;
+	}
+
+	std::vector<double> directMultiplication(std::vector<double> matrixA,
+  	                  std::vector<double> matrixB) {
+  	if (matrixA.size() != matrixB.size()) {
+    	throw "Matrices sizes differ";
+  	}
+
+  	int size = static_cast<int>(sqrt(matrixA.size()));
+  	std::vector<double> matrixC(size * size);
+
+  	for (int i = 0; i < size; i++) {
+    	for (int j = 0; j < size; j++) {
+      	matrixC[i * size + j] = 0;
+      	for (int k = 0; k < size; k++) {
+        	matrixC[i * size + j] += matrixA[i * size + k]
+        	* matrixB[k * size + j];
+      	}
+    	}
+  	}
+
+  	return matrixC;
+	}
+
+	std::vector<double> sequentialFoxMultiplication(std::vector<double> matrixA,
+  	                  std::vector<double> matrixB, int blockSize) {
+  	if (blockSize == 0) {
+    	throw "Block size cannot be zero";
+  	}
+
+  	if (blockSize < 0) {
+    	throw "Block size cannot be negative";
+  	}
+
+  	if (matrixA.size() < (unsigned int)(blockSize * blockSize)) {
+    	throw "Block size cannot be larger than size of original matrices";
+  	}
+
+  	if (matrixA.size() != matrixB.size()) {
+    	throw "Matrice's sizes differ";
+  	}
+
+  	if (static_cast<int>(sqrt(matrixA.size())) % blockSize != 0) {
+    	throw "Cannot multiply matrices using this block size";
+  	}
+
+  	int size = static_cast<int>(sqrt(matrixA.size()));
+  	std::vector<double> matrixC(size * size);
+  	int blockCount = size / blockSize;
+
+  	for (int i = 0; i < size * size; i++) {
+    	matrixC[i] = 0;
+  	}
+
+  	for (int i = 0; i < size; i += blockCount) {
+    	for (int j = 0; j < size; j += blockCount) {
+      	for (int k = 0; k < size; k += blockCount) {
+        	for (int ii = i; ii < std::min(size, i + blockCount); ii++) {
+          	for (int jj = j; jj < std::min(size, j + blockCount); jj++) {
+            	for (int kk = k; kk < std::min(size, k + blockCount); kk++) {
+              	matrixC[ii * size + jj] += matrixA[ii * size + kk]
+              	* matrixB[kk * size + jj];
+            	}
+          	}
+        	}
+      	}
+    	}
+  	}
+  	return matrixC;
+	}
+
+	std::vector<double> parallelFoxMultiplication(std::vector<double> matrixA,
+  	                  std::vector<double> matrixB, int threadCount) {
+  	if (threadCount == 0) {
+    	throw "Number of threads cannot be zero";
+  	}
+
+  	if (threadCount < 0) {
+    	throw "Number of threads cannot be negative";
+  	}
+
+  	if (matrixA.size() != matrixB.size()) {
+    	throw "Matrice's sizes differ";
+  	}
+
+  	if (matrixA.size() %  static_cast<int>(sqrt(threadCount)) != 0) {
+    	throw "Cannot distribute data between threads";
+  	}
+
+  	int size = static_cast<int>(sqrt(matrixA.size()));
+  	int gridSize = static_cast<int>(sqrt(threadCount));
+  	int blockSize = size / gridSize;
+  	std::vector<double> matrixC(size * size);
+
+  	#pragma omp parallel
+  	{
+    	int threadNumber = omp_get_thread_num();
+    	int ii = threadNumber / static_cast<int>(sqrt(threadCount));
+    	int jj = threadNumber %  static_cast<int>(sqrt(threadCount));
+
+	    for (int step = 0; step < gridSize; step++) {
+  	    for (int i = ii * blockSize; i < (ii + 1) * blockSize; i++) {
+    	    for (int j = jj * blockSize; j < (jj + 1) * blockSize; j++) {
+      	    for (int k = step * blockSize; k < (step + 1) * blockSize; k++) {
+        	    matrixC[i * size + j] += matrixA[i * size + k] *
+          	  matrixB[k * size + j];
+          	}
+        	}
+      	}
+    	}
+  	}
+
+  	return matrixC;
+	}
+\end{lstlisting}
+\par
+\lstinline$main.cpp$
+\begin{lstlisting}
+	#include <gtest/gtest.h>
+
+	#include <omp.h>
+	#include <random>
+	#include <vector>
+
+	#include "../../../modules/task_2/gruzdeva_d_fox_mult/fox_mult.h"
+
+	TEST(Fox_Multiplication_OMP, DIRECT_AND_FOX_1) {
+  	  std::vector<double> A = getRandomMatrix(100, time(0));
+
+    	std::vector<double> B = getRandomMatrix(100, time(0) + 1);
+
+  	  std::vector<double> C1 = directMultiplication(A, B);
+
+  	  std::vector<double> C2 = parallelFoxMultiplication(A, B, 4);
+
+  	  ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_OMP, DIRECT_AND_FOX_2) {
+  	  std::vector<double> A = getRandomMatrix(250, time(0));
+
+  	  std::vector<double> B = getRandomMatrix(250, time(0) + 1);
+
+  	  std::vector<double> C1 = directMultiplication(A, B);
+
+  	  std::vector<double> C2 = parallelFoxMultiplication(A, B, 4);
+
+  	  ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_OMP, SEQ_FOX_AND_PAR_FOX_1) {
+    	std::vector<double> A = getRandomMatrix(100, time(0));
+
+    	std::vector<double> B = getRandomMatrix(100, time(0) + 1);
+    	double t1 = omp_get_wtime();
+    	std::vector<double> C1 = sequentialFoxMultiplication(A, B, 4);
+    	double t2 = omp_get_wtime();
+    	std::cout << "Direct: " << t2-t1 << "\n";
+    	t1 = omp_get_wtime();
+    	std::vector<double> C2 = parallelFoxMultiplication(A, B, 4);
+    	t2 = omp_get_wtime();
+  	  std::cout << "OMP: " << t2-t1 << "\n";
+
+  	  ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_OMP, SEQ_FOX_AND_PAR_FOX_2) {
+    	std::vector<double> A = getRandomMatrix(250, time(0));
+
+  	  std::vector<double> B = getRandomMatrix(250, time(0) + 1);
+  	  double t1 = omp_get_wtime();
+  	  std::vector<double> C1 = sequentialFoxMultiplication(A, B, 2);
+  	  double t2 = omp_get_wtime();
+  	  std::cout << "Direct: " << t2-t1 << "\n";
+  	  t1 = omp_get_wtime();
+  	  std::vector<double> C2 = parallelFoxMultiplication(A, B, 4);
+  	  t2 = omp_get_wtime();
+  	  std::cout << "OMP: " << t2-t1 << "\n";
+
+  	  ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_OMP, DIRECT_AND_FOX_4) {
+    	std::vector<double> A = getRandomMatrix(100, time(0));
+
+    	std::vector<double> B = getRandomMatrix(100, time(0) + 1);
+
+    	std::vector<double> C1 = directMultiplication(A, B);
+
+    	std::vector<double> C2 = parallelFoxMultiplication(A, B, 4);
+
+  	  ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_OMP, THROW_DIFFERENT_MATRICES_SIZES) {
+    	std::vector<double> A = getRandomMatrix(4, time(0));
+
+    	std::vector<double> B = getRandomMatrix(5, time(0) + 1);
+
+  	  ASSERT_ANY_THROW(parallelFoxMultiplication(A, B, 4));
+	}
+
+	TEST(Fox_Multiplication_OMP, THROW_NEGATIVE_THREAD) {
+    	std::vector<double> A = getRandomMatrix(4, time(0));
+
+    	std::vector<double> B = getRandomMatrix(4, time(0) + 1);
+
+  	  ASSERT_ANY_THROW(parallelFoxMultiplication(A, B, -2));
+	}
+
+	TEST(Fox_Multiplication_OMP, THROW_WRONG_THREAD_NUMBER) {
+    	std::vector<double> A = getRandomMatrix(5, time(0));
+
+    	std::vector<double> B = getRandomMatrix(5, time(0) + 1);
+
+  	  ASSERT_ANY_THROW(parallelFoxMultiplication(A, B, 8));
+	}
+
+	TEST(Fox_Multiplication_OMP, THROW_NULL_THREAD_NUMBER) {
+    	std::vector<double> A = getRandomMatrix(4, time(0));
+
+    	std::vector<double> B = getRandomMatrix(4, time(0) + 1);
+
+  	  ASSERT_ANY_THROW(parallelFoxMultiplication(A, B, 0));
+	}
+
+\end{lstlisting}
+\par
+TBB
+\par
+\lstinline$fox_mult.h$
+\begin{lstlisting}
+	// Copyright 2021 Gruzdeva Diana
+
+	#ifndef MODULES_TASK_3_GRUZDEVA_D_FOX_MULT_FOX_MULT_H_
+	#define MODULES_TASK_3_GRUZDEVA_D_FOX_MULT_FOX_MULT_H_
+
+	#include <algorithm>
+	#include <vector>
+	#include <ctime>
+
+	std::vector<double> getRandomMatrix(int size, time_t seed);
+	std::vector<double> directMultiplication(std::vector<double> matrixA,
+                    std::vector<double> matrixB);
+	std::vector<double> sequentialFoxMultiplication(std::vector<double> matrixA,
+                    std::vector<double> matrixB, int blockSize);
+	std::vector<double> parallelFoxMultiplication(std::vector<double> matrixA,
+                    std::vector<double> matrixB);
+
+	#endif  // MODULES_TASK_3_GRUZDEVA_D_FOX_MULT_FOX_MULT_H_
+\end{lstlisting}
+\par
+\lstinline$fox_mult.cpp$
+\begin{lstlisting}
+	// Copyright 2021 Gruzdeva Diana
+
+	#define NOMINMAX
+
+	#include "../../../modules/task_3/gruzdeva_d_fox_mult/fox_mult.h"
+	#include <tbb/parallel_for.h>
+	#include <tbb/blocked_range2d.h>
+	#include <random>
+	#include <algorithm>
+	#include <vector>
+
+	std::vector<double> getRandomMatrix(int size, time_t seed) {
+  	std::vector<double> matrix(size * size);
+  	std::mt19937 gen((unsigned int)seed);
+  	std::uniform_real_distribution<double> dis(-10, 10);
+
+  	for (int i = 0; i < size * size; i++) {
+    	matrix[i] = dis(gen);
+  	}
+
+  	return matrix;
+	}
+
+	std::vector<double> directMultiplication(std::vector<double> matrixA,
+    	                std::vector<double> matrixB) {
+  	if (matrixA.size() != matrixB.size()) {
+    	throw "Matrices sizes differ";
+  	}
+
+  	int size = static_cast<int>(sqrt(matrixA.size()));
+  	std::vector<double> matrixC(size * size);
+
+  	for (int i = 0; i < size; i++) {
+    	for (int j = 0; j < size; j++) {
+      	matrixC[i * size + j] = 0;
+      	for (int k = 0; k < size; k++) {
+        	matrixC[i * size + j] += matrixA[i * size + k]
+        	* matrixB[k * size + j];
+      	}
+    	}
+  	}
+
+  	return matrixC;
+	}
+
+	std::vector<double> sequentialFoxMultiplication(std::vector<double> matrixA,
+    	                std::vector<double> matrixB, int blockSize) {
+  	if (blockSize == 0) {
+    	throw "Block size cannot be zero";
+  	}
+
+  	if (blockSize < 0) {
+    	throw "Block size cannot be negative";
+  	}
+
+  	if (matrixA.size() < (unsigned int)(blockSize * blockSize)) {
+    	throw "Block size cannot be larger than size of original matrices";
+  	}
+
+  	if (matrixA.size() != matrixB.size()) {
+    	throw "Matrice's sizes differ";
+  	}
+
+  	if (static_cast<int>(sqrt(matrixA.size())) % blockSize != 0) {
+    	throw "Cannot multiply matrices using this block size";
+  	}
+
+  	int size = static_cast<int>(sqrt(matrixA.size()));
+  	std::vector<double> matrixC(size * size);
+  	int blockCount = size / blockSize;
+
+  	for (int i = 0; i < size * size; i++) {
+    	matrixC[i] = 0;
+  	}
+
+  	for (int i = 0; i < size; i += blockCount) {
+    	for (int j = 0; j < size; j += blockCount) {
+      	for (int k = 0; k < size; k += blockCount) {
+        	for (int ii = i; ii < std::min(size, i + blockCount); ii++) {
+          	for (int jj = j; jj < std::min(size, j + blockCount); jj++) {
+            	for (int kk = k; kk < std::min(size, k + blockCount); kk++) {
+              	matrixC[ii * size + jj] += matrixA[ii * size + kk]
+              	* matrixB[kk * size + jj];
+            	}
+          	}
+        	}
+      	}
+    	}
+  	}
+  	return matrixC;
+	}
+
+	std::vector<double> parallelFoxMultiplication(std::vector<double> matrixA,
+    	                std::vector<double> matrixB) {
+  	if (matrixA.size() != matrixB.size()) {
+  	  throw "Matrice's sizes differ";
+  	}
+
+  	int size = static_cast<int>(sqrt(matrixA.size()));
+  	std::vector<double> matrixC(size * size);
+
+  	tbb::parallel_for(
+    	tbb::blocked_range2d<int, int>(0, size, 0, size),
+    	[&](tbb::blocked_range2d<int, int> r) {
+        	for (int j = r.rows().begin(); j != r.rows().end(); j++) {
+                	for (int i = r.cols().begin(); i != r.cols().end(); i++) {
+                	    for (int k = 0; k < size; k++) {
+              	          matrixC[j * size + i] += matrixA[j * size + k] *
+            	            matrixB[k * size + i];
+          	          }
+        	        }
+      	      }
+    	});
+  	return matrixC;
+	}
+\end{lstlisting}
+\par
+\lstinline$main.cpp$
+\begin{lstlisting}
+	// Copyright 2021 Gruzdeva Diana
+
+	#include <gtest/gtest.h>
+
+	#include <tbb/tick_count.h>
+	#include <random>
+	#include <vector>
+	#include <iostream>
+
+	#include "../../../modules/task_3/gruzdeva_d_fox_mult/fox_mult.h"
+
+	TEST(Fox_Multiplication_TBB, DIRECT_AND_FOX_1) {
+    	std::vector<double> A = getRandomMatrix(100, time(0));
+
+    	std::vector<double> B = getRandomMatrix(100, time(0) + 1);
+
+    	std::vector<double> C1 = directMultiplication(A, B);
+
+    	std::vector<double> C2 = sequentialFoxMultiplication(A, B, 4);
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_TBB, DIRECT_AND_FOX_2) {
+    	std::vector<double> A = getRandomMatrix(100, time(0));
+
+    	std::vector<double> B = getRandomMatrix(100, time(0) + 1);
+
+    	std::vector<double> C1 = directMultiplication(A, B);
+
+    	std::vector<double> C2 = sequentialFoxMultiplication(A, B, 25);
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_TBB, DIRECT_AND_PARALL_FOX_1) {
+    	std::vector<double> A = getRandomMatrix(100, time(0));
+
+    	std::vector<double> B = getRandomMatrix(100, time(0) + 1);
+
+    	std::vector<double> C1 = directMultiplication(A, B);
+
+    	std::vector<double> C2 = parallelFoxMultiplication(A, B);
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_TBB, DIRECT_AND_PARALL_FOX_2) {
+    	std::vector<double> A = getRandomMatrix(250, time(0));
+
+    	std::vector<double> B = getRandomMatrix(250, time(0) + 1);
+
+    	std::vector<double> C1 = directMultiplication(A, B);
+
+    	std::vector<double> C2 = parallelFoxMultiplication(A, B);
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_TBB, SEQ_FOX_AND_PAR_FOX_1) {
+    	std::vector<double> A = getRandomMatrix(100, time(0));
+
+    	std::vector<double> B = getRandomMatrix(100, time(0) + 1);
+    	tbb::tick_count t1 = tbb::tick_count::now();
+    	std::vector<double> C1 = sequentialFoxMultiplication(A, B, 25);
+    	tbb::tick_count t2 = tbb::tick_count::now();
+    	std::cout << "Direct: " << (t2-t1).seconds() << "\n";
+    	t1 = tbb::tick_count::now();
+    	std::vector<double> C2 = parallelFoxMultiplication(A, B);
+    	t2 = tbb::tick_count::now();
+    	std::cout << "TBB: " << (t2-t1).seconds()  << "\n";
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_TBB, SEQ_FOX_AND_PAR_FOX_2) {
+    	std::vector<double> A = getRandomMatrix(250, time(0));
+
+    	std::vector<double> B = getRandomMatrix(250, time(0) + 1);
+    	tbb::tick_count t1 = tbb::tick_count::now();
+    	std::vector<double> C1 = sequentialFoxMultiplication(A, B, 2);
+    	tbb::tick_count t2 = tbb::tick_count::now();
+    	std::cout << "Direct: " << (t2-t1).seconds() << "\n";
+    	t1 = tbb::tick_count::now();
+    	std::vector<double> C2 = parallelFoxMultiplication(A, B);
+    	t2 = tbb::tick_count::now();
+    	std::cout << "TBB: " << (t2-t1).seconds()  << "\n";
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_TBB, SEQ_FOX_AND_PAR_FOX_3) {
+    	std::vector<double> A = getRandomMatrix(500, time(0));
+
+    	std::vector<double> B = getRandomMatrix(500, time(0) + 1);
+    	tbb::tick_count t1 = tbb::tick_count::now();
+    	std::vector<double> C1 = sequentialFoxMultiplication(A, B, 4);
+    	tbb::tick_count t2 = tbb::tick_count::now();
+    	std::cout << "Direct: " << (t2-t1).seconds()  << "\n";
+    	t1 = tbb::tick_count::now();
+    	std::vector<double> C2 = parallelFoxMultiplication(A, B);
+    	t2 = tbb::tick_count::now();
+    	std::cout << "TBB: " << (t2-t1).seconds() << "\n";
+
+    	ASSERT_EQ(C1, C2);
+	}
+
+	TEST(Fox_Multiplication_TBB, THROW_DIFFERENT_MATRICES_SIZES) {
+  	  std::vector<double> A = getRandomMatrix(4, time(0));
+
+  	  std::vector<double> B = getRandomMatrix(5, time(0) + 1);
+
+  	  ASSERT_ANY_THROW(parallelFoxMultiplication(A, B));
+}
+\end{lstlisting}
 
 \end{document}
