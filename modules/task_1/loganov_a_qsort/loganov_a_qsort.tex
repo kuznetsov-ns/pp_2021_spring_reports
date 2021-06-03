@@ -1,0 +1,721 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\newenvironment{pseudocode}[1][htb]
+  {\renewcommand{\algorithmcfname}{Алгоритм}
+   \begin{algorithm}[#1]%
+  }{\end{algorithm}}
+
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\LargeСортировка Хоара с простым слиянием.} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-2 \\ Логанов А.С.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.
+}
+
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Сортировка Хоара(Quicksort) - алгоритм сортировки, разработанный английским информатиком Тони Хоаром во время его работы в МГУ в 1960 году. Один из самых быстрых известных универсальных алгоритмов сортировки массивов: в среднем O(n*log(n)) обменов при упорядочении n элементов, из-за наличия ряда недостатков на практике обычно используется с некоторыми доработками.
+\par QuickSort является существенно улучшенным вариантом алгоритма сортировки с помощью прямого обмена (его варианты известны как Пузырьковая сортировка и Шейкерная сортировка), известного в том числе своей низкой эффективностью. Принципиальное отличие состоит в том, что в первую очередь производятся перестановки на наибольшем возможном расстоянии и после каждого прохода элементы делятся на две независимые группы. Таким образом улучшение самого неэффективного прямого метода сортировки дало в результате один из наиболее эффективных улучшенных методов.
+\par В данной лабораторной работе будет рассмотрен классический алгоритм сортировки Хоара с использованием технологий параллельных вычислений.
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В текущей работе необходимо реализовать несколько функций с поддержкой различных технологий параллелизма, реализующих классический алгоритм сортировки Хоара.
+\par В ходе данной работы должны быть разработаны:
+\begin{itemize}
+\item последовательный метод классической сортировки Хоара;
+\item параллельный метод сортировки Хоара с помощью технологии OpenMP;
+\item параллельный метод сортировки Хоара с помощью технологии TBB;
+\item набор автоматических тестов с использованием Google C++ Testing Framework, подтверждающий корректность результатов для каждой из технологий;
+\end{itemize}
+\par После тестирования и замеров времени для каждой из технологий необходимо провести анализ результатов и составить соответствующие выводы.
+
+\newpage
+
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+\par Выбираем из массива элемент, называемый ведущим или опорным. Это может быть любой из элементов массива,однако в классической реализации данной сортировки выбирается центральный элемент. От выбора опорного элемента не зависит корректность алгоритма, но в отдельных случаях может сильно зависеть его эффективность.
+\par Сравнить все остальные элементы с опорным и переставить их в массиве так, чтобы разбить массив на три непрерывных отрезка, следующих друг за другом: элементы меньшие опорного, равные и большие.
+\par Для отрезков меньших и больших значений выполнить рекурсивно ту же последовательность операций, если длина отрезка больше единицы.
+
+\newpage
+
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Распараллеливание сортировки происходит в два этапа:
+\begin{itemize}
+\item Параллельно сортируются несколько непересекающихся кусков массива (предварительно раздать каждому потоку соответствующий кусок);
+\item Слияние полученных результатов в один массив, размер которого равен размеру исходного массива;
+\end{itemize}
+\newpage
+
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Функция последовательной сортировки принимает указатель на сортируемый вектор и границы, в рамках которых необходимо провести сортировку.
+\begin{lstlisting}
+void Hoarsort(std::vector<double>* vec, int first, int last);
+\end{lstlisting}
+\par В случае когда левая граница больше правой мы выходим из текущей функции.
+\begin{lstlisting}
+if (first >= last)return;
+\end{lstlisting}
+\par После того как центральный элемент исходного вектора стал опорным, с помощью цикла с предусловием находим элементы в левой и правой половинке массива больше  и меньше опорного соответственно. В случае если  индекс найденного элемента в левой половине меньше индекса найденного элемента в правой половине, то их необходимо поменять местами.
+\par После прохождения всех итераций внешнего цикла, необходимо рекурсивно вызвать сортировку для каждой из получившихся частей массива.  
+
+\subsection*{OpenMP}
+\addcontentsline{toc}{subsection}{OpenMP}
+Для распараллеливания алгоритма была создана параллельная секция с помощью следующей директивы:
+\par \verb|#pragma omp parallel | 
+\par Внутри данной параллельной секции каждый поток параллельно запускает сортировку для своей области массива. Далее с помощью директивы:  \par\verb|#pragma omp barrier | каждый поток приостанавливается в барьере, до тех пор пока все потоки не будут выполнять барьер. Это сделано для того, что бы на момент слияния всех отсортированных частей, каждый поток успел выполнить свою задачу.
+\par Далее для корректной работы алгоритма необходимо выполнить слияние отсортированных частей, слияние будет выполнятся исключительно на основном потоке с помощью директивы:  \verb|#pragma omp master |.
+
+
+\subsection*{TBB}
+\addcontentsline{toc}{subsection}{TBB}
+В версии TBB используется специальный инструмент:
+\par\verb|tbb::parallel_for(...)|
+\par Первым аргументом на вход подается итерационное пространство: \par\verb|tbb::blocked_range<int>(0, size, grainsize)| 
+\par итерационное пространство с указанными границами [0; size), в данной работе size - число потоков, а размер порции вычислений (grainsize) = 1, так как необходимо, что бы каждый поток выполнял только одну итерацию цикла реализованную в классе функторе.
+\par Вторым аргументом \verb|tbb::parallel_for(...)| является класс функтор в рамках которого указан участок кода, который должен выполняться параллельно.
+\par Далее выполним слияние всех получившихся кусочков массива.
+\newpage
+
+
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью использования Google C++ Testing Framework.
+\par Набор включает в себя тесты, проверяющие корректность работы различных параллельных версий соритировки Хоара в сравнении с последовательной версией. Массивы для сортировки генерируются случайным образом. 
+\par Успешное прохождение всех тестов доказывает корректность работы системы.
+
+\newpage
+
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel Core i3-3220, 3.30 GHz, 2 ядра;
+\item Оперативная память: 8 GB DDR4;
+\item ОС: Microsoft Windows 10 Home.
+\end{itemize}
+
+\par Эксперименты проводились на массиве длиной в 3000000 элементов. 
+\par Результаты экспериментов:
+\begin{table}[!h]
+\centering
+\begin{tabular}{lllll}
+Кол-во потоков & Последовательно,с & OpenMP,с & Ускорение  \\
+2 & 0.22 & 0.1037 & 2.12  \\
+4 & 0.22 & 0.1215 & 1.81  \\
+8 & 0.22 & 0.1294 & 1.7 
+\end{tabular}
+\caption{Результаты вычислительных экспериментов OpenMP}
+\end{table}
+
+\begin{table}[!h]
+\centering
+\begin{tabular}{lllll}
+Кол-во потоков & Последовательно,с & TBB,с & Ускорение  \\
+2 & 0.22 & 0.1157 & 1.9  \\
+4 & 0.22 & 0.1279 & 1.72  \\
+8 & 0.22 & 0.1349 & 1.63 
+\end{tabular}
+\caption{Результаты вычислительных экспериментов TBB}
+\end{table}
+
+
+\par По результатам экспериментов видно, что параллельная реализация работает быстрее, чем последовательная для всех технологий. Однако, учитывая, что имеем машину с двух ядерным процессором, видно что при увелечении числа потоков время потраченное на слияние отсортированных кусков становится больше (4 и 8 кусков для слияния, в то время как реальных вычислителей только 2), отсюда и возникает увелечения времени работы параллельных реализаций. OpenMP работает несколько быстрее чем TBB, это может быть связано с накладными расходами используемых библеотек.
+
+
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе данной лабораторной работы были разработаны последовательная и параллельные реализации алгоритма сортировки Хоара, для параллельной части использовалось простое слияние.
+Из результатов видно, что параллельные методы действительно работают быстрее, чем последовательная.
+После проведения анализа результатов, технология OpenMP оказалась более эффективной технологии TBB.
+\par Также для оценки корректности выполнения каждой реализации, были разработаны и доведены до успешного выполнения тесты, созданные для данной программы с использованием Google C++ Testing Framework.
+
+\newpage
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Sysoev} Сысоев А.В., Мееров И.Б., Свистунов А.Н., Курылев А.Л., Сенин А.В., Шишков А.В., Корняков К.В., Сиднев А.А. «Параллельное программирование в системах с общей памятью. Инструментальная поддержка». Учебно-методические материалы по программе повышения квалификации «Технологии высокопроизводительных вычислений для обеспечения учебного процесса и научных исследований». Нижний Новгород, 2007, 110 с. 
+\bibitem{Wiki1} Wikipedia: the free encyclopedia [Электронный ресурс] // URL: https://en.wikipedia.org/wiki/
+\bibitem{Sidnev} А.А. Сиднев, А.В. Сысоев, И.Б. Мееров Библиотека Intel Threading Building Blocks – краткое описание, 2007, 29 с. 
+\end{thebibliography}
+\newpage
+
+
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+
+\par 1. Последовательная реализация.
+\begin{lstlisting}
+// Copyright 2021 Loganov Andrei
+#ifndef MODULES_TASK_1_LOGANOV_A_QSORT_QSORT_H_
+#define MODULES_TASK_1_LOGANOV_A_QSORT_QSORT_H_
+#include <vector>
+void Hoarsort(std::vector<double>* vec, int first, int last);
+std::vector<double> getRandomVector(int size);
+std::vector<double> copyvec(std::vector<double> vec);
+#endif  // MODULES_TASK_1_LOGANOV_A_QSORT_QSORT_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Loganov Andrei
+#include <ctime>
+#include <vector>
+#include <random>
+#include <algorithm>
+#include "../../../../modules/task_1/loganov_a_qsort/qsort.h"
+std::vector<double> copyvec(std::vector<double> vec) {
+    std::vector<double> result(vec.size());
+    for (int i=0; i<static_cast<int>(vec.size()); i++) {
+        result[i] = vec[i];
+    }
+    return result;
+}
+std::vector<double> getRandomVector(int size) {
+    std::mt19937 gen;
+    std::vector<double> result(size);
+    const int start = 0;
+    const int end = 1000;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::uniform_real_distribution<double> rand(start, end);
+    for (int i = 0; i < static_cast<int>(result.size()); i++) {
+        result[i] = rand(gen);
+    }
+    return result;
+}
+void Hoarsort(std::vector<double>* vec, int first, int last) {
+    if (first >= last)return;
+    int i = first, j = last;
+    double  mid = (*vec)[(last + first) / 2];
+    while (i <= j) {
+        while ((*vec)[i] < mid) i++;
+        while ((*vec)[j] > mid)j--;
+        if (i < j) std::swap((*vec)[i], (*vec)[j]);
+        if (i <= j) {
+            i++;
+            j--;
+        }
+    }
+    Hoarsort(vec, first, j);
+    Hoarsort(vec, i, last);
+}
+
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Loganov Andrei
+#include <gtest/gtest.h>
+#include <vector>
+#include <numeric>
+#include <algorithm>
+#include "./qsort.h"
+TEST(Q_SORT_TESTS, Test1) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = {10.17, -0.45, 40, -1, 12, 34.27, 77, -0.4, 17};
+    vec2 = {-1, -0.45, -0.4, 10.17, 12, 17, 34.27, 40, 77};
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    ASSERT_EQ(vec2, vec);
+}
+TEST(Q_SORT_TESTS, Test2) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    std::sort(vec2.begin(), vec2.end(),
+    [](double a, double b) {return a < b; });
+    ASSERT_EQ(vec2, vec);
+}
+TEST(Q_SORT_TESTS, Test3) {
+     std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = getRandomVector(5000);
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    std::sort(vec2.begin(), vec2.end(),
+    [](double a, double b) {return a < b; });
+    ASSERT_EQ(vec2, vec);
+}
+TEST(Q_SORT_TESTS, Test4) {
+     std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = getRandomVector(1);
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    std::sort(vec2.begin(), vec2.end(),
+    [](double a, double b) {return a < b; });
+    ASSERT_EQ(vec2, vec);
+}
+TEST(Q_SORT_TESTS, Test5) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = getRandomVector(50000);
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    std::sort(vec2.begin(), vec2.end(),
+    [](double a, double b) {return a < b; });
+    ASSERT_EQ(vec2, vec);
+}
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\par 2. Реализация на OpenMP.
+\begin{lstlisting}
+// Copyright 2021 Loganov Andrei
+#ifndef MODULES_TASK_2_LOGANOV_A_QSORT_QSORT_H_
+#define MODULES_TASK_2_LOGANOV_A_QSORT_QSORT_H_
+#include <vector>
+std::vector<double> getRandomVector(int size);
+void Hoarsort(std::vector<double>* vec, int first, int last);
+void MergePartsOfVector(double* vec1, int n1, int second, int n2);
+void QsortOMP(std::vector<double>* vec);
+std::vector<double> copyvec(std::vector<double> vec);
+#endif  // MODULES_TASK_2_LOGANOV_A_QSORT_QSORT_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Loganov Andrei
+#include <omp.h>
+#include <ctime>
+#include <vector>
+#include <random>
+#include <algorithm>
+#include "../../../../modules/task_2/loganov_a_qsort/qsort.h"
+std::vector<double> getRandomVector(int size) {
+    std::mt19937 gen;
+    std::vector<double> result(size);
+    const int start = 0;
+    const int end = 1000;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::uniform_real_distribution<double> rand(start, end);
+    for (int i = 0; i < static_cast<int>(result.size()); i++) {
+    result[i] = rand(gen);
+    }
+    return result;
+}
+std::vector<double> copyvec(std::vector<double> vec) {
+    std::vector<double> result(vec.size());
+    for (int i = 0; i < static_cast<int>(vec.size()); i++) {
+    result[i] = vec[i];
+    }
+    return result;
+}
+void Hoarsort(std::vector<double>* vec, int first, int last) {
+    if (first >= last)return;
+    int i = first, j = last;
+    double  mid = (*vec)[(last + first) / 2];
+    while (i <= j) {
+    while ((*vec)[i] < mid) i++;
+    while ((*vec)[j] > mid)j--;
+    if (i < j) std::swap((*vec)[i], (*vec)[j]);
+    if (i <= j) {
+        i++;
+        j--;
+    }
+    }
+    Hoarsort(vec, first, j);
+    Hoarsort(vec, i, last);
+}
+void MergePartsOfVector(double* vec1, int n1, int second, int n2) {
+    int k = 0;
+    int g = second;
+    int f = 0;
+    double* r = new double[static_cast<int64_t>(n1 + n2)];
+     for (f = 0; k < n1 && g < static_cast<int64_t>(second + n2); f++) {
+     if (vec1[k] < vec1[g]) {
+         r[f] = vec1[k];
+         k++;
+     } else {
+         r[f] = vec1[g];
+         g++;
+     }
+     }
+    if (g == second + n2) {
+    for (int i = k; i < n1; i++) {
+        r[f] = vec1[i];
+        f++;
+    }
+    }
+    if (k == n1) {
+    for (int i = g; i < second + n2; i++) {
+        r[f] = vec1[i];
+        f++;
+    }
+    }
+    int i = 0;
+    while (i < n1 + n2) {
+    vec1[i] = r[i];
+    i++;
+    }
+}
+void QsortOMP(std::vector<double>* vec) {
+#pragma omp parallel
+    {
+    int threads_count = omp_get_num_threads();
+    int sz = (*vec).size();
+    int delta = sz / threads_count;
+    int remainder = sz % threads_count;
+    int id = omp_get_thread_num();
+    if (id == 0) {
+        Hoarsort(vec, 0, delta + remainder - 1);
+    } else {
+        Hoarsort(vec, remainder + delta + delta * (id - 1),
+        remainder + delta + delta * id - 1);
+    }
+#pragma omp barrier
+#pragma omp master
+        {
+        int size = delta + remainder;
+        for (int i = 1; i < threads_count; i++) {
+        MergePartsOfVector(vec->data(), size,
+        remainder + delta + delta * (i - 1), delta);
+        size += delta;
+        }
+    }
+    }
+}
+
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Loganov Andrei
+#include <time.h>
+#include <omp.h>
+#include <gtest/gtest.h>
+#include <vector>
+#include <numeric>
+#include <algorithm>
+#include <iostream>
+#include "./qsort.h"
+TEST(Q_SORT_OMP_TESTS, Test1) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = {10.17, -0.45, 40, -1, 12, 34.27, 77, -0.4, 17};
+    vec2 = {-1, -0.45, -0.4, 10.17, 12, 17, 34.27, 40, 77};
+    QsortOMP(&vec);
+    ASSERT_EQ(vec2, vec);
+}
+TEST(Q_SORT_OMP_TESTS, Test2) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    QsortOMP(&vec2);
+    ASSERT_EQ(vec2, vec);
+}
+TEST(Q_SORT_OMP_TESTS, Test3) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = getRandomVector(213);
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    QsortOMP(&vec2);
+    ASSERT_EQ(vec2, vec);
+}
+TEST(Q_SORT_OMP_TESTS, Test4) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = getRandomVector(564);
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    QsortOMP(&vec2);
+    ASSERT_EQ(vec2, vec);
+}
+TEST(Q_SORT_OMP_TESTS, Test5) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    // time_t t1, t2, t3, t4;
+    vec = getRandomVector(600);
+    vec2 = copyvec(vec);
+    // t1 = clock();
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    // t2 = clock();
+    // double lin = t2 - t1;
+    // std::cout << "lin" << lin / CLOCKS_PER_SEC << std::endl;
+    // t3 = clock();
+    QsortOMP(&vec2);
+    // t4 = clock();
+    // double par = t4 - t3;
+    // std::cout << "par" << par / CLOCKS_PER_SEC << std::endl;
+    // std::cout << "div" << lin / par << std::endl;
+    ASSERT_EQ(vec2, vec);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+\par 3. Реализация на TBB.
+\begin{lstlisting}
+// Copyright 2021 Loganov Andrei
+#ifndef MODULES_TASK_3_LOGANOV_A_QSORT_LOGANOV_A_QSORT_H_
+#define MODULES_TASK_3_LOGANOV_A_QSORT_LOGANOV_A_QSORT_H_
+#include <vector>
+std::vector<double> getRandomVector(int size);
+void Hoarsort(std::vector<double>* vec, int first, int last);
+void MergePartsOfVector(double* vec1, int n1, int second, int n2);
+void QsortTBB(std::vector<double>* vec, int threads_count = 4);
+std::vector<double> copyvec(std::vector<double> vec);
+#endif  // MODULES_TASK_3_LOGANOV_A_QSORT_LOGANOV_A_QSORT_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Loganov Andrei
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <ctime>
+#include <vector>
+#include <random>
+#include <algorithm>
+#include "../../../../modules/task_3/loganov_a_qsort/loganov_a_qsort.h"
+std::vector<double> getRandomVector(int size) {
+    std::mt19937 gen;
+    std::vector<double> result(size);
+    const int start = 0;
+    const int end = 1000;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::uniform_real_distribution<double> rand(start, end);
+    for (int i = 0; i < static_cast<int>(result.size()); i++) {
+    result[i] = rand(gen);
+    }
+    return result;
+}
+std::vector<double> copyvec(std::vector<double> vec) {
+    std::vector<double> result(vec.size());
+    for (int i = 0; i < static_cast<int>(vec.size()); i++) {
+    result[i] = vec[i];
+    }
+    return result;
+}
+void Hoarsort(std::vector<double>* vec, int first, int last) {
+    if (first >= last)return;
+    int i = first, j = last;
+    double  mid = (*vec)[(last + first) / 2];
+    while (i <= j) {
+    while ((*vec)[i] < mid) i++;
+    while ((*vec)[j] > mid)j--;
+    if (i < j) std::swap((*vec)[i], (*vec)[j]);
+    if (i <= j) {
+        i++;
+        j--;
+    }
+    }
+    Hoarsort(vec, first, j);
+    Hoarsort(vec, i, last);
+}
+void MergePartsOfVector(double* vec1, int n1, int second, int n2) {
+    int k = 0;
+    int g = second;
+    int f = 0;
+    double* r = new double[static_cast<int64_t>(n1 + n2)];
+     for (f = 0; k < n1 && g < static_cast<int64_t>(second + n2); f++) {
+     if (vec1[k] < vec1[g]) {
+         r[f] = vec1[k];
+         k++;
+     } else {
+         r[f] = vec1[g];
+         g++;
+     }
+     }
+    if (g == second + n2) {
+    for (int i = k; i < n1; i++) {
+        r[f] = vec1[i];
+        f++;
+    }
+    }
+    if (k == n1) {
+    for (int i = g; i < second + n2; i++) {
+        r[f] = vec1[i];
+        f++;
+    }
+    }
+    int i = 0;
+    while (i < n1 + n2) {
+    vec1[i] = r[i];
+    i++;
+    }
+}
+void QsortTBB(std::vector<double>* vec, int threads_count) {
+    int sz = (*vec).size();
+    int delta = sz / threads_count;
+    int remainder = sz % threads_count;
+    tbb::parallel_for(tbb::blocked_range<int>(0, threads_count, 1),
+    [&](const tbb::blocked_range<int>& range){
+        for (int i = range.begin(); i != range.end(); ++i) {
+            if (i == 0) {
+                Hoarsort(vec, 0, delta + remainder - 1);
+            } else {
+        Hoarsort(vec, remainder + delta + delta * (i - 1),
+        remainder + delta + delta * i - 1);
+            }
+        }
+    } , tbb::auto_partitioner());
+        int size = delta + remainder;
+        for (int i = 1; i < threads_count; i++) {
+        MergePartsOfVector(vec->data(), size,
+        remainder + delta + delta * (i - 1), delta);
+        size += delta;
+        }
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Loganov Andrei
+#include <time.h>
+#include <tbb/tick_count.h>
+#include <gtest/gtest.h>
+#include <vector>
+#include <numeric>
+#include <algorithm>
+#include <iostream>
+
+#include "./loganov_a_qsort.h"
+TEST(Q_SORT_OMP_TESTS, Test1) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = {10.17, -0.45, 40, -1, 12, 34.27, 77, -0.4, 17};
+    vec2 = {-1, -0.45, -0.4, 10.17, 12, 17, 34.27, 40, 77};
+    QsortTBB(&vec);
+    ASSERT_EQ(vec, vec2);
+}
+TEST(Q_SORT_OMP_TESTS, Test2) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    QsortTBB(&vec2);
+    ASSERT_EQ(vec, vec2);
+}
+TEST(Q_SORT_OMP_TESTS, Test3) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = getRandomVector(213);
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    QsortTBB(&vec2);
+    ASSERT_EQ(vec, vec2);
+}
+TEST(Q_SORT_OMP_TESTS, Test4) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    vec = getRandomVector(564);
+    vec2 = copyvec(vec);
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    QsortTBB(&vec2);
+    ASSERT_EQ(vec, vec2);
+}
+TEST(Q_SORT_OMP_TESTS, Test5) {
+    std::vector<double> vec;
+    std::vector<double> vec2;
+    // tbb::tick_count t1, t2, t3, t4;
+    vec = getRandomVector(702);
+    vec2 = copyvec(vec);
+    // t1 = tbb::tick_count::now();
+    Hoarsort(&vec, 0, static_cast<int>(vec.size())-1);
+    // t2 = tbb::tick_count::now();
+    // auto lin = (t2 - t1).seconds();
+    // std::cout << "lin" << lin << std::endl;
+    // t3 = tbb::tick_count::now();
+    QsortTBB(&vec2);
+    // t4 = tbb::tick_count::now();
+    // auto par = (t4 - t3).seconds();
+    // std::cout << "par" << par  << std::endl;
+    // std::cout << "div" << lin / par << std::endl;
+    ASSERT_EQ(vec, vec2);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+
+\end{document}
