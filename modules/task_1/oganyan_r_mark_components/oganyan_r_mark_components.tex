@@ -16,6 +16,7 @@
 \geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
 \setlength{\parskip}{0.5cm}
 
+
 \lstset{
     language=C++,
 	numbers=left,
@@ -29,6 +30,7 @@
 }
 
 \usepackage{graphicx}
+\graphicspath{{oganyan_r_mark_components_src/}}
 \DeclareGraphicsExtensions{.pdf,.png,.jpg}
 \makeatletter
 
@@ -503,90 +505,90 @@ void convert_to_rdm_color(std::vector<cv::Vec3b> *img);
     \item Ускорение - неплохое, но не идеальное. Это связанно с тем, что, во-первых, распараллеливаемый "СНМ алгоритм" сам по себе чуть медленнее bfs алгоритма (в 1.2 раз), во-вторых, при распараллеливании "СНМ алгоритма" присутствует часть алгоритма, которая выполняется последовательно, что ощутимо сказывается на ускорении.
     \item Видно что среди трех использованных стандартов распараллеливания нет единственно быстрого.
 \end{itemize}
-% \subsection*{Визуализация}
-% \addcontentsline{toc}{subsection}{Визуализация}
+\subsection*{Визуализация}
+\addcontentsline{toc}{subsection}{Визуализация}
 
-% \subsection*{Пример на конкретном рисунке:} 
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.22]{./src/girl_original.jpg}}
-% \caption{Оригинальный рисунок}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.16]{src/girl_sec_bfs.jpg}}
-% \caption{Последовательный bfs алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.16]{src/girl_sec_dsu.jpg}}
-% \caption{Последовательный СНМ алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.16]{src/girl_omp.jpg}}
-% \caption{Параллельный OMP алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.16]{src/girl_tbb.jpg}}
-% \caption{Параллельный TBB алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.16]{src/girl_std.jpg}}
-% \caption{Параллельный STD:thread алгоритм}
-% \end{figure}
+\subsection*{Пример на конкретном рисунке:} 
+\begin{figure}[H]
+\center{\includegraphics[scale=0.22]{girl_original.pdf}}
+\caption{Оригинальный рисунок}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.16]{girl_sec_bfs.pdf}}
+\caption{Последовательный bfs алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.16]{girl_sec_dsu.pdf}}
+\caption{Последовательный СНМ алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.16]{girl_omp.pdf}}
+\caption{Параллельный OMP алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.16]{girl_tbb.pdf}}
+\caption{Параллельный TBB алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.16]{girl_std.pdf}}
+\caption{Параллельный STD:thread алгоритм}
+\end{figure}
 
-% \subsection*{Пример на картинке с одной компонентой связности:} 
+\subsection*{Пример на картинке с одной компонентой связности:} 
 
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.7]{src/one_component_original.jpg}}
-% \caption{Оригинальное изображение}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.75]{src/one_component_sec_bfs.jpg}}
-% \caption{Последовательный bfs алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.75]{src/one_component_sec_dsu.jpg}}
-% \caption{Последовательный СНМ алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.75]{src/one_component_omp.jpg}}
-% \caption{Параллельный OMP алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.75]{src/one_component_tbb.jpg}}
-% \caption{Параллельный TBB алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.68]{src/one_component_std.jpg}}
-% \caption{Параллельный STD:thread алгоритм}
-% \end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.7]{one_component_original.pdf}}
+\caption{Оригинальное изображение}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.75]{one_component_sec_bfs.pdf}}
+\caption{Последовательный bfs алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.75]{one_component_sec_dsu.pdf}}
+\caption{Последовательный СНМ алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.75]{one_component_omp.pdf}}
+\caption{Параллельный OMP алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.75]{one_component_tbb.pdf}}
+\caption{Параллельный TBB алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.68]{one_component_std.pdf}}
+\caption{Параллельный STD:thread алгоритм}
+\end{figure}
 
-% \subsection*{Пример на картинке с большим количеством компонент связности:} 
+\subsection*{Пример на картинке с большим количеством компонент связности:} 
 
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.68]{src/a_lot_components_img_original.jpg}}
-% \caption{Оригинальное изображение}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.75]{src/a_lot_components_img_sec_bfs.jpg}}
-% \caption{Последовательный bfs алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.75]{src/a_lot_components_img_sec_dsu.jpg}}
-% \caption{Последовательный СНМ алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.75]{src/a_lot_components_img_omp.jpg}}
-% \caption{Параллельный OMP алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.75]{src/a_lot_components_img_tbb.jpg}}
-% \caption{Параллельный TBB алгоритм}
-% \end{figure}
-% \begin{figure}[H]
-% \center{\includegraphics[scale=0.75]{src/a_lot_components_img_std.jpg}}
-% \caption{Параллельный STD:thread алгоритм}
-% \end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.68]{a_lot_components_img_original.pdf}}
+\caption{Оригинальное изображение}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.75]{a_lot_components_img_sec_bfs.pdf}}
+\caption{Последовательный bfs алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.75]{a_lot_components_img_sec_dsu.pdf}}
+\caption{Последовательный СНМ алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.75]{a_lot_components_img_omp.pdf}}
+\caption{Параллельный OMP алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.75]{a_lot_components_img_tbb.pdf}}
+\caption{Параллельный TBB алгоритм}
+\end{figure}
+\begin{figure}[H]
+\center{\includegraphics[scale=0.75]{a_lot_components_img_std.pdf}}
+\caption{Параллельный STD:thread алгоритм}
+\end{figure}
 
-% \par Как видим, все наши алгоритмы работают корректно.
+\par Как видим, все наши алгоритмы работают корректно.
 
 \newpage
 \section*{Заключение}
