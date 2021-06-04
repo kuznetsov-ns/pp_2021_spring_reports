@@ -1,0 +1,722 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Поразрядная сортировка целых чисел с простым слиянием»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнила:} \\ студентка группы 381808-2 \\ Щелянскова Анастасия\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А.В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Поразрядная сортировка имеет две модификации: Most Significant Digit
+(MSD) и Least Significant Digit (LSD). В данной работе будет рассмотрен
+алгоритм LSD как наиболее эффективный.Идея поразрядной восходящей сортировки (Least Significant Digit (LSD) Radix Sort) заключается в том, что выполняется последовательная сортировка чисел по разрядам (от младшего разряда к старшему).
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В данной работе необходимо реализовать поразрядную сортировку целых чисел с простым слиянием. Данная работа должна содержать последовательную и несколько параллельных версий, с использованием следующих технологий: OpenMP, TBB . 
+\par
+На основе разработанной программы необходимо провести вычислительные эксперименты, сравнив время работы последовательного и параллельных алгоритмов на разных входных данных, затем сделать вывод об эффективности параллельных версий.
+\par
+Также следует экспериментально проверить корректность разработанных версий алгоритма с помощью Google тестов.
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+Сравнение производится поразрядно: сначала сравниваются значения одного крайнего разряда, и элементы группируются по результатам этого сравнения, затем сравниваются значения следующего разряда, соседнего, и элементы либо упорядочиваются по результатам сравнения значений этого разряда внутри образованных на предыдущем проходе групп, либо переупорядочиваются в целом, но сохраняя относительный порядок, достигнутый при предыдущей сортировке. Затем аналогично делается для следующего разряда, и так до конца.
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Для распараллеливания алгоритма поразрядной сортировки необходимо разделить массив на равные подмассивы, количество которых равно количеству потоков. Если массив не делится на цело на число потоков, необходимо записать остаток от деления в один из подмассивов (в моем случае в последний). Каждый поток берет соответствующую часть массива и запускает локальную поразрядную сортировку для своего подмассива.
+\par Затем отсортированные подмассивы сливаются алгоритмом простого слияния. На каждом шаге мы берём меньший из двух первых элементов подмассивов и записываем его в результирующий массив. Счётчики номеров элементов результирующего массива и подмассива, из которого был взят элемент, увеличиваем на 1. Когда один из подмассивов закончился, мы добавляем все оставшиеся элементы второго подмассива в результирующий массив.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+В программе имеются следующие функции:
+
+\begin{itemize}
+\item Алгоритм последовательной поразрядной сортировки целых чисел вызывается с помощью функции:
+\end{itemize}
+\begin{lstlisting}
+	std::vector<int> RadixSort(std::vector<int> vect, int size);
+\end{lstlisting}
+\begin{itemize}
+\item Алгоритм слияния отсортированных массивов вызывается с помощью функции:
+\end{itemize}
+\begin{lstlisting}
+	std::vector<int> Merge(const std::vector<int>& vect_left, const std::vector<int>& vect_right);
+\end{lstlisting}
+\begin{itemize}
+\item Функция, реализующая OpenMP версию паралельной поразрядной сортировки целых чисел : 
+\end{itemize}
+\begin{lstlisting}
+	std::vector<int> RadixSortParallel(std::vector<int> vect, int size, int threads);
+\end{lstlisting}
+\begin{itemize}
+\item Функция, реализующая TBB версию паралельной поразрядной сортировки целых чисел : 
+\end{itemize}
+\begin{lstlisting}
+	std::vector<int> RadixSort_tbb(const std::vector<int>& v);
+\end{lstlisting}
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью Google Testing Framework.
+\par Набор представляет из себя тесты, которые проверяют корректность вычислений: сравниваются отсортированный с помощью функции стандартной библиотеки вектор и вектор, отсортированный с помощью написанной нами функции.
+
+\par Успешное прохождение всех тестов подтверждает корректность работы написанной программы.
+\newpage
+
+% Описание экспериментов
+\section*{Описание экспериментов}
+\addcontentsline{toc}{section}{Описание экспериментов}
+Эксперименты проводились на 4-х ядерном компьютере с операционной системой – Windows 10, который имеет 8 логических процессоров. Результаты экспериментов приведены в таблице:
+\begin{table}[!h]
+\caption{Результаты экспериментов. Сравнение с OpenMP.}
+\centering
+\begin{tabular}{lllll}
+Размер вектора & Последовательно & Параллельно & Ускорение  \\
+1500000        & 0.427         & 0.132     & 3.3       \\
+15000000        & 4.2         & 1.4     & 2.9       \\
+150000000       & 41.7179         & 12.198     & 3.42       
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты экспериментов. Сравнение с TBB.}
+\centering
+\begin{tabular}{lllll}
+Размер вектора & Последовательно & Параллельно & Ускорение  \\
+1500000        & 	0.4231         & 0.199     & 	2.122       \\
+15000000        & 4.235         & 1.5459     & 2.74       \\
+150000000       & 41.8891         & 15.5868     & 2.68748       
+\end{tabular}
+\end{table}
+\par Из полученных результатов можно сделать несколько выводов:
+\begin{enumerate} 
+\item Благодаря параллельному исполнению время работы сортировки сократилось.
+\item Сложность и затратность в выполнении такого этапа сортировки, как слияние отсортированных массивов, сильно увеличивает время выполнения сортировки.
+\end{enumerate} 
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения работы была успешно реализован алгорим поразрядной сортировки целых чисел с простым слиянием.
+\par 
+Основной задачей лабораторной работы была реализация эффективной параллельной версии. Эта цель была успешно достигнута, что подтверждается результатами экспериментов, проведенных в ходе работы. 
+\par 
+Работоспособность программы была проверена с помощью библиотеки для модульного тестирования.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Gergel}
+Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\bibitem{algolist} Поразрядная сортировка. [Электронный ресурс] // URL: \url {https://http://algolist.ru/sort/radix_sort.php} (дата обращения: 25.03.2021)
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\begin{lstlisting}
+							// main.cpp
+// Copyright 2021 Schelyanskova Anastasiia
+
+#include <gtest/gtest.h>
+
+#include <vector>
+
+#include "./radix_sort.h"
+
+TEST(getRandomVector, wrong_size) {
+ ASSERT_ANY_THROW(getRandomVector(-100)); 
+}
+
+TEST(getRandomVector, works) {
+  std::vector<int> vect = getRandomVector(100);
+  ASSERT_EQ(static_cast<int>(vect.size()), 100);
+}
+
+TEST(getRandomVector, no_exceptions) {
+ ASSERT_NO_THROW(getRandomVector(100)); 
+}
+
+TEST(get_max_power, no_exceptions) {
+  std::vector<int> vect = {1, 75, 87, 9, 400, 5};
+  int power = 3;
+  int max_power = get_max_power(vect);
+  ASSERT_EQ(power, max_power);
+}
+
+TEST(radix_sort, correct_works) {
+  std::vector<int> vect = {1, 7, 8, 9, 4, 5};
+  std::vector<int> correctAnswer = {1, 4, 5, 7, 8, 9};
+  std::vector<int> myAnswer = RadixSort(vect, 6);
+  ASSERT_EQ(correctAnswer, myAnswer);
+}
+
+TEST(radix_sort, works_bubble) {
+  std::vector<int> vect = {1, 17, 8, 95, 4, 51};
+  std::vector<int> bubble = bubble_sort_vector(vect);
+  std::vector<int> radix = RadixSort(vect, 6);
+  ASSERT_EQ(bubble, radix);
+}
+
+int main(int argc, char **argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+							//radix_sort.cpp
+// Copyright 2021 Schelyanskova Anastasiia
+
+#include "../../../modules/task_1/schelyanskova_a_radix_sort/radix_sort.h"
+
+#include <math.h>
+
+#include <algorithm>
+#include <ctime>
+#include <iostream>
+#include <random>
+#include <string>
+#include <vector>
+
+std::vector<int> getRandomVector(int sz) {
+  std::random_device dev;
+  std::mt19937 gen(dev());
+  std::vector<int> vect(sz);
+  for (int i = 0; i < sz; i++) {
+    vect[i] = gen() % 100;
+  }
+  return vect;
+}
+int get_max_power(std::vector<int> vect) {
+  int max_power = 0;
+  int tmp = vect[0];
+  int size = vect.size();
+  for (int i = 0; i < size; i++) {
+    if (tmp < vect[i]) {
+      tmp = vect[i];
+    }
+  }
+  if (tmp == 0) {
+    return 1;
+  }
+  while (tmp != 0) {
+    tmp = tmp / 10;
+    max_power++;
+  }
+  return max_power;
+}
+
+
+bool vector_sort(std::vector<int> vect) {
+  int size = vect.size();
+  for (int i = 0; i < size - 1; i++) {
+    if (vect[i] > vect[i + 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<int> RadixSort(std::vector<int> vect, int size) {
+  std::vector<std::vector<int>> vect_start(10);
+  std::vector<int> vect1 = vect;
+  int tmp = 0;
+  int power = 1;
+  int max_power;
+  if (vector_sort(vect)) {
+    return vect;
+  }
+  max_power = get_max_power(vect);
+  while (power <= max_power) {
+    for (int i = 0; i < size; i++) {
+      tmp = (vect1[i] % static_cast<unsigned int>(pow(10, power)) / static_cast<unsigned int>(pow(10, power - 1)));
+      vect_start[tmp].push_back(vect1[i]);
+    }
+    vect1.clear();
+    for (int i = 0; i < 10; i++) {
+      if (!vect_start[i].empty()) {
+        int size = vect_start[i].size();
+        for (int j = 0; j < size; j++) {
+          vect1.push_back(vect_start[i][j]);
+        }
+        vect_start[i].clear();
+      }
+    }
+    power++;
+  }
+  return vect1;
+}
+std::vector<int> Merge(const std::vector<int>& vect_left,
+                       const std::vector<int>& vect_right) {
+  std::vector<int> result((vect_left.size() + vect_right.size()));
+
+  auto const leftSize = static_cast<int>(vect_left.size());
+  auto const rightSize = static_cast<int>(vect_right.size());
+
+  auto i = 0, j = 0, k = 0;
+  for (k = 0; k < leftSize + rightSize - 1; k++) {
+    if (vect_left[i] < vect_right[j])
+      result[k] = vect_left[i++];
+    else
+      result[k] = vect_right[j++];
+  }
+
+  while (i < leftSize) {
+    result[k++] = vect_left[i++];
+  }
+  while (j < rightSize) {
+    result[k++] = vect_right[j++];
+  }
+
+  return result;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+							// radix_sort.h
+// Copyright 2021 Schelyanskova Anastasiia
+
+#ifndef MODULES_TASK_1_SCHELYANSKOVA_A_RADIX_SORT_RADIX_SORT_H_
+#define MODULES_TASK_1_SCHELYANSKOVA_A_RADIX_SORT_RADIX_SORT_H_
+
+#include <string>
+#include <vector>
+
+std::vector<int> getRandomVector(int size);
+int get_max_power(std::vector<int> vect);
+bool vector_sort(std::vector<int> vect);
+std::vector<int> RadixSort(std::vector<int> vect, int size);
+std::vector<int> Merge(const std::vector<int>& vect_left,
+                       const std::vector<int>& vect_right);
+
+#endif  // MODULES_TASK_1_SCHELYANSKOVA_A_RADIX_SORT_RADIX_SORT_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+							// radix_sort_omp.cpp
+// Copyright 2021 Schelyanskova Anastasiia
+
+#include "../../../modules/task_2/schelyanskova_a_radix_sort_omp/radix_sort_omp.h"
+
+#include <math.h>
+#include <omp.h>
+
+#include <algorithm>
+#include <ctime>
+#include <iostream>
+#include <random>
+#include <string>
+#include <vector>
+
+std::vector<int> getRandomVector(int sz) {
+  std::random_device dev;
+  std::mt19937 gen(dev());
+  std::vector<int> vect(sz);
+  for (int i = 0; i < sz; i++) {
+    vect[i] = gen() % 100;
+  }
+  return vect;
+}
+
+int get_max_power(std::vector<int> vect) {
+  int max_power = 0;
+  int tmp = vect[0];
+  int size = vect.size();
+  for (int i = 0; i < size; i++) {
+    if (tmp < vect[i]) {
+      tmp = vect[i];
+    }
+  }
+  if (tmp == 0) {
+    return 1;
+  }
+  while (tmp != 0) {
+    tmp = tmp / 10;
+    max_power++;
+  }
+  return max_power;
+}
+
+bool vector_sort(std::vector<int> vect) {
+  int size = vect.size();
+  for (int i = 0; i < size - 1; i++) {
+    if (vect[i] > vect[i + 1]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<int> RadixSort(std::vector<int> vect, int size) {
+  std::vector<std::vector<int>> vect_start(10);
+  std::vector<int> vect1 = vect;
+  int tmp = 0;
+  int power = 1;
+  int max_power;
+  if (vector_sort(vect)) {
+    return vect;
+  }
+  max_power = get_max_power(vect);
+  while (power <= max_power) {
+    for (int i = 0; i < size; i++) {
+      tmp = (vect1[i] % static_cast<unsigned int>(pow(10, power)) /
+             static_cast<unsigned int>(pow(10, power - 1)));
+      vect_start[tmp].push_back(vect1[i]);
+    }
+    vect1.clear();
+    for (int i = 0; i < 10; i++) {
+      if (!vect_start[i].empty()) {
+        int size = vect_start[i].size();
+        for (int j = 0; j < size; j++) {
+          vect1.push_back(vect_start[i][j]);
+        }
+        vect_start[i].clear();
+      }
+    }
+    power++;
+  }
+  return vect1;
+}
+ std::vector<int> Merge(std::vector<int> &vect_left,
+                       std::vector<int> &vect_right) {
+  std::vector<int> result((vect_left.size() + vect_right.size()));
+
+  int leftSize = static_cast<int>(vect_left.size());
+  int rightSize = static_cast<int>(vect_right.size());
+
+  auto i = 0, j = 0, k = 0;
+  for (k = 0; k < leftSize + rightSize - 1; k++) {
+    if (i >= vect_left.size() || j >= vect_right.size()) {
+      break;
+    }
+    if (vect_left[i] < vect_right[j])
+      result[k] = vect_left[i++];
+    else
+      result[k] = vect_right[j++];
+  }
+
+  while (i < leftSize) {
+    result[k++] = vect_left[i++];
+  }
+  while (j < rightSize) {
+    result[k++] = vect_right[j++];
+  }
+
+ return result;
+ }
+
+std::vector<int> RadixSortParallel(std::vector<int> vect, int size,
+                                   int threads) {
+  std::vector<std::vector<int>> localSortedVectors;
+
+
+#pragma omp parallel num_threads(threads)
+  {
+    int threadID = omp_get_thread_num();
+    localSortedVectors.resize(threads);
+    int chunkSize = size / threads;
+    int firstIndex = chunkSize * threadID;
+    int secondIndex = chunkSize * (threadID + 1);
+    std::vector<int> local;
+
+    if (threadID != threads - 1) {
+      local = std::vector<int>(vect.begin() + firstIndex,
+                               vect.begin() + secondIndex);
+    } else {
+      local = std::vector<int>(vect.begin() + firstIndex, vect.end());
+    }
+
+    localSortedVectors[threadID] = RadixSort(local, local.size());
+  }
+
+  std::vector<int> result;
+   for (int i = 0; i < localSortedVectors.size(); i++) {
+    result = Merge(result, localSortedVectors[i]);
+   }
+  return result;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+							// radix_sort_omp.h
+
+// Copyright 2021 Schelyanskova Anastasiia
+#ifndef MODULES_TASK_2_SCHELYANSKOVA_A_RADIX_SORT_OMP_RADIX_SORT_OMP_H_
+#define MODULES_TASK_2_SCHELYANSKOVA_A_RADIX_SORT_OMP_RADIX_SORT_OMP_H_
+
+#include <omp.h>
+
+#include <string>
+#include <vector>
+
+std::vector<int> getRandomVector(int size);
+int get_max_power(std::vector<int> vect);
+bool vector_sort(std::vector<int> vect);
+std::vector<int> RadixSort(std::vector<int> vect, int size);
+std::vector<int> RadixSortParallel(std::vector<int> vect, int size,
+                                   int threads);
+
+ std::vector<int> Merge(const std::vector<int> &vect_left,
+                      const std::vector<int> &vect_right);
+
+
+#endif  // MODULES_TASK_2_SCHELYANSKOVA_A_RADIX_SORT_OMP_RADIX_SORT_OMP_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+							// bitwise_sort_simple_tbb.cpp
+
+// Copyright 2021 Schelyanskova Anastasiia
+#include <tbb/tbb.h>
+#include <random>
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include "../../../modules/task_3/schelyanskova_a_radix_sort_tbb/bitwise_sort_simple_tbb.h"
+
+
+std::vector<int> getRandomVector(int sz) {
+    std::random_device dev;
+    std::mt19937 gen(dev());
+    std::vector<int> vect(sz);
+    for (int i = 0; i < sz; i++) {
+        vect[i] = gen() % 100;
+    }
+    return vect;
+}
+
+bool vector_sort(std::vector<int> vect) {
+    int size = vect.size();
+    for (int i = 0; i < size - 1; i++) {
+        if (vect[i] > vect[i + 1]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int get_max_power(std::vector<int> vect) {
+    int max_power = 0;
+    int tmp = vect[0];
+    int size = vect.size();
+    for (int i = 0; i < size; i++) {
+        if (tmp < vect[i]) {
+            tmp = vect[i];
+        }
+    }
+    if (tmp == 0) {
+        return 1;
+    }
+    while (tmp != 0) {
+        tmp = tmp / 10;
+        max_power++;
+    }
+    return max_power;
+}
+
+std::vector<int> RadixSort(std::vector<int> vect, int size) {
+    std::vector<std::vector<int>> vect_start(10);
+    std::vector<int> vect1 = vect;
+    int tmp = 0;
+    int power = 1;
+    int max_power;
+    if (vector_sort(vect)) {
+        return vect;
+    }
+    max_power = get_max_power(vect);
+    while (power <= max_power) {
+        for (int i = 0; i < size; i++) {
+            tmp = (vect1[i] % static_cast<unsigned int>(pow(10, power))
+                    / static_cast<unsigned int>(pow(10, power - 1)));
+            vect_start[tmp].push_back(vect1[i]);
+        }
+        vect1.clear();
+        for (int i = 0; i < 10; i++) {
+            if (!vect_start[i].empty()) {
+                int size_tmp = vect_start[i].size();
+                for (int j = 0; j < size_tmp; j++) {
+                    vect1.push_back(vect_start[i][j]);
+                }
+                vect_start[i].clear();
+            }
+        }
+        power++;
+    }
+    return vect1;
+}
+
+std::vector<int> RadixSort_tbb(const std::vector<int>& v) {
+    int num_threads = 4;
+    if (static_cast<int>(v.size()) < num_threads) {
+        return RadixSort(v, v.size());
+    }
+    std::vector<int> copy(v);
+    if (v.size() == 1) {
+        return copy;
+    }
+
+    int delta = v.size() / num_threads;
+
+    std::vector<std::vector<int>> split_vec(0);
+    std::vector<int> tmp;
+
+    for (int thread_num = 0; thread_num < num_threads; thread_num++) {
+        if (thread_num == num_threads - 1) {
+            tmp.insert(tmp.end(), copy.begin() + delta * thread_num, copy.end());
+        } else {
+            tmp.insert(tmp.end(), copy.begin() + delta * thread_num,
+                       copy.begin() + delta * (thread_num + 1));
+        }
+        split_vec.push_back(tmp);
+        tmp.clear();
+    }
+
+    tbb::task_scheduler_init init(num_threads);
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, split_vec.size(), 1),
+                      [&split_vec](const tbb::blocked_range<size_t>& range){
+                          for (size_t i = range.begin(); i != range.end(); ++i) {
+                              split_vec[i] = RadixSort(split_vec[i], split_vec[i].size());
+                          }
+                      }, tbb::simple_partitioner());
+
+    std::vector<int> merged = split_vec[0];
+    for (size_t i = 1; i < split_vec.size(); ++i) {
+        merged = Merge(merged, split_vec[i]);
+    }
+
+    return merged;
+}
+
+std::vector<int> Merge(const std::vector<int>& vect_left,
+                       const std::vector<int>& vect_right) {
+    std::vector<int> result((vect_left.size() + vect_right.size()));
+
+    int i = 0, j = 0, k = 0;
+    while (i < static_cast<int>(vect_left.size()) && j < static_cast<int>(vect_right.size())) {
+        if (vect_left[i] < vect_right[j])
+            result[k] = vect_left[i++];
+        else
+            result[k] = vect_right[j++];
+        k++;
+    }
+    while (i < static_cast<int>(vect_left.size())) {
+        result[k++] = vect_left[i++];
+    }
+    while (j < static_cast<int>(vect_right.size())) {
+        result[k++] = vect_right[j++];
+    }
+
+    return result;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+							// bitwise_sort_simple_tbb.h
+
+// Copyright 2021 Schelyanskova Anastasiia
+#ifndef MODULES_TASK_3_SCHELYANSKOVA_A_RADIX_SORT_TBB_BITWISE_SORT_SIMPLE_TBB_H_
+#define MODULES_TASK_3_SCHELYANSKOVA_A_RADIX_SORT_TBB_BITWISE_SORT_SIMPLE_TBB_H_
+
+#include <vector>
+
+
+std::vector<int> getRandomVector(int size);
+std::vector<int> RadixSort(std::vector<int> vect, int size);
+std::vector<int> RadixSort_tbb(const std::vector<int>& v);
+std::vector<int> Merge(const std::vector<int>& vect_left,
+                          const std::vector<int>& vect_right);
+
+
+#endif  // MODULES_TASK_3_SCHELYANSKOVA_A_RADIX_SORT_TBB_BITWISE_SORT_SIMPLE_TBB_H_
+\end{lstlisting}
+\end{document}
