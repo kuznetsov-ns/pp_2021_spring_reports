@@ -1,0 +1,1144 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#},
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Сортировка Хоара с простым слиянием»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-1 \\ Визгалов А. И.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Сортировка Хоара (или "Быстрая сортировка", англ. quicksort) — алгоритм сортировки, разработанный английским информатиком Тони Хоаром во время его работы в МГУ в 1960 году. Является одним из самых быстрых известных универсальных алгоритмов сортировки массивов: в среднем $O(n*log{n})$ обменов при упорядочении $n$ элементов; из-за наличия ряда недостатков на практике обычно используется с некоторыми доработками.
+
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+Требуется разработать программу, позволяющую осуществлять сортировку массива целых чисел методом Хоара с простым слинием.
+\par Программа должна содержать три версии:
+\begin{enumerate}
+\item Последовательная реализация.
+\item Параллельная реализация, использующая стандарт OpenMP.
+\item Параллельная реализация, использующая библиотеку Intel Threading Building Blocks (TBB).
+\end{enumerate}
+\par Используя разработанную программу, требуется провести вычислительные эксперименты и по их результатам сравнить время работы последовательной и параллельных версий, а затем сделать вывод об эффективности параллельных реализаций.
+\par Также необходимо экспериментально убедиться в корректности реализованных алгоритмов с помощью набора тестов и фреймворка GoogleTest.
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+Алгоритм Хоара является существенно улучшенным вариантом алгоритма сортировки с помощью прямого обмена («Пузырьковая сортировка», «Шейкерная сортировка»), обладающего низкой эффективностью. Принципиальное отличие состоит в том, что в первую очередь производятся перестановки на наибольшем возможном расстоянии и после каждого прохода элементы делятся на две независимые группы.
+\par Общая идея алгоритма состоит в следующем:
+\begin{enumerate}
+\item Выбрать из массива элемент, называемый опорным. Это может быть любой из элементов массива (в нашей реализации --- последний). От выбора опорного элемента не зависит корректность алгоритма, но в отдельных случаях может сильно зависеть его эффективность.
+\item Сравнить все остальные элементы с опорным и переставить их в массиве так, чтобы разбить массив на три непрерывных отрезка, следующих друг за другом: «элементы меньшие опорного», «равные» и «большие».
+\item Для отрезков «меньших» и «больших» значений выполнить рекурсивно ту же последовательность операций, если длина отрезка больше единицы.
+\end{enumerate}
+
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Для выполнения сортировки Хоара параллельно, необходимо предварительно разделить массив на равные подмассивы, количество которых равно количеству потоков. Если массив не делится нацело на число потоков, остаточные элементы добавляются к последнему по счету подмассиву.
+\par Далее в каждом потоке сортировка выполняется на соответствующем потоку подмассиве.
+\par В конце отсортированные подмассивы объединяются в один массив методом простого слияния. На каждом шаге выбирается меньший из двух первых элементов подмассивов и записывается в результирующий массив. Счетчики номеров элементов результирующего массива и подмассива, из которого был взят элемент, увеличиваются на 1. Когда один из подмассивов заканчивается, все оставшиеся элементы второго подмассива добавляются в результирующий массив.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+
+Основная функция программы - "runHoareSort". Она принимает на вход указатель на массив целых чисел типа int и производит сортировку методом Хоара с простым слиянием. В пареллельных версиях программы сортировка выполняется параллельно.
+\begin{lstlisting}
+void runHoareSort(std::vector<int>* vec);
+\end{lstlisting}
+
+\par Основная функция использует несколько служебных функций:
+\begin{enumerate}
+\item Для сортировки подмассива в одном потоке:
+\begin{lstlisting}
+void hoareSort(std::vector<int>* vec, int low, int high);
+\end{lstlisting}
+\item Для выбора опорного элемента и перемещаения меньших значений влево:
+\begin{lstlisting}
+int partition(std::vector<int>* vec, int low, int high);
+\end{lstlisting}
+\item Для слияния подмассивов:
+\begin{lstlisting}
+void merge(std::vector<int>* vec, int left, int mid, int right);
+\end{lstlisting}
+\end{enumerate}
+
+\par Параллельная версия на OpenMP использует следующую директиву перед циклом для запуска сортировки Хоара на подмассивах:
+\begin{lstlisting}
+#pragma omp parallel for
+\end{lstlisting}
+
+\par Параллельная версия на TBB использует следующую конструкцию:
+\begin{lstlisting}
+tbb::task_scheduler_init init(numThreads);
+
+tbb::parallel_for(tbb::blocked_range<size_t>(0, segments.size(), 1),
+    [&segments](const tbb::blocked_range<size_t>& range) {
+        for (size_t i = range.begin(); i != range.end(); ++i) {
+            hoareSort(&segments[i], 0, segments[i].size() - 1);
+        }
+    }, tbb::simple_partitioner());
+\end{lstlisting}
+
+\par В целях тестирования программы была также разработана следующая функция для генерации массива случайных чисел:
+\begin{lstlisting}
+std::vector<int> getRandomVector(int size, int type = 0);
+\end{lstlisting}
+
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности программы проводились на компьютере следующей аппаратной конфигурации:
+
+\begin{itemize}
+\item Процессор: Intel Core i7-4790K, 4.00 GHz, 4 физических ядра, 8 потоков (с учетом Hyper-Threading);
+\item Оперативная память: 8 ГБ;
+\item ОС: Linux Ubuntu 20.04 64-bit.
+\end{itemize}
+
+\par Исходными данными для эксперимента являлся массив из 10000000 случайных целых чисел со значениями из полного диапазона типа данных int.
+\par В ходе эксперимента было установлено время работы последовательной и параллельных версий программы при разном количестве потоков. В таблице приведены усредненные результаты пяти запусков программы для каждого случая.
+
+\begin{table}[!h]
+\caption{Результаты экспериментов}
+\centering
+\begin{tabular}{llll}
+Число потоков & OpenMP & TBB & Последовательная версия \\
+2 & 4188 & 4149 & 7566 \\
+4 & 2704 & 2503 & 7464 \\
+8 & 2879 & 2301 & 7538 \\
+\end{tabular}
+\end{table}
+
+\par Результаты экспериментов позволяют установить, что параллельные версии алгоритма работают значительно быстрее последовательной, однако добиться ускорения в $N$ раз, когда параллельная версия на $N$ потоках работала бы в $N$ раз быстрее последовательной, не удается.
+\par Кроме того, эксперименты показывают более высокую эффективность TBB версии, по сравнению с OpenMP, а также что она более оптимально использует логические ядра процессора. В OpenMP версии при числе потоков, превышающем число физических ядер процессора, наблюдается небольшое, но уменьшение производительности, а в TBB версии - наоборот.
+
+Для подтверждения корректности реализованных алгоритмов, программа проходит подготовленный набор тестов. Они проверяют как решение задачи целиком (после сортировки массив должен быть отсортирован), так и отдельных ее частей (слияние массивов разного размера, сортировка разных типов массивов и т.п.).
+\par Успешное прохождение всех тестов подтверждает корректность работы программы.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения лабораторной работы были реализованы три версии программы (последовательная и две параллельных), позволяющей осуществлять сортировку массива целых чисел методом Хоара с простым слиянием.
+\par Проведенные эксперименты позволили сравнить время работы последовательной и параллельных версий и оценить их эффективность.
+\par Разработанный набор тестов позволяет убедиться в корректности работы программы.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{source1} Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\bibitem{source2} Cormen, Thomas H., et al. Introduction to algorithms. MIT press, 2009.
+\bibitem{source3} Tanenbaum, Andrew S. Structured computer organization. Pearson Education India, 2016.
+\bibitem{source4} Stroustrup, Bjarne. The C++ programming language. Pearson Education India, 2000.
+\bibitem{source5} Chandra, Rohit, et al. Parallel programming in OpenMP. Morgan kaufmann, 2001.
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+Исходный код программ, разработанных в ходе лабораторной работы.
+
+\par Последовательная реализация:
+\begin{lstlisting}
+// hoare_sort_simple_merge.h
+
+// Copyright 2021 Vizgalov Anton
+
+#ifndef MODULES_TASK_1_VIZGALOV_A_HOARE_SORT_SIMPLE_MERGE_HOARE_SORT_SIMPLE_MERGE_H_
+#define MODULES_TASK_1_VIZGALOV_A_HOARE_SORT_SIMPLE_MERGE_HOARE_SORT_SIMPLE_MERGE_H_
+
+#include <vector>
+
+int partition(std::vector<int>* vec, int low, int high);
+void hoareSort(std::vector<int>* vec, int low, int high);
+void merge(std::vector<int>* vec, int left, int mid, int right);
+
+void runHoareSort(std::vector<int>* vec);
+
+std::vector<int> getRandomVector(int size, int type = 0);
+
+#endif  // MODULES_TASK_1_VIZGALOV_A_HOARE_SORT_SIMPLE_MERGE_HOARE_SORT_SIMPLE_MERGE_H_
+
+
+
+// hoare_sort_simple_merge.cpp
+
+// Copyright 2021 Vizgalov Anton
+
+#include <random>
+#include <limits>
+#include <functional>
+#include <algorithm>
+#include <stdexcept>
+
+#include "../../../modules/task_1/vizgalov_a_hoare_sort_simple_merge/hoare_sort_simple_merge.h"
+
+int partition(std::vector<int>* vec, int low, int high) {
+    int pivot = vec->at(high);
+    int smallerElementIdx = low - 1;
+
+    for (int i = low; i < high; ++i) {
+        if (vec->at(i) < pivot) {
+            std::swap(vec->at(++smallerElementIdx), vec->at(i));
+        }
+    }
+
+    std::swap(vec->at(smallerElementIdx + 1), vec->at(high));
+
+    return smallerElementIdx + 1;
+}
+
+void hoareSort(std::vector<int>* vec, int low, int high) {
+    if (low < high) {
+        int partitionIdx = partition(vec, low, high);
+
+        hoareSort(vec, low, partitionIdx - 1);
+        hoareSort(vec, partitionIdx + 1, high);
+    }
+}
+
+void merge(std::vector<int>* vec, int left, int mid, int right) {
+    int leftIdx = 0;
+    int rightIdx = 0;
+    int mergedIdx = left;
+    int sizeLeft = mid - left + 1;
+    int sizeRight = right - mid;
+
+    while (leftIdx < sizeLeft && rightIdx < sizeRight) {
+        if (vec->at(left + leftIdx) <= vec->at(mid + 1 + rightIdx)) {
+            vec->at(mergedIdx) = vec->at(left + leftIdx);
+            leftIdx++;
+        } else {
+            vec->at(mergedIdx) = vec->at(mid + 1 + rightIdx);
+            rightIdx++;
+        }
+        mergedIdx++;
+    }
+
+    while (leftIdx < sizeLeft) {
+        vec->at(mergedIdx) = vec->at(left + leftIdx);
+        leftIdx++;
+        mergedIdx++;
+    }
+
+    while (rightIdx < sizeRight) {
+        vec->at(mergedIdx) = vec->at(mid + 1 + rightIdx);
+        rightIdx++;
+        mergedIdx++;
+    }
+}
+
+void runHoareSort(std::vector<int>* vec) {
+    int numSegments = 4;  // "nthreads" in parallel version
+    int elementsPerSegment = vec->size() / numSegments + ((vec->size() % numSegments == 0) ? 0 : 1);
+
+    for (int i = 0; i < numSegments; ++i) {
+        hoareSort(vec,
+                  i * elementsPerSegment,
+                  std::min((i + 1) * elementsPerSegment - 1, static_cast<int>(vec->size() - 1)));
+    }
+
+    for (int i = 0; i < numSegments - 1; ++i) {
+        merge(vec,
+              0,
+              (i + 1) * elementsPerSegment - 1,
+              std::min((i + 2) * elementsPerSegment - 1, static_cast<int>(vec->size() - 1)));
+    }
+}
+
+// Types:
+// 0 - any integers
+// 1 - only positive integers
+// 2 - any integers in non-decreasing order (sorted)
+// 3 - any integers in non-increasing order (reverse-sorted)
+std::vector<int> getRandomVector(int size, int type) {
+    std::vector<int> newVec(size);
+
+    std::random_device dev;
+    std::mt19937 randomGenerator(dev());
+
+    if (type == 1) {
+        std::uniform_int_distribution<int> randomValue(1, std::numeric_limits<int>::max());
+
+        for (int& item : newVec) {
+            item = randomValue(randomGenerator);
+        }
+    } else if (type >= 0 && type <= 3) {
+        std::uniform_int_distribution<int> randomValue(std::numeric_limits<int>::min(),
+                                                       std::numeric_limits<int>::max());
+
+        for (int& item : newVec) {
+            item = randomValue(randomGenerator);
+        }
+
+        if (type == 2) {
+            sort(newVec.begin(), newVec.end());
+        } else if (type == 3) {
+            sort(newVec.begin(), newVec.end(), std::greater<int>());
+        }
+    } else {
+        throw std::invalid_argument("Invalid type of vector chosen");
+    }
+
+    return newVec;
+}
+
+
+
+// main.cpp
+
+// Copyright 2021 Vizgalov Anton
+
+#include <gtest/gtest.h>
+#include <algorithm>
+
+#include "./hoare_sort_simple_merge.h"
+
+TEST(Hoare_Sort_Simple_Merge, Hoare_Sort_Empty_Vector) {
+    std::vector<int> vec = getRandomVector(0);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Hoare_Sort_Only_Positive_Numbers) {
+    std::vector<int> vec = getRandomVector(100, 1);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Hoare_Sort_All_Numbers_Small_Size) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Hoare_Sort_All_Numbers_Big_Size) {
+    std::vector<int> vec = getRandomVector(10000);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Hoare_Sort_Already_Sorted) {
+    std::vector<int> vec = getRandomVector(100, 2);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Hoare_Sort_Worst_Case_Unsorted) {
+    std::vector<int> vec = getRandomVector(100, 3);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Merge_Left_Empty) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    hoareSort(&vec, 0, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, 0, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Merge_Right_Empty) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    hoareSort(&vec, 0, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, vec.size() - 1, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Merge_Same_Size) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    int midIdx = vec.size() / 2;
+    hoareSort(&vec, 0, midIdx);
+    hoareSort(&vec, midIdx + 1, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, midIdx, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Merge_Different_Size) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    int divisionIdx = vec.size() / 8;
+    hoareSort(&vec, 0, divisionIdx);
+    hoareSort(&vec, divisionIdx + 1, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, divisionIdx, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Merge_Large_Vectors) {
+    std::vector<int> vec = getRandomVector(10000);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    int midIdx = vec.size() / 2;
+    hoareSort(&vec, 0, midIdx);
+    hoareSort(&vec, midIdx + 1, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, midIdx, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Run_Hoare_Sort_Even_Size) {
+    std::vector<int> vec = getRandomVector(100);
+
+    ASSERT_NO_THROW(runHoareSort(&vec));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge, Run_Hoare_Sort_Odd_Size) {
+    std::vector<int> vec = getRandomVector(111);
+
+    ASSERT_NO_THROW(runHoareSort(&vec));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\par Параллельная реализация (OpenMP):
+\begin{lstlisting}
+// hoare_sort_simple_merge.h
+
+// Copyright 2021 Vizgalov Anton
+
+#ifndef MODULES_TASK_2_VIZGALOV_A_HOARE_SORT_SIMPLE_MERGE_HOARE_SORT_SIMPLE_MERGE_H_
+#define MODULES_TASK_2_VIZGALOV_A_HOARE_SORT_SIMPLE_MERGE_HOARE_SORT_SIMPLE_MERGE_H_
+
+#include <vector>
+
+int partition(std::vector<int>* vec, int low, int high);
+void hoareSort(std::vector<int>* vec, int low, int high);
+void merge(std::vector<int>* vec, int left, int mid, int right);
+
+void runHoareSort(std::vector<int>* vec);
+
+std::vector<int> getRandomVector(int size, int type = 0);
+
+#endif  // MODULES_TASK_2_VIZGALOV_A_HOARE_SORT_SIMPLE_MERGE_HOARE_SORT_SIMPLE_MERGE_H_
+
+
+
+// hoare_sort_simple_merge.cpp
+
+// Copyright 2021 Vizgalov Anton
+
+#include <omp.h>
+#include <random>
+#include <limits>
+#include <functional>
+#include <algorithm>
+#include <stdexcept>
+
+#include "../../../modules/task_2/vizgalov_a_hoare_sort_simple_merge/hoare_sort_simple_merge.h"
+
+int partition(std::vector<int>* vec, int low, int high) {
+    int pivot = vec->at(high);
+    int smallerElementIdx = low - 1;
+
+    for (int i = low; i < high; ++i) {
+        if (vec->at(i) < pivot) {
+            std::swap(vec->at(++smallerElementIdx), vec->at(i));
+        }
+    }
+
+    std::swap(vec->at(smallerElementIdx + 1), vec->at(high));
+
+    return smallerElementIdx + 1;
+}
+
+void hoareSort(std::vector<int>* vec, int low, int high) {
+    if (low < high) {
+        int partitionIdx = partition(vec, low, high);
+
+        hoareSort(vec, low, partitionIdx - 1);
+        hoareSort(vec, partitionIdx + 1, high);
+    }
+}
+
+void merge(std::vector<int>* vec, int left, int mid, int right) {
+    int leftIdx = 0;
+    int rightIdx = 0;
+    int mergedIdx = left;
+    int sizeLeft = mid - left + 1;
+    int sizeRight = right - mid;
+
+    while (leftIdx < sizeLeft && rightIdx < sizeRight) {
+        if (vec->at(left + leftIdx) <= vec->at(mid + 1 + rightIdx)) {
+            vec->at(mergedIdx) = vec->at(left + leftIdx);
+            leftIdx++;
+        } else {
+            vec->at(mergedIdx) = vec->at(mid + 1 + rightIdx);
+            rightIdx++;
+        }
+        mergedIdx++;
+    }
+
+    while (leftIdx < sizeLeft) {
+        vec->at(mergedIdx) = vec->at(left + leftIdx);
+        leftIdx++;
+        mergedIdx++;
+    }
+
+    while (rightIdx < sizeRight) {
+        vec->at(mergedIdx) = vec->at(mid + 1 + rightIdx);
+        rightIdx++;
+        mergedIdx++;
+    }
+}
+
+void runHoareSort(std::vector<int>* vec) {
+    int numSegments = omp_get_max_threads();
+    int elementsPerSegment = vec->size() / numSegments + ((vec->size() % numSegments == 0) ? 0 : 1);
+
+    #pragma omp parallel for
+    for (int i = 0; i < numSegments; ++i) {
+        hoareSort(vec,
+                  i * elementsPerSegment,
+                  std::min((i + 1) * elementsPerSegment - 1, static_cast<int>(vec->size() - 1)));
+    }
+
+    for (int i = 0; i < numSegments - 1; ++i) {
+        merge(vec,
+              0,
+              (i + 1) * elementsPerSegment - 1,
+              std::min((i + 2) * elementsPerSegment - 1, static_cast<int>(vec->size() - 1)));
+    }
+}
+
+// Types:
+// 0 - any integers
+// 1 - only positive integers
+// 2 - any integers in non-decreasing order (sorted)
+// 3 - any integers in non-increasing order (reverse-sorted)
+std::vector<int> getRandomVector(int size, int type) {
+    std::vector<int> newVec(size);
+
+    std::random_device dev;
+    std::mt19937 randomGenerator(dev());
+
+    if (type == 1) {
+        std::uniform_int_distribution<int> randomValue(1, std::numeric_limits<int>::max());
+
+        for (int& item : newVec) {
+            item = randomValue(randomGenerator);
+        }
+    } else if (type >= 0 && type <= 3) {
+        std::uniform_int_distribution<int> randomValue(std::numeric_limits<int>::min(),
+                                                       std::numeric_limits<int>::max());
+
+        for (int& item : newVec) {
+            item = randomValue(randomGenerator);
+        }
+
+        if (type == 2) {
+            sort(newVec.begin(), newVec.end());
+        } else if (type == 3) {
+            sort(newVec.begin(), newVec.end(), std::greater<int>());
+        }
+    } else {
+        throw std::invalid_argument("Invalid type of vector chosen");
+    }
+
+    return newVec;
+}
+
+
+
+// main.cpp
+
+// Copyright 2021 Vizgalov Anton
+
+#include <gtest/gtest.h>
+#include <algorithm>
+
+#include "./hoare_sort_simple_merge.h"
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Hoare_Sort_Empty_Vector) {
+    std::vector<int> vec = getRandomVector(0);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Hoare_Sort_Only_Positive_Numbers) {
+    std::vector<int> vec = getRandomVector(100, 1);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Hoare_Sort_All_Numbers_Small_Size) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Hoare_Sort_All_Numbers_Big_Size) {
+    std::vector<int> vec = getRandomVector(10000);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Hoare_Sort_Already_Sorted) {
+    std::vector<int> vec = getRandomVector(100, 2);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Hoare_Sort_Worst_Case_Unsorted) {
+    std::vector<int> vec = getRandomVector(100, 3);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Merge_Left_Empty) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    hoareSort(&vec, 0, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, 0, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Merge_Right_Empty) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    hoareSort(&vec, 0, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, vec.size() - 1, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Merge_Same_Size) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    int midIdx = vec.size() / 2;
+    hoareSort(&vec, 0, midIdx);
+    hoareSort(&vec, midIdx + 1, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, midIdx, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Merge_Different_Size) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    int divisionIdx = vec.size() / 8;
+    hoareSort(&vec, 0, divisionIdx);
+    hoareSort(&vec, divisionIdx + 1, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, divisionIdx, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Merge_Large_Vectors) {
+    std::vector<int> vec = getRandomVector(10000);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+    int midIdx = vec.size() / 2;
+    hoareSort(&vec, 0, midIdx);
+    hoareSort(&vec, midIdx + 1, lastIdx);
+
+    ASSERT_NO_THROW(merge(&vec, 0, midIdx, vec.size() - 1));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Run_Hoare_Sort_Even_Size) {
+    std::vector<int> vec = getRandomVector(1000000);
+
+    ASSERT_NO_THROW(runHoareSort(&vec));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_OpenMP, Run_Hoare_Sort_Odd_Size) {
+    std::vector<int> vec = getRandomVector(1111111);
+
+    ASSERT_NO_THROW(runHoareSort(&vec));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\par Параллельная реализация (TBB):
+\begin{lstlisting}
+// hoare_sort_simple_merge.h
+
+// Copyright 2021 Vizgalov Anton
+
+#ifndef MODULES_TASK_3_VIZGALOV_A_HOARE_SORT_SIMPLE_MERGE_HOARE_SORT_SIMPLE_MERGE_H_
+#define MODULES_TASK_3_VIZGALOV_A_HOARE_SORT_SIMPLE_MERGE_HOARE_SORT_SIMPLE_MERGE_H_
+
+#include <vector>
+
+int partition(std::vector<int>* vec, int low, int high);
+void hoareSort(std::vector<int>* vec, int low, int high);
+std::vector<int> merge(const std::vector<int>& vec1,
+                       const std::vector<int>& vec2);
+
+void runHoareSort(std::vector<int>* vec, int numThreads = 4);
+
+std::vector<int> getRandomVector(int size, int type = 0);
+
+#endif  // MODULES_TASK_3_VIZGALOV_A_HOARE_SORT_SIMPLE_MERGE_HOARE_SORT_SIMPLE_MERGE_H_
+
+
+
+// hoare_sort_simple_merge.cpp
+
+// Copyright 2021 Vizgalov Anton
+
+#include <tbb/tbb.h>
+#include <random>
+#include <climits>
+#include <functional>
+#include <algorithm>
+#include <stdexcept>
+
+#include "../../../modules/task_3/vizgalov_a_hoare_sort_simple_merge/hoare_sort_simple_merge.h"
+
+int partition(std::vector<int>* vec, int low, int high) {
+    int pivot = vec->at(high);
+    int smallerElementIdx = low - 1;
+
+    for (int i = low; i < high; ++i) {
+        if (vec->at(i) < pivot) {
+            std::swap(vec->at(++smallerElementIdx), vec->at(i));
+        }
+    }
+
+    std::swap(vec->at(smallerElementIdx + 1), vec->at(high));
+
+    return smallerElementIdx + 1;
+}
+
+void hoareSort(std::vector<int>* vec, int low, int high) {
+    if (low < high) {
+        int partitionIdx = partition(vec, low, high);
+
+        hoareSort(vec, low, partitionIdx - 1);
+        hoareSort(vec, partitionIdx + 1, high);
+    }
+}
+
+std::vector<int> merge(const std::vector<int>& vec1,
+                       const std::vector<int>& vec2) {
+    std::vector<int> merged(vec1.size() + vec2.size());
+
+    int i = 0;
+    int j = 0;
+    int k = 0;
+    while (i < static_cast<int>(vec1.size())
+           && j < static_cast<int>(vec2.size())) {
+        if (vec1[i] < vec2[j]) {
+            merged[k] = vec1[i];
+            i++;
+        } else {
+            merged[k] = vec2[j];
+            j++;
+        }
+        k++;
+    }
+    while (i < static_cast<int>(vec1.size())) {
+        merged[k] = vec1[i];
+        k++;
+        i++;
+    }
+    while (j < static_cast<int>(vec2.size())) {
+        merged[k] = vec2[j];
+        k++;
+        j++;
+    }
+
+    return merged;
+}
+
+void runHoareSort(std::vector<int>* vec, int numThreads) {
+    if (static_cast<int>(vec->size()) < numThreads) {
+        hoareSort(vec, 0, vec->size() - 1);
+        return;
+    }
+    if (vec->size() == 1) {
+        return;
+    }
+    tbb::task_scheduler_init init(numThreads);
+
+    int elementsPerSegment = vec->size() / numThreads;
+
+    std::vector<std::vector<int>> segments;
+    std::vector<int> segment;
+
+    for (int i = 0; i < numThreads; ++i) {
+        if (i == numThreads - 1) {
+            segment.insert(segment.end(),
+                           vec->begin() + i * elementsPerSegment,
+                           vec->end());
+        } else {
+            segment.insert(segment.end(),
+                           vec->begin() + i * elementsPerSegment,
+                           vec->begin() + (i + 1) * elementsPerSegment);
+        }
+
+        segments.push_back(segment);
+        segment.clear();
+    }
+
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, segments.size(), 1),
+    [&segments](const tbb::blocked_range<size_t>& range) {
+        for (size_t i = range.begin(); i != range.end(); ++i) {
+            hoareSort(&segments[i], 0, segments[i].size() - 1);
+        }
+    }, tbb::simple_partitioner());
+
+    *vec = segments[0];
+    for (size_t i = 1; i < segments.size(); ++i) {
+        *vec = merge(*vec, segments[i]);
+    }
+}
+
+// Types:
+// 0 - any integers
+// 1 - only positive integers
+// 2 - any integers in non-decreasing order (sorted)
+// 3 - any integers in non-increasing order (reverse-sorted)
+std::vector<int> getRandomVector(int size, int type) {
+    std::vector<int> newVec(size);
+
+    std::random_device dev;
+    std::mt19937 randomGenerator(dev());
+
+    if (type == 1) {
+        std::uniform_int_distribution<int> randomValue(1, INT_MAX);
+
+        for (int& item : newVec) {
+            item = randomValue(randomGenerator);
+        }
+    } else if (type >= 0 && type <= 3) {
+        std::uniform_int_distribution<int> randomValue(INT_MIN, INT_MAX);
+
+        for (int& item : newVec) {
+            item = randomValue(randomGenerator);
+        }
+
+        if (type == 2) {
+            sort(newVec.begin(), newVec.end());
+        } else if (type == 3) {
+            sort(newVec.begin(), newVec.end(), std::greater<int>());
+        }
+    } else {
+        throw std::invalid_argument("Invalid type of vector chosen");
+    }
+
+    return newVec;
+}
+
+
+
+// main.cpp
+
+// Copyright 2021 Vizgalov Anton
+
+#include <tbb/tbb.h>
+#include <gtest/gtest.h>
+#include <algorithm>
+
+#include "./hoare_sort_simple_merge.h"
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Hoare_Sort_Empty_Vector) {
+    std::vector<int> vec = getRandomVector(0);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Hoare_Sort_Only_Positive_Numbers) {
+    std::vector<int> vec = getRandomVector(100, 1);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Hoare_Sort_All_Numbers_Small_Size) {
+    std::vector<int> vec = getRandomVector(100);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Hoare_Sort_All_Numbers_Big_Size) {
+    std::vector<int> vec = getRandomVector(10000);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Hoare_Sort_Already_Sorted) {
+    std::vector<int> vec = getRandomVector(100, 2);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Hoare_Sort_Worst_Case_Unsorted) {
+    std::vector<int> vec = getRandomVector(100, 3);
+    int lastIdx = static_cast<int>(vec.size() - 1);
+
+    ASSERT_NO_THROW(hoareSort(&vec, 0, lastIdx));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Merge_Left_Empty) {
+    std::vector<int> vec1 = getRandomVector(100);
+    std::vector<int> vec2 = getRandomVector(0);
+    hoareSort(&vec1, 0, vec1.size() - 1);
+
+    std::vector<int> vec = merge(vec1, vec2);
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Merge_Right_Empty) {
+    std::vector<int> vec1 = getRandomVector(0);
+    std::vector<int> vec2 = getRandomVector(100);
+    hoareSort(&vec2, 0, vec2.size() - 1);
+
+    std::vector<int> vec = merge(vec1, vec2);
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Merge_Same_Size) {
+    std::vector<int> vec1 = getRandomVector(100);
+    std::vector<int> vec2 = getRandomVector(100);
+    hoareSort(&vec1, 0, vec1.size() - 1);
+    hoareSort(&vec2, 0, vec2.size() - 1);
+
+    std::vector<int> vec = merge(vec1, vec2);
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Merge_Different_Size) {
+    std::vector<int> vec1 = getRandomVector(75);
+    std::vector<int> vec2 = getRandomVector(25);
+    hoareSort(&vec1, 0, vec1.size() - 1);
+    hoareSort(&vec2, 0, vec2.size() - 1);
+
+    std::vector<int> vec = merge(vec1, vec2);
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Merge_Large_Vectors) {
+    std::vector<int> vec1 = getRandomVector(5000);
+    std::vector<int> vec2 = getRandomVector(5000);
+    hoareSort(&vec1, 0, vec1.size() - 1);
+    hoareSort(&vec2, 0, vec2.size() - 1);
+
+    std::vector<int> vec = merge(vec1, vec2);
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Run_Hoare_Sort_Even_Size) {
+    std::vector<int> vec = getRandomVector(100000);
+
+    ASSERT_NO_THROW(runHoareSort(&vec));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Run_Hoare_Sort_Odd_Size) {
+    std::vector<int> vec = getRandomVector(111111);
+
+    ASSERT_NO_THROW(runHoareSort(&vec));
+
+    EXPECT_TRUE(std::is_sorted(vec.begin(), vec.end()));
+}
+
+TEST(Hoare_Sort_Simple_Merge_TBB, Compare_Time) {
+    std::vector<int> vec1 = getRandomVector(1000000);
+
+    tbb::tick_count t0 = tbb::tick_count::now();
+    ASSERT_NO_THROW(runHoareSort(&vec1, 4));
+    tbb::tick_count t1 = tbb::tick_count::now();
+    std::cout << "Time (parallel): " << (t1 - t0).seconds() << std::endl;
+
+    std::vector<int> vec2 = getRandomVector(1000000);
+
+    tbb::tick_count t3 = tbb::tick_count::now();
+    ASSERT_NO_THROW(hoareSort(&vec2, 0, vec2.size() - 1));
+    tbb::tick_count t4 = tbb::tick_count::now();
+    std::cout << "Time (non-parallel): " << (t4 - t3).seconds() << std::endl;
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\end{document}
