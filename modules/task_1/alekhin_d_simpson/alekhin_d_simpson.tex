@@ -1,0 +1,382 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Вычисление многомерных интегралов с использованием многошаговой схемы (метод Симпсона).»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-2 \\ Алехин Д.А. \\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В. \\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Задача нахождения значение определенного интеграла не всегда имеет точное решения. Действительно, первообразную подынтегральной функции во многих случаях не удается представить в виде элементарной функции. В этом случае мы не можем точно вычислить определенный интеграл по формуле Ньютона-Лейбница.  Поэтому были разработаны методы, которые находят значение определенного интеграла с высокой точностью. Одним из них является Метод Симпсона, который позволяет вычислить значение интеграла с малой погрешностью.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+Целью данной лабораторной работы является разработка последовательной и параллельной версий метода Симпсона, для решения кратного интеграла. 
+\par Решением задачи является численные ответ - действительное число. Исходными данными является решаемый интеграл и пределы интегрирования для каждого интеграла.
+\par Необходимо реализовать последовательную и параллельную версию программы. Для реализации параллельной версии необходимо использовать средства OMP, TBB и std::thread. Для проверки корректности работы программы необходимо использовать GTest.
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+На вход алгоритма поступают:
+\begin{itemize}
+\item Функция f, от которой необходино найти интеграл
+\item Пределы интегрирования $[a_1,b_1],...,[a_k, b_k]$
+\item Точность n
+\end{itemize}
+\par Описание алгоритма:
+\begin{itemize}
+\item Каждый кратный интеграл разбиваем на $N=2n$ отрезков и для каждого интеграла определям шаг интегрирования $h_k=(b_k-a_k)/N$.
+\item Пронумеруем границы отрезков интегрирования от $0$ до $N$.
+\item Найдем сумму значений функции во всех точках с четным номером. Обозначим это значение за $evenSum$.
+\item Найдем сумму значений функции во всех точках с нечетным номером. Обозначим это значение за $oddSum$.
+\item Примем за $result=f(a)+f(b)+evenSum*2+4*oddSum$
+\item Поделим result на $(b_k-a_b)$ для каждого предела интегрирования.
+\item Численным ответом задачи будет $result=result/(3*N)$
+
+\end{itemize}
+
+\newpage
+
+% Описание схемы распараллеливания
+\section*{Описание схемы распараллеливания}
+\addcontentsline{toc}{section}{Описание схемы распараллеливания}
+
+Алгоритм является простым для распараллеливания. Так как интегралы разбиты на $N$ отрезков, и вычисление значения интеграла не зависит от других отрезков, то можно распределить данные отрезки по вычислительным узлам. Численным ответом решения задачи будет являться сумма результатов полученных на каждом вычислительном узле. 
+\par Для достижения данного результата в OpenMP существует деректива препроцессора $pragma omp parallel for reduction$, а в TBB $tbb::parallel_reduce$.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}\
+Входными параметрами всех реализаций алгоритма являются:
+\begin{itemize}
+\item $std::vector<pair::<double, double>> scope$ - пределы интегрирования
+\item Функция $f$
+\item Точность интегрирования $n$
+\end{itemize}
+
+\par Для вызова последовательной реализации используется метод 
+\begin{lstlisting}
+simpsonMethod(scope, f, n)
+\end{lstlisting}
+\par Для вызова OMP реализации используется метод:
+\begin{lstlisting}
+simpsonMethodOMP(scope, f, n)
+\end{lstlisting}
+\par Для вызова TBB реализации используется метод:
+\begin{lstlisting}
+simpsonMethodTBB(scope, f, n)
+\end{lstlisting}
+\par Для вызова STD реализации используется метод:
+\begin{lstlisting}
+simpsonMethodSTD(scope, f, n)
+\end{lstlisting}
+
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel(R) Core(TM) i5-8400 CPU @ 3.80GHz, ядер: 6
+\item Оперативная память: 16 ГБ DDR4;
+\item ОС: Microsoft Windows 10 LTSC
+\end{itemize}
+
+\par Тестирование производилось при $N=100$ млн., $f=sin(x_1)+sin(x_2)+sin(x_3)$
+\\
+
+\begin{table}[!h]
+\begin{center}
+\begin{tabular}{lllllll}
+Реализация & Время & Ускорение   \\
+SEQ        & 3.93 & 1           \\
+OMP        & 1.34 & 2.93       \\
+TBB        & 1.25 & 3.14       \\
+STD        & 1.3 & 3.02        \\
+
+\end{tabular}
+\end{center}
+\caption{Результаты вычислительных экспериментов}
+\centering
+\end{table}
+
+\par Из полученных результатов видно, что удалось получить значительное ускорение в параллельных реализациях метода Стронгина. Исходя из этого можно сделать вывод, что данный алгоритм хорошо поддается распараллеливанию.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате лабораторной работы были разработаны последовательная и параллельная реализации метода Стронгина.
+\par Были разработанна последовательная версия алгоритма,  и на ее основе были полученны параллельные реализации с использованием OpenMP, TBB и std::thread. 
+\par Из результатов вычислительных экспериментов видно, что параллельные реализации алгоритма являются эффективными и, в среднем, обеспечивают ускорение в 3 раза.
+\newpage
+
+% Литература
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Литература}
+\bibitem{} «Параллельное программирование на OpenMP»
+\\URL:\url {http://ccfit.nsu.ru/arom/data/openmp.pdf}
+\bibitem{Sidnev} Сиднев А.А., Мееров И.Б., Сысоев А.В. «Разработка параллельных программ в системах с общей памятью с использованием библиотеки Intel Threading Building Blocks (TBB)».
+\\URL:\url {http://hpc-education.ru/files/lectures/meerov/ppt06.pdf}
+\bibitem{} «Параллельное программирование. С++. Thread Support Library. Atomic Operations Library.»
+\\URL:\url {https://ppt-online.org/184002}
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В данном разделе находится реализация методов последовательной и параллельной реализции алгоритма
+\begin{lstlisting}
+// simpsont.cpp
+
+// Copyright 2021 Alekhin Denis
+
+#include <omp.h>
+#include <iostream>
+#include "../../modules/task_2/alekhin_d_simpson_omp/simpson.h"
+
+double simpsonMethod(std::vector<std::pair<double, double>> scope,
+  std::function<double(std::vector<double>)> func,
+  int precision) {
+  if (scope.size() == 0) {
+    throw "Error: scope can't be empty!";
+  }
+  for (size_t i = 0; i < scope.size(); i++) {
+    if (scope[i].first >= scope[i].second) {
+      throw "Error: wrong scope interval!";
+    }
+  }
+  if (precision <= 0) {
+    throw "Error: precision can't be less than 1";
+  }
+
+  int dimention = scope.size();
+  std::vector<double>
+    h(dimention),
+    a(dimention),
+    b(dimention);
+  for (int i = 0; i < dimention; i++) {
+    h[i] = (scope[i].second - scope[i].first) / precision;
+    a[i] = scope[i].first;
+    b[i] = scope[i].second;
+  }
+
+  double evenSum = 0, oddSum = 0;
+  std::vector<double> point(a);
+  for (int i = 1; i < precision; i++) {
+    for (int j = 0; j < dimention; j++) {
+      point[j] += h[j];
+    }
+    if (i % 2 == 0) {
+      evenSum += func(point);
+    } else {
+      oddSum += func(point);
+    }
+  }
+
+  double result = func(a) + func(b) + 2.0 * evenSum + 4.0 * oddSum;
+
+  for (int i = 0; i < dimention; i++) {
+    result *= b[i] - a[i];
+  }
+
+  result /= 3.0 * precision;
+  return result;
+}
+
+double simpsonMethodOMP(
+  std::vector<std::pair<double, double>> scope,
+  std::function<double(std::vector<double>)> func,
+  int precision) {
+  if (scope.size() == 0) {
+    throw "Error: scope can't be empty!";
+  }
+
+  for (size_t i = 0; i < scope.size(); i++) {
+    if (scope[i].first >= scope[i].second) {
+      throw "Error: wrong scope interval!";
+    }
+  }
+  if (precision <= 0) {
+    throw "Error: precision can't be less than 1";
+  }
+
+  int dimention = scope.size();
+  std::vector<double>
+    h(dimention),
+    a(dimention),
+    b(dimention);
+  for (int i = 0; i < dimention; i++) {
+    h[i] = (scope[i].second - scope[i].first) / precision;
+    a[i] = scope[i].first;
+    b[i] = scope[i].second;
+  }
+
+  double result = func(a) + func(b);
+  std::vector<double> oddPoint(dimention), evenPoint(dimention);
+#pragma omp parallel for reduction(+:result) firstprivate(oddPoint, evenPoint)
+  for (int i = 1; i < precision; i += 2) {
+    for (int j = 0; j < dimention; j++) {
+      oddPoint[j] = a[j] + h[j] * i;
+      evenPoint[j] = (i + 1 < precision) ? oddPoint[j] + h[j] : 0;
+    }
+    result +=  2.0 * func(evenPoint) + 4.0 * func(oddPoint);
+  }
+
+  for (int i = 0; i < dimention; i++) {
+    result *= b[i] - a[i];
+  }
+
+  result /= 3.0 * precision;
+
+  return result;
+}
+
+double simpsonMethodTBB(
+  std::vector<std::pair<double, double>> scope,
+  std::function<double(std::vector<double>)> func,
+  int precision) {
+  if (scope.size() == 0) {
+    throw "Error: scope can't be empty!";
+  }
+
+  for (size_t i = 0; i < scope.size(); i++) {
+    if (scope[i].first >= scope[i].second) {
+      throw "Error: wrong scope interval!";
+    }
+  }
+  if (precision <= 0) {
+    throw "Error: precision can't be less than 1";
+  }
+
+  int dimention = scope.size();
+  std::vector<double>
+    h(dimention),
+    a(dimention),
+    b(dimention);
+  for (int i = 0; i < dimention; i++) {
+    h[i] = (scope[i].second - scope[i].first) / precision;
+    a[i] = scope[i].first;
+    b[i] = scope[i].second;
+  }
+
+  double result =
+    tbb::parallel_reduce(tbb::blocked_range<int>(1, precision), 0.0,
+    [&](const tbb::blocked_range<int>& range, double result) {
+      std::vector<double> oddPoint(dimention), evenPoint(dimention);
+      for (int i = range.begin(); i < range.end(); i++) {
+        if (i % 2 == 0) {
+          for (int j = 0; j < dimention; j++) {
+            evenPoint[j] = a[j] + h[j] * i;
+          }
+          result += 2.0 * func(evenPoint);
+        } else {
+          for (int j = 0; j < dimention; j++) {
+            oddPoint[j] = a[j] + h[j] * i;
+          }
+          result += 4.0 * func(oddPoint);
+        }
+      }
+      return result;
+    }, std::plus<double>());
+
+  result += func(a) + func(b);
+
+  for (int i = 0; i < dimention; i++) {
+    result *= b[i] - a[i];
+  }
+
+  result /= 3.0 * precision;
+
+  return result;
+}
+
+\end{lstlisting}
+\end{document}
