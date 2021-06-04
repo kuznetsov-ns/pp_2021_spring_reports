@@ -1,0 +1,361 @@
+\documentclass{report}
+
+ \usepackage[T2A]{fontenc}
+ \usepackage[utf8]{luainputenc}
+ \usepackage[english, russian]{babel}
+ \usepackage[pdftex]{hyperref}
+ \usepackage[14pt]{extsizes}
+ \usepackage{listings}
+ \usepackage{color}
+ \usepackage{geometry}
+ \usepackage{enumitem}
+ \usepackage{multirow}
+ \usepackage{graphicx}
+ \usepackage{indentfirst}
+ \usepackage{amsmath}
+
+ \geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+ \setlength{\parskip}{0.5cm}
+ \setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+ \lstset{language=C++,
+ 		basicstyle=\footnotesize,
+ 		keywordstyle=\color{blue}\ttfamily,
+ 		stringstyle=\color{red}\ttfamily,
+ 		commentstyle=\color{green}\ttfamily,
+ 		morecomment=[l][\color{magenta}]{\#}, 
+ 		tabsize=4,
+ 		breaklines=true,
+   		breakatwhitespace=true,
+   		title=\lstname,       
+ }
+
+ \makeatletter
+ \renewcommand\@biblabel[1]{#1.\hfil}
+ \makeatother
+
+ \begin{document}
+
+ \begin{titlepage}
+
+ \begin{center}
+ Министерство науки и высшего образования Российской Федерации
+ \end{center}
+
+ \begin{center}
+ Федеральное государственное автономное образовательное учреждение высшего образования \\
+ Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+ \end{center}
+
+ \begin{center}
+ Институт информационных технологий, математики и механики
+ \end{center}
+
+ \vspace{4em}
+
+ \begin{center}
+ \textbf{\LargeОтчет по лабораторной работе} \\
+ \end{center}
+ \begin{center}
+ \textbf{\Large«Вычисление многомерных интегралов с использованием многошаговой схемы (метод прямоугольников).»} \\
+ \end{center}
+
+ \vspace{4em}
+
+ \newbox{\lbox}
+ \savebox{\lbox}{\hbox{text}}
+ \newlength{\maxl}
+ \setlength{\maxl}{\wd\lbox}
+ \hfill\parbox{7cm}{
+ \hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-2 \\ Еландаев П.Е. \\
+ \\
+ \hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В. \\
+ }
+ \vspace{\fill}
+
+ \begin{center} Нижний Новгород \\ 2021 \end{center}
+
+ \end{titlepage}
+
+ \setcounter{page}{2}
+
+ % Содержание
+ \tableofcontents
+ \newpage
+
+ % Введение
+ \section*{Введение}
+ \addcontentsline{toc}{section}{Введение}
+ Геометрический смысл определенного интеграла заключается в площади фигуры, которая образуется в осью координат и криволинейной функцией.
+ \par На практике не всегда возможно посчитать определенный интеграл формулой Ньютона-Лейбница. В этом случае можно пожертвовать точностью вычисления и посчитать через геометрический смысл. Один из способов вычисления определенного интеграл является метод прямоугольников.
+ \par Существует три вариации вычисления определенного интеграла методом прямоугольников, левых, правых и средних прямоугольников.
+ \newpage
+
+ % Постановка задачи
+ \section*{Постановка задачи}
+ \addcontentsline{toc}{section}{Постановка задачи}
+ Целью  данной лабораторной работы требуется реализовать последовательную и параллельную версию вычисления определенного многомерного интеграла методом прямоугольников.
+ \par Для реализации параллельной версии необходимо использовать средства OMP, TBB и thread.  Также необходимо провести анализ по времени работы программы. Для проверки корректности работы программы необходимо использовать framework GTest.
+ \newpage
+
+ % Описание алгоритма
+ \section*{Описание алгоритма}
+ \addcontentsline{toc}{section}{Описание алгоритма}
+ На вход алгоритма поступают:
+ \begin{itemize}
+ \item Функция f, от которой необходимо найти определенный интеграл
+ \item Пределы интегрирования $[a_1,b_1],...,[a_k, b_k]$
+ \item Точность N
+ \end{itemize}
+ \par Описание алгоритма:
+ \begin{itemize}
+ \item Для каждого кратного интеграла найдем массив значений аргумента в зависимости от требуемой точности $h_k=a_k+(countpoint*N)$.
+ \item Вычислим количество итераций, так как необходимо провести вычисления в каждой точке, а функция является многомерной, тогда количество итераций равно всевозможному набору аргументов(каждый с каждым).
+ \item Находим аргументы функции, путем: первый аргумент - это начало интегрирования, а последующие определяет маска с функцией которая сдвигает ее на последующие аргументы.
+ \item Найдем сумму по всем значениям функции $sum$.
+ \item Вычислим площадь подфункциональной кривой методом прямоугольника, высота это значение функции, а ширина это заданная точность, по условию она равна поэтому ее можно «вынести» $result=sum*pow(N,dimension-1)$
+
+ \end{itemize}
+
+ \newpage
+
+ % Описание схемы распараллеливания
+ \section*{Описание схемы распараллеливания}
+ \addcontentsline{toc}{section}{Описание схемы распараллеливания}
+
+ Идея распараллеливания алгоритма вычисления многомерного интеграла методом прямоугольников состоит в распараллеливании итераций цикла между потоками. Потоки получат группу итераций, а сумма полученных вычислений является численным ответом.
+\par Для достижения данного результата в OpenMP существует директива препроцессора $pragma omp parallel for shedule(static) reduction$, а в TBB $tbb::parallel_reduce$.
+
+ \newpage
+
+ % Описание программной реализации
+ \section*{Описание программной реализации}
+ \addcontentsline{toc}{section}{Описание программной реализации}\
+ Входными параметрами всех реализаций алгоритма являются:
+ \begin{itemize}
+ \item $std::vector<double> start, end$ - пределы интегрирования
+ \item Функция $f$
+ \item Точность интегрирования $step$
+ \end{itemize}
+
+ \par Для вызова последовательной реализации используется метод 
+ \begin{lstlisting}
+ RecInt(start, end, f, step)
+ \end{lstlisting}
+ \par Для вызова OMP реализации используется метод:
+ \begin{lstlisting}
+ RecIntOMP(start, end, f, step)
+ \end{lstlisting}
+ \par Для вызова TBB реализации используется метод:
+ \begin{lstlisting}
+ RecIntTBB(start, end, f, step)
+ \end{lstlisting}
+
+ \newpage
+
+ % Результаты экспериментов
+ \section*{Результаты экспериментов}
+ \addcontentsline{toc}{section}{Результаты экспериментов}
+ Вычислительные эксперименты проводились на оборудовании со следующей аппаратной конфигурацией:
+
+ \begin{itemize}
+ \item Процессор: AMD Athlon(tm) Dual-Core M320 2.10GHz
+ \item Оперативная память: 2 ГБ DDR2;
+ \item ОС: Windows 7
+ \end{itemize}
+
+ \par Тестирование производилось при $N=0.0003$, на отрезках ${(1;2),(1;1.6),(2,3)}$, $f=sin(x_1)*cos(x_2)*x_3$
+ \\
+
+ \begin{table}[!h]
+ \begin{center}
+ \begin{tabular}{lllllll}
+ Реализация & Время & Ускорение   \\
+ SEQ        & 4.77 & 1           \\
+ OMP        & 3.13 & 1.52       \\
+ TBB        & 2.72 & 1.75       \\
+
+ \end{tabular}
+ \end{center}
+ \caption{Результаты вычислительных экспериментов}
+ \centering
+ \end{table}
+
+ \par Из полученных результатов видно, что удалось получить ускорение в 1.6 раз. Исходя из этого можно сделать вывод, алгоритм можно распараллелить.
+ \newpage
+
+ % Заключение
+ \section*{Заключение}
+ \addcontentsline{toc}{section}{Заключение}
+ В результате лабораторной работы были разработаны последовательная и параллельная реализации вычисления определенного многомерного интеграла методом левых прямоугольников.
+ \par Были разработанна последовательная версия алгоритма, и на ее основе были полученны параллельные реализации с использованием OpenMP и TBB. 
+ \par Из результатов вычислительных экспериментов видно, что параллельные реализации алгоритма являются эффективными и, в среднем, обеспечивают ускорение в количество физических ядер процессора.
+ \newpage
+
+ % Литература
+ \begin{thebibliography}{1}
+ \addcontentsline{toc}{section}{Литература}
+ \bibitem{Gergel} Гергель В.П. Параллельное программирование с использованием
+ OpenMP, 2007, 33 с.
+ \bibitem{} «Параллельное программирование на OpenMP»
+ \\URL:\url {http://ccfit.nsu.ru/arom/data/openmp.pdf}
+ \bibitem{Sidnev} Сиднев А.А., Мееров И.Б., Сысоев А.В. «Разработка параллельных программ в системах с общей памятью с использованием библиотеки Intel Threading Building Blocks (TBB)».
+ \\URL:\url {http://hpc-education.ru/files/lectures/meerov/ppt06.pdf}
+ \end{thebibliography}
+ \newpage
+
+ % Приложение
+ \section*{Приложение}
+ \addcontentsline{toc}{section}{Приложение}
+ \par Последовательная реализация
+ \begin{lstlisting}
+ void iterplus(std::vector<int> *B, int it, const std::vector<std::vector<double>> &p) {
+    int size = p[it].size();
+    if (B->operator[](it) == (size - 1)) {
+        if ((it-1) < 0)
+            return;
+        B->operator[](it) = 0;
+        iterplus(B, --it, p);
+    } else {
+        B->operator[](it)++;
+    }
+}
+double RecInt(std::vector<double> start,
+              std::vector<double> end,
+              std::function<double(std::vector<double>)> f,
+              double step) {
+    std::vector<int> countstep;
+    int size = start.size();
+    for (int i = 0; i < size; i++) {
+        if (end[i] < start[i])
+            throw "wrong segment";
+        if (step > end[i] - start[i])
+            throw "step is biggest";
+        countstep.push_back(static_cast<int>((end[i] - start[i]) / step));
+    }
+    if (step <= 0)
+        throw "wrong splitting: smallest";
+    std::vector<std::vector<double> > point;
+    point.resize(start.size());
+    int countTrial = 1;
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < countstep[i]; j++) {
+            point[i].push_back(start[i] + j * step);
+        }
+        countTrial *= point[i].size();
+    }
+    double sum = 0.0;
+    std::vector<int> B(start.size());
+    for (int i = 0; i < size; i++) {
+        B[i] = 0;
+    }
+    std::vector<double> Trial(start.size());
+    int dim = static_cast<int>(start.size() - 1);
+    for (int i = 0; i < countTrial; i++) {
+        for (int j = 0; j < size; j++) {
+            Trial[j] = point[j][B[j]];
+        }
+        iterplus(&B, dim, point);
+        sum += f(Trial);
+    }
+    return sum * (std::pow(step, dim+1));
+}
+
+ \end{lstlisting}
+ \par Реализация OMP
+ \begin{lstlisting}
+  double RecIntOmp(std::vector<double> start,
+              std::vector<double> end,
+              std::function<double(std::vector<double>)> f,
+              double step) {
+    std::vector<int> countstep;
+    int size = start.size();
+    for (int i = 0; i < size; i++) {
+        if (end[i] < start[i])
+            throw "wrong segment";
+        if (step > end[i] - start[i])
+            throw "step is biggest";
+        countstep.push_back(static_cast<int>((end[i] - start[i]) / step));
+    }
+    if (step <= 0)
+        throw "wrong splitting: smallest";
+    std::vector<std::vector<double> > point;
+    point.resize(start.size());
+    int countTrial = 1;
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < countstep[i]; j++) {
+            point[i].push_back(start[i] + j * step);
+        }
+        countTrial *= point[i].size();
+    }
+    double sum = 0.0;
+    std::vector<int> B(size);
+    for (int i = 0; i < size; i++) {
+        B[i] = 0;
+    }
+    std::vector<double> Trial(size);
+    int dim = size - 1;
+    int flag = 1;
+#pragma omp parallel for schedule(static) reduction(+:sum) firstprivate(Trial, B, flag) shared(point, dim)
+    for (int i = 0; i < countTrial; i++) {
+        if (flag == 1) {
+            int k = i;
+            int count = 0;
+            while (k > 0) {
+                B[dim-count] = k % point[dim - count].size();
+                k = k / point[dim - count].size();
+                count++;
+            }
+            flag = 0;
+        }
+        for (int j = 0; j < size; j++) {
+            Trial[j] = point[j][B[j]];
+        }
+        iterplus(&B, dim, point);
+        sum += f(Trial);
+    }
+    return sum * (std::pow(step, size));
+}
+ \end{lstlisting}
+ \par Реализация TBB
+ \begin{lstlisting}
+ double RecIntTbb(std::vector<double> start,
+              std::vector<double> end,
+              std::function<double(std::vector<double>)> f,
+              int countstep) {
+    if (countstep < 1)
+        throw "wrong splitting: smallest";
+    int size = start.size();
+    for (int i = 0; i < size; i++) {
+        if (end[i] < start[i])
+            throw "wrong segment";
+    }
+    std::vector<double> step(size);
+    step.clear();
+    for (int i = 0; i < size; i++) {
+        step.push_back((end[i] - start[i]) / static_cast<double>(countstep));
+    }
+    int CountTrial = pow(countstep, size);
+    double sum = 0.0;
+    std::vector<double> Trial(size);
+    sum = tbb::parallel_reduce(
+        tbb::blocked_range<int> {0, CountTrial}, 0.f,
+        [&](const tbb::blocked_range<int>& r, double loc_res)->double {
+            int begin = r.begin();
+            int end = r.end();
+            for (int i = begin; i < end; i++) {
+                for (int j = 0; j < size; j++) {
+                    Trial[j] = step[j] * (i % countstep) + start[j];
+                }
+                loc_res += f(Trial);
+            }
+            return loc_res;
+    }, std::plus<double>() );
+    double high = 1.0;
+    for (int i = 0; i < size; i++) {
+        high *= step[i];
+    }
+    return sum * high;
+}
+ \end{lstlisting}
+ \end{document}
