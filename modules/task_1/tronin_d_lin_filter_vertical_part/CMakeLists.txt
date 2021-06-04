@@ -7,7 +7,7 @@ if ( USE_LATEX )
     file(GLOB_RECURSE report_files "*.tex")
 
     get_filename_component(report_names ${report_files} NAME)
-    add_latex_document(${report_names})
+    add_latex_document(${report_names} IMAGES images)
 
     add_custom_command(
             TARGET ${ProjectId}_pdf
