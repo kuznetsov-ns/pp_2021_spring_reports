@@ -1,0 +1,789 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\addto\captionsrussian{\renewcommand \contentsname {\LARGE Содержание}}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ\\
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+\textbf{"Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского" (ННГУ)}
+\end{center}
+
+\begin{center}
+\textbf{Институт информационных технологий, математики и механики}
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+Отчет по лабораторной работе \\
+\end{center}
+\begin{center}
+\textbf{\Large«Решение систем линейных уравнений методом сопряженных градиентов»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-1 \\ Горбунова В.И.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+% содержание
+\tableofcontents{}
+\clearpage
+
+\begin{center}
+\section*{Введение}
+\end{center}
+\addcontentsline{toc}{section}{Введение}
+\par В практических задачах часто возникает необходимость решения систем линейных алгебраических уравнений (СЛАУ) с симметричной, положительно определенной матрицей. Такие матрицы возникают, например, при дискретизации эллиптических уравнений математической физики и порождают линейные системы большой или очень большой размерности. В связи с этим при реализации алгоритмов решения СЛАУ на однопроцессорном компьютере могут возникнуть трудности из-за нехватки памяти, либо решение займет много времени. В этом случае необходимо использовать нестандартные подходы к написанию алгоритмов, основанные на использовании технологии параллельного программирования.
+\parЦелью данной работы является разработка параллельного алгоритма метода сопряженных градиентов для решения минимизации квадратичной функции.В данной работе было реализовано 3 решения данной задачи: Последовательная реализация, параллельная реализация с использованием OpenMP и параллельная реализация с использованием Tbb.
+\newpage
+
+\begin{center}
+\section*{Постановка задач}
+\end{center}
+\addcontentsline{toc}{section}{Постановка задач}
+В данной лабораторной работе необходимо:
+\begin{enumerate}
+\item Реализовать последовательный алгоритм решения системы линейных уравнений методом сопряженных градиентов.
+\item Реализовать параллельный алгоритм решения системы линейных уравнений методом сопряженных градиентов с использованием технологии OpenMP.
+\item Реализовать параллельный алгоритм решения системы линейных уравнений методом сопряженных градиентов с использованием технологии Tbb.
+\item Провести вычислительные эксперементы и сравнить время работы трех алгоритмов.
+\item Сделать вывод на основе полученных результатов.
+\end{enumerate}
+\newpage
+
+\begin{center}
+\section*{Описание алгоритма}
+\end{center}
+\addcontentsline{toc}{section}{Описание алгоритма}
+\parМетод сопряженных градиентов–один из наиболее известных итерационных методов решения систем линейных уравнений. Он может быть применен для решения системы линейных уравнений с симметричной, положительноопределенной матрицей
+\par$A = A^T $ - симметричная матрица A 
+\par$x^T A x$ - положительно определённая матрица A 
+\parПосле выполнения n итераций метода сопряженных градиентов(n есть порядок решаемой системы линейных уравнений), очередное приближение $X_n$ совпадает с точным решением.
+\parЕсли матрица А симметричная и положительноопределена, то функция:
+\begin {center}
+$q(x) =  \frac{1}{2} x^T * Ax - x^Tb + c$
+\end {center}
+\parимеет единственный минимум который достигается в точке X*, совпадающий с решением системы линейных уравнений.
+\parИтерация метода сопряженных градиентов состоит в вычислении очередного приближения к точному решению
+где:
+\begin {center}
+$x^k = x^{k-1} + s^k d^k$
+\end {center}
+
+\par $x^k$ - очередное приближение
+\par $x^{k-1}$- приближение, построенное на предыдущем шаге
+\par $S^k$- скалярный шаг
+\par $d^k$- вектор направления
+\parПеред выполнением первой итерации $x^0$ и $d^0$ полагаются равными нулю, а для вектора $g^0$ устанавливается значение -b
+\parАлогритм:
+
+1. Вычисление градиента
+$$g^k=A*X^{k-1}-b$$
+
+2.   Вычисление вектора направления
+$$d^k= -g^k + \frac{((g^k)^T, g^k)}{((g^{k-1})^T, g^{k-1})} * d^{k-1}$$
+
+
+3.   Вычисление величины смещения по заданному направлению
+
+$$s^k = \frac{(d^k, g^k)}{(d^k)^T * A * d^k}$$
+
+4.   Вычисление нового приближения
+
+$$x^k = x^{k-1} + s^k d^k$$
+
+\\
+
+\newpage
+
+\begin{center}
+\section*{Схема распараллеливания}
+\end{center}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+При распараллеливании метода сопряженных градиентов создаются две функции для умножения матрицы на вектор и для вычисления скалярного произведения векторов. Они используются несколько раз в алгоритме решения задачи. В данных функциях матрица или вектор разделяются на несколько частей и вычисления происходят параллельно друг другу.
+\newpage
+
+\begin{center}
+\section*{Описание программной реализации}
+\end{center}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Программа состоит из следующих функций:
+\par Функция, которая создает симметричную положительноопределенную матрицу заданного размера :
+\begin{lstlisting}
+void Random_Matrix_A(int S, double** A);
+\end{lstlisting}
+\par Функция, которая создает рандомный вектор B (результат уравнений в СЛАУ)
+\begin{lstlisting}
+void Random_Matrix_B(int S, double* B);
+\end{lstlisting}
+\par Функция умножения матрицы на вектор(последовательная реализация):
+\begin{lstlisting}
+void MatrixMultiplicateS(double** A, int S, double* Ax, double* x1);
+\end{lstlisting}
+\par Функция умножения матрицы на вектор(параллельная реализация OpenMP):
+\begin{lstlisting}
+void MatrixMultiplicateP(double** A, int S, double* Ax, double* x1);
+\end{lstlisting}
+\par Функция умножения матрицы на вектор(параллельная реализация Tbb):
+\begin{lstlisting}
+void MatrixMultiplicateP(double** A, int S, double* Ax, double* x1, int grainsize);
+\end{lstlisting}
+\par Скалярное произведение векторов(последовательная реализация):
+\begin{lstlisting}
+double multiplicateS(int S, double* x1, double* x2);
+\end{lstlisting}
+\par Скалярное произведение векторов(параллельная реализация OpenMP):
+\begin{lstlisting}
+double multiplicateP(int S, double* x1, double* x2);
+\end{lstlisting}
+\par Скалярное произведение векторов(параллельная реализация Tbb):
+\begin{lstlisting}
+double multiplicateP(int S, double* x1, double* x2,int grainsize)
+\end{lstlisting}
+\par Функция с решением слау методом сопряженных градиентов(последовательная реализация):
+\begin{lstlisting}
+double conj_gradS(double** A, double* B, int S);
+\end{lstlisting}
+\par Функция с решением слау методом сопряженных градиентов(параллельная реализация OpenMP):
+\begin{lstlisting}
+double multiplicateP(int S, double* x1, double* x2);
+\end{lstlisting}
+\par Функция с решением слау методом сопряженных градиентов(параллельная реализация Tbb):
+\begin{lstlisting}
+double multiplicateP(int S, double* x1, double* x2,int grainsize);
+\end{lstlisting}
+
+\newpage
+
+\begin{center}
+\section*{Подтверждение корректности}
+\end{center}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+\par Для подтверждения корректности в программе реализована система тестов, разработанная с помощью использования Google C++ Testing Framework.
+\par Эта система включает в себя тесты, проверяющие как работает программа на матрицах разного размера, от 5*5 до 1000*1000. Все тесты проходят успешно что подтверждает работоспособность программы.
+\newpage
+
+\begin{center}
+\section*{Результаты эксперементов}
+\end{center}
+\addcontentsline{toc}{section}{Результаты эксперементов}
+\par Вычислительные эксперименты для оценки эффективности сортировки Шелла с четно-нечетным слиянием Бэтчера проводились на оборудовании со следующей аппаратной конфигурацией::
+\begin{enumerate}
+\item Процессор: AMD Ryzon 7 3700X - 8 Core Processor
+\item Оперативная память:32 Gb;
+\item Операционная система: Windows 10 Домашняя;
+\item Среда разработки: Visual Studio 2019.
+\end{enumerate}
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов. Сравнение последовательного алгоритма с OpenMP}
+\centering
+\begin{tabular}{|p{4cm}|p{4cm}|p{4cm}|p{4cm}|}
+\hline
+Количество процессов & Размер матрицы & Последовательный алгоритм,сек & Параллельный алгоритм,сек \\\hline
+4  & 500*500 & 1.485732 & 0.349583   \\\hline
+10  & 500*500 & 1.569384 & 0.195423  \\\hline
+4 & 1000*1000 & 2.38623 & 0.654635  \\\hline
+10  & 1000*1000 & 2.745632 & 0.728755  \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов. Сравнение последовательного алгоритма с TBB}
+\centering
+\begin{tabular}{|p{4cm}|p{4cm}|p{4cm}|p{4cm}|}
+\hline
+Количество процессов & Размер матрицы & Последовательный алгоритм,сек & Параллельный алгоритм,сек \\\hline
+4  & 500*500 & 1.504938 & 0.259605   \\\hline
+10  & 500*500 & 1.598695 & 0.194857  \\\hline
+4 & 1000*1000 & 2.948273 & 0.306948 \\\hline
+10  & 1000*1000 & 3.495823 & 0.548573  \\
+\hline
+\end{tabular}
+\end{table}
+\newpage
+
+\begin{center}
+\section*{Заключение}
+\end{center}
+\addcontentsline{toc}{section}{Заключение}
+\par В ходе данной лабораторной работы мною были реализованы три версии алгоритма решения СЛАУ методом сопряженных градиентов: последовательная реализация, параллельнная реализация с импользованием технологии OpenMP и параллельнная реализаци\ с использованием технологии TBB. А также были разработаны и доведены до успешного выполнения тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+\par Основной целью работы было создание параллельной версии метода, который способен выполнять вычисления в разы быстрее чем последовательная версия.
+\newpage
+
+\addcontentsline{toc}{section}{Литература}
+\begin{thebibliography}{}
+\bibitem{1} Гергель В. П. Теория и практика параллельных вычислений. – 2007.
+\bibitem{2} Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\bibitem{3}http://www.hpcc.unn.ru/?dir=847
+
+
+\end{thebibliography}{}
+\newpage
+
+\begin{center}
+\section*{Приложение}
+\end{center}
+\addcontentsline{toc}{section}{Приложение}
+В данном разделе находятся две версии кода, OMP реализация и Tbb реализация,содержащая код последовательной программы.
+\begin{lstlisting}
+//gorbunova_v_conjugate_grad_omp.h
+
+// Copyright 2021 Gorbunova Valeria
+#ifndef MODULES_TASK_2_GORBUNOVA_V_CONJUGATE_GRAD_OMP_CONJUGATE_GRADIENT_H_
+#define MODULES_TASK_2_GORBUNOVA_V_CONJUGATE_GRAD_OMP_CONJUGATE_GRADIENT_H_
+
+double conj_grad(double** A, double* B, int S, int proc);
+void MatrixMultiplicate(double** A, int S, double* Ax, double* x1);
+double multiplicate(int S, double* x1, double* x2);
+void Random_Matrix_A(int S, double** A);
+void Random_Matrix_B(int S, double* B);
+#endif  // MODULES_TASK_2_GORBUNOVA_V_CONJUGATE_GRAD_OMP_CONJUGATE_GRADIENT_H_
+
+
+//gorbunova_v_conjugate_grad_omp.cpp
+
+// Copyright 2021 Gorbunova Valeria
+#include <stdio.h>
+#include <omp.h>
+#include <stdlib.h>
+#include <iostream>
+#include "../../../modules/task_2/gorbunova_v_conjugate_grad_omp/conjugate_gradient.h"
+
+void Random_Matrix_A(int S, double** A) {
+    for (int i = 0; i < S; i++) {
+        for (int j = 0; j < S; j++) {
+            A[i][i] = std::rand() % 2;
+            if ((i != j) && (i < j)) {
+                A[i][j] = std::rand() % 100 - std::rand() % 100;
+            }
+            A[j][i] = A[i][j];
+        }
+    }
+}
+
+void Random_Matrix_B(int S, double* B) {
+    for (int i = 0; i < S; i++) {
+        B[i] = std::rand() % 100 - std::rand() % 100;
+    }
+}
+
+void MatrixMultiplicate(double** A, int S, double* Ax, double* x1) {
+#pragma omp parallel for
+    for (int i = 0; i < S; i++) {
+        Ax[i] = 0;
+        for (int j = 0; j < S; j++)
+            Ax[i] += A[i][j] * x1[j];
+    }
+}
+
+double multiplicate(int S, double* x1, double* x2) {
+    double result = 0;
+#pragma omp parallel for reduction(+:result)
+    for (int i = 0; i < S; i++) {
+        result += x1[i] * x2[i];
+    }
+    return result;
+}
+
+double conj_grad(double** A, double* B, int S, int proc) {
+    double t1,t2;
+    double* x = new double[S];
+    double* d = new double[S];
+    double* r = new double[S];
+    double* Ax = new double[S];
+    double alpha, beta, sumB, num, R, den;
+    int i, IterNum = 1;
+    t1 = omp_get_wtime();
+    double MaxIteration = 100000;
+    for (i = 0; i < S; i++) {
+        x[i] = 1;
+    }
+    omp_set_num_threads(proc);
+    MatrixMultiplicate(A, S, Ax, x);
+    for (int i = 0; i < S; i++) {
+        r[i] = B[i] - Ax[i];
+        d[i] = r[i];
+    }
+    for (sumB = 0, i = 0; i < S; i++) {
+        sumB += B[i] * B[i];
+    }
+
+    int Iteration = 0;
+    do {
+        Iteration++;
+        MatrixMultiplicate(A, S, Ax, d);
+        num = multiplicate(S, r, r);
+        den = multiplicate(S, Ax, d);
+        alpha = num / den;
+        for (i = 0; i < S; i++) {
+            x[i] += alpha * d[i];
+            r[i] -= alpha * Ax[i];
+        }
+        IterNum++;
+        R = multiplicate(S, r, r);
+        beta = R / num;
+        for (i = 0; i < S; i++)
+            d[i] = r[i] + beta * d[i];
+    } while (R / sumB > 0.01 * 0.01 && Iteration < MaxIteration);
+
+    int res = 0;
+    double* A1 = new double[S];
+    int F = S / 10;
+    if (S / 10 == 0) {
+        F = 1;
+    }
+    double fault = 0.2 * F;
+    for (i = 0; i < S; i++) {
+        A1[i] = 0;
+        for (int j = 0; j < S; j++) {
+            A1[i] += A[i][j]*x[j];
+        }
+        if (((abs(A1[i]) > abs(B[i])) && (abs(A1[i]) - abs(B[i]) > fault))||
+        ((abs(A1[i]) <= abs(B[i])) && (abs(B[i]) - abs(A1[i]) > fault))) {
+            res = 1;
+            break;
+        }
+    }
+    t2 = omp_get_wtime();
+    std::cout << "Omp time: " << t1 - t2 << std::endl;
+    delete[] Ax;
+    for (int i = 0; i < S; i++)
+        delete[] A[i];
+    delete[] A;
+    delete[] A1;
+    delete[] B;
+    delete[] d;
+    delete[] r;
+    delete[] x;
+    return res;
+}
+
+
+
+//main.cpp
+
+// Copyright 2021 Gorbunova Valeria
+#include <stdio.h>
+#include <gtest/gtest.h>
+#include <omp.h>
+#include "./conjugate_gradient.h"
+
+TEST(Conj_Grad, test_1_Rand_Matrix_5x5_5_proc) {
+    int S = 5;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    for (int i = 0; i < S; i++) {
+        for (int j = 0; j < S; j++) {
+            std::cout << A[i][j] << "  ";
+        }
+        std::cout <<"  " << B[i] << std::endl;
+    }
+    ASSERT_EQ(0, conj_grad(A, B, S, 3));
+}
+
+TEST(Conj_Grad, test_2_Rand_Matrix_500x500_4_proc) 
+    int S = 500;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    ASSERT_EQ(0, conj_grad(A, B, S, 4));
+}
+
+TEST(Conj_Grad, test_3_Rand_Matrix_500x500_10_proc) {
+    int S = 500;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    ASSERT_EQ(0, conj_grad(A, B, S, 10));
+}
+
+
+TEST(Conj_Grad, test_4_Rand_Matrix_1000x1000_4_proc) {
+    int S = 1000;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    ASSERT_EQ(0, conj_grad(A, B, S, 4));
+}
+
+TEST(Conj_Grad, test_5_Rand_Matrix_1000x1000_10_proc) {
+    int S = 1000;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    ASSERT_EQ(0, conj_grad(A, B, S, 10));
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+
+
+//gorbunova_v_conjugate_grad_tbb.h
+
+// Copyright 2021 Gorbunova Valeria
+#ifndef MODULES_TASK_2_GORBUNOVA_V_CONJUGATE_GRAD_OMP_CONJUGATE_GRADIENT_H_
+#define MODULES_TASK_2_GORBUNOVA_V_CONJUGATE_GRAD_OMP_CONJUGATE_GRADIENT_H_
+
+double conj_grad(double** A, double* B, int S, int proc);
+void MatrixMultiplicate(double** A, int S, double* Ax, double* x1);
+double multiplicate(int S, double* x1, double* x2);
+void Random_Matrix_A(int S, double** A);
+void Random_Matrix_B(int S, double* B);
+#endif  // MODULES_TASK_2_GORBUNOVA_V_CONJUGATE_GRAD_OMP_CONJUGATE_GRADIENT_H_
+
+//gorbunova_v_conjugate_grad_tbb.cpp
+
+/// Copyright 2021 Gorbunova Valeria
+#include <stdio.h>
+#include <tbb/tbb.h>
+#include <tbb/blocked_range.h>
+#include "tbb/blocked_range2d.h"
+#include <stdlib.h>
+#include <thread>
+#include <iostream>
+#include "../../../modules/task_3/gorbunova_v_conjugate_grad_tbb/conjugate_gradient.h"
+
+using namespace tbb;
+
+void Random_Matrix_A(int S, double** A) {
+    for (int i = 0; i < S; i++) {
+        for (int j = 0; j < S; j++) {
+            A[i][i] = std::rand() % 2;
+            if ((i != j) && (i < j)) {
+                A[i][j] = std::rand() % 100 - std::rand() % 100;
+            }
+            A[j][i] = A[i][j];
+        }
+    }
+}
+
+void Random_Matrix_B(int S, double* B) {
+    for (int i = 0; i < S; i++) {
+        B[i] = std::rand() % 100 - std::rand() % 100;
+    }
+}
+
+void MatrixMultiplicateP(double** A, int S, double* Ax, double* x1,int grainsize) {
+    tbb::parallel_for(tbb::blocked_range2d<int>(0 , S, grainsize , 0, S, S),
+        [&](tbb::blocked_range2d<int> r) {
+            for (int i = r.rows().begin(); i < r.rows().end(); i++) {
+                Ax[i] = 0;
+                for (int j = r.cols().begin(); j < r.cols().end(); j++)
+                    Ax[i] += A[i][j] * x1[j];
+            } 
+        });
+}
+
+double multiplicateP(int S, double* x1, double* x2,int grainsize) {
+    double result = 0;
+    std::thread t( [=]{
+        for (int i = r.begin(); i < r.end(); i++) {
+                result += x1[i] * x2[i];
+            }
+    });
+    return result;
+}
+
+double conj_gradP(double** A, double* B, int S, int proc) {
+    double* x = new double[S];
+    double* d = new double[S];
+    double* r = new double[S];
+    double* Ax = new double[S];
+    double alpha, beta, sumB, num, R, den;
+    int i, IterNum = 1;
+    int grainsize = S / proc;
+    tbb::task_scheduler_init init(proc);
+    tbb::tick_count start2 = tbb::tick_count::now();
+
+    double MaxIteration = 100000;
+    for (i = 0; i < S; i++) {
+        x[i] = 1;
+    }
+
+    MatrixMultiplicateP(A, S, Ax, x, grainsize);
+    for (int i = 0; i < S; i++) {
+        r[i] = B[i] - Ax[i];
+        d[i] = r[i];
+    }
+    for (sumB = 0, i = 0; i < S; i++) {
+        sumB += B[i] * B[i];
+    }
+
+    int Iteration = 0;
+    do {
+        Iteration++;
+        MatrixMultiplicateP(A, S, Ax, d, grainsize);
+        num = multiplicateS(S, r, r);
+        den = multiplicateS(S, Ax, d);
+        alpha = num / den;
+        for (i = 0; i < S; i++) {
+            x[i] += alpha * d[i];
+            r[i] -= alpha * Ax[i];
+        }
+        IterNum++;
+        R = multiplicateS(S, r, r);
+        beta = R / num;
+        for (i = 0; i < S; i++)
+            d[i] = r[i] + beta * d[i];
+    } while (R / sumB > 0.01 * 0.01 && Iteration < MaxIteration);
+
+    int res = 0;
+    double* A1 = new double[S];
+    int F = S / 10;
+    if (S / 10 == 0) {
+        F = 1;
+    }
+    double fault = 0.2 * F;
+    for (i = 0; i < S; i++) {
+        A1[i] = 0;
+        for (int j = 0; j < S; j++) {
+            A1[i] += A[i][j] * x[j];
+        }
+        if (((abs(A1[i]) > abs(B[i])) && (abs(A1[i]) - abs(B[i]) > fault)) ||
+            ((abs(A1[i]) <= abs(B[i])) && (abs(B[i]) - abs(A1[i]) > fault))) {
+            res = 1;
+            break;
+        }
+    }
+    tbb::tick_count end2 = tbb::tick_count::now();
+    std::cout << "Tbb time: " << (end2 - start2).seconds() << std::endl;
+    delete[] Ax;
+    for (int i = 0; i < S; i++)
+        delete[] A[i];
+    delete[] A;
+    delete[] A1;
+    delete[] B;
+    delete[] d;
+    delete[] r;
+    delete[] x;
+    return res;
+}
+
+
+
+
+void MatrixMultiplicateS(double** A, int S, double* Ax, double* x1) {
+    for (int i = 0; i < S; i++) {
+        Ax[i] = 0;
+        for (int j = 0; j < S; j++)
+            Ax[i] += A[i][j] * x1[j];
+    }
+}
+
+double multiplicateS(int S, double* x1, double* x2) {
+    double result = 0;
+    for (int i = 0; i < S; i++) {
+        result += x1[i] * x2[i];
+    }
+    return result;
+}
+
+double conj_gradS(double** A, double* B, int S) {
+    double* x = new double[S];
+    double* d = new double[S];
+    double* r = new double[S];
+    double* Ax = new double[S];
+    double alpha, beta, sumB, num, R, den;
+    int i, IterNum = 1;
+    double MaxIteration = 100000;
+    tbb::tick_count start2 = tbb::tick_count::now();;
+    for (i = 0; i < S; i++) {
+        x[i] = 1;
+    }
+
+    MatrixMultiplicateS(A, S, Ax, x);
+    for (int i = 0; i < S; i++) {
+        r[i] = B[i] - Ax[i];
+        d[i] = r[i];
+    }
+    for (sumB = 0, i = 0; i < S; i++) {
+        sumB += B[i] * B[i];
+    }
+
+    int Iteration = 0;
+    do {
+        Iteration++;
+        MatrixMultiplicateS(A, S, Ax, d);
+        num = multiplicateS(S, r, r);
+        den = multiplicateS(S, Ax, d);
+        alpha = num / den;
+        for (i = 0; i < S; i++) {
+            x[i] += alpha * d[i];
+            r[i] -= alpha * Ax[i];
+        }
+        IterNum++;
+        R = multiplicateS(S, r, r);
+        beta = R / num;
+        for (i = 0; i < S; i++)
+            d[i] = r[i] + beta * d[i];
+    } while (R / sumB > 0.01 * 0.01 && Iteration < MaxIteration);
+
+    int res = 0;
+    double* A1 = new double[S];
+    int F = S / 10;
+    if (S / 10 == 0) {
+        F = 1;
+    }
+    double fault = 0.2 * F;
+    for (i = 0; i < S; i++) {
+        A1[i] = 0;
+        for (int j = 0; j < S; j++) {
+            A1[i] += A[i][j] * x[j];
+        }
+        if (((abs(A1[i]) > abs(B[i])) && (abs(A1[i]) - abs(B[i]) > fault)) ||
+            ((abs(A1[i]) <= abs(B[i])) && (abs(B[i]) - abs(A1[i]) > fault))) {
+            res = 1;
+            break;
+        }
+    }
+    tbb::tick_count end2 = tbb::tick_count::now();
+    std::cout << " time: " << (end2 - start2).seconds() << std::endl;
+    return res;
+}
+
+//main.cpp
+
+// Copyright 2021 Gorbunova Valeria
+#include <stdio.h>
+#include <gtest/gtest.h>
+#include <omp.h>
+#include "./conjugate_gradient.h"
+
+TEST(Conj_Grad, test_1_Rand_Matrix_5x5_5_proc) {
+    int S = 5;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    for (int i = 0; i < S; i++) {
+        for (int j = 0; j < S; j++) {
+            std::cout << A[i][j] << "  ";
+        }
+        std::cout <<"  " << B[i] << std::endl;
+    }
+    ASSERT_EQ(0, conj_grad(A, B, S, 3));
+}
+
+TEST(Conj_Grad, test_2_Rand_Matrix_500x500_4_proc) 
+    int S = 500;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    ASSERT_EQ(0, conj_grad(A, B, S, 4));
+}
+
+TEST(Conj_Grad, test_3_Rand_Matrix_500x500_10_proc) {
+    int S = 500;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    ASSERT_EQ(0, conj_grad(A, B, S, 10));
+}
+
+
+TEST(Conj_Grad, test_4_Rand_Matrix_1000x1000_4_proc) {
+    int S = 1000;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    ASSERT_EQ(0, conj_grad(A, B, S, 4));
+}
+
+TEST(Conj_Grad, test_5_Rand_Matrix_1000x1000_10_proc) {
+    int S = 1000;
+    double** A = new double* [S];
+    for (int count = 0; count < S; count++)
+        A[count] = new double[S];
+    Random_Matrix_A(S, A);
+    double* B = new double[S];
+    Random_Matrix_B(S, B);
+    ASSERT_EQ(0, conj_grad(A, B, S, 10));
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+\end{document}
