@@ -1195,7 +1195,7 @@ TEST(Components, Test_50x50_prim_image) {
             int prm_num = static_cast<int>(gen() % primitives.size());
             expected_hulls[i * w + j] = primitives_convex_hulls[prm_num];
             for (std::pair<int, int>& point : expected_hulls[i * w + j]) {
-                point.first += j * prm_size;
+                point.first +=  j * prm_size;
                 point.second += i * prm_size;
             }
             for (int k = 0; k < prm_size; k++)
