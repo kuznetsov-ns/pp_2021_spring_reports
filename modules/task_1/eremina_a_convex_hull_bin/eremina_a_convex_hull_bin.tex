@@ -97,9 +97,15 @@
 \section*{Описание алгоритма}
 \addcontentsline{toc}{section}{Описание алгоритма}
 Первая часть алгоритма простроения выпуклой оболочки для компонент бинарного изображения состоит в разбиении бинарного изображения на компоненты. Идея данного алгоритма основана на использовании уголка — ABC-маски, которая показана на рисунке 1. 
-
+\begin{figure}[H]
+\center{\includegraphics[scale=0.8]{./eremina_img/abc-mask1.pdf}}
+\caption{ABC маска и направление сканирования изображения}
+\end{figure}
 Проход по изображению данной маской осуществляется слева-направо и сверху-вниз. Считается, что за границей изображения объектов нет, поэтому, если туда попадают B или C — это требует дополнительной проверки при сканировании. На рисунке 2 изображены 5 возможных позиций маски на изображении.
-
+\begin{figure}[H]
+\center{\includegraphics[scale=0.8]{./eremina_img/abc-mask2.pdf}}
+\caption{Пять возможных позиций ABC-маски}
+\end{figure}
 
 \begin{enumerate}
 	\item Позиция под номером 0, когда не размечены все три компонента маски — в этом случае мы просто пропускаем пиксель.
@@ -203,16 +209,80 @@ Graham(Q)
 \caption{Бинарное изображение 128x128}
 \end{figure}
 
-
+\begin{figure}[H]
+\center{\includegraphics[scale=1.2]{./eremina_img/seq128.pdf}}
+\caption{Последовательная реализация 128x128}
+\end{figure}
 
 \begin{figure}[H]
-\center{\includegraphics[scale=1]{./eremina_img/256.png}}
+\center{\includegraphics[scale=1.2]{./eremina_img/omp128.pdf}}
+\caption{OMP реализация 128x128}
+\end{figure}
+
+\begin{figure}[H]
+\center{\includegraphics[scale=1.2]{./eremina_img/tbb128.pdf}}
+\caption{TBB реализация 128x128}
+\end{figure}
+
+\begin{figure}[H]
+\center{\includegraphics[scale=1]{./eremina_img/256.pdf}}
 \caption{Бинарное изображение 256x256}
 \end{figure}
 
+\begin{figure}[H]
+\center{\includegraphics[scale=1]{./eremina_img/seq256.pdf}}
+\caption{Последовательная реализация 256x256}
+\end{figure}
 
+\begin{figure}[H]
+\center{\includegraphics[scale=1]{./eremina_img/omp256.pdf}}
+\caption{OMP реализация 256x256}
+\end{figure}
 
+\begin{figure}[H]
+\center{\includegraphics[scale=1]{./eremina_img/tbb256.pdf}}
+\caption{TBB реализация 256x256}
+\end{figure}
 
+\begin{figure}[H]
+\center{\includegraphics[scale=0.4]{./eremina_img/800x500.pdf}}
+\caption{Бинарное изображение 800x500}
+\end{figure}
+
+\begin{figure}[H]
+\center{\includegraphics[scale=0.4]{./eremina_img/seq800x500.pdf}}
+\caption{Последовательная реализация 800x500}
+\end{figure}
+
+\begin{figure}[H]
+\center{\includegraphics[scale=0.4]{./eremina_img/omp800x500.pdf}}
+\caption{OMP реализация 800x500}
+\end{figure}
+
+\begin{figure}[H]
+\center{\includegraphics[scale=0.4]{./eremina_img/tbb800x500.pdf}}
+\caption{TBB реализация 800x500}
+\end{figure}
+
+\begin{figure}[H]
+\center{\includegraphics[scale=0.2]{./eremina_img/1450x1000.pdf}}
+\caption{Бинарное изображение 1450x1000}
+\end{figure}
+
+\begin{figure}[H]
+\center{\includegraphics[scale=0.2]{./eremina_img/seq1450x1000.pdf}}
+\caption{Последовательная реализация 1450x1000}
+\end{figure}
+
+\begin{figure}[H]
+\center{\includegraphics[scale=0.2]{./eremina_img/omp1450x1000.pdf}}
+\caption{OMP реализация 1450x1000}
+\end{figure}
+
+\begin{figure}[H]
+\center{\includegraphics[scale=0.2]{./eremina_img/tbb1450x1000.pdf}}
+\caption{TBB реализация 1450x1000}
+\end{figure}
 
 \par
 Качественный анализ даёт понять, что алгоритмы работают корректно.
