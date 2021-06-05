@@ -124,15 +124,15 @@
 \addcontentsline{toc}{section}{Описание программной реализации}\
 Входными параметрами всех реализаций алгоритма являются:
 \begin{itemize}
-\item const std::vector<double>& matrix - положительно определённая симметричная матрица
-\item const std::vector<double>& vector - вектор
+\item const std::vector<double>matrix - положительно определённая симметричная матрица
+\item const std::vector<double> vector - вектор
 \item int size, int proc - размер матрицы, кол-во процессов
 \end{itemize}
 
 \par Используемые методы:
 \par multVVOMP(std::vector<double> A, std::vector<double> B) - перемножение векторов
 \par multMVOMP(std::vector<double> m, std::vector<double> v) - перемножение матрицы на вектор
-\par gradient(const std::vector<double>& matrix, const std::vector<double>& vector, int size, int proc) - сам процесс решения СЛАУ
+\par gradient(const std::vector<double> matrix, const std::vector<double> vector, int size, int proc) - сам процесс решения СЛАУ
 
 \newpage
 
