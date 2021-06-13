@@ -1,0 +1,705 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{color, indentfirst, geometry, listings, enumitem}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}Министерство образования и науки Российской Федерации 
+Федеральное государственное автономное образовательное учреждение 
+высшего образования 
+
+\begin{center}
+{Институт информационных технологий, математики и механики}
+\end{center}
+
+\vspace{8em}
+\textbf{\LargeОтчет по лабораторной работе "
+Сортировка Шелла с четно-нечетным слиянием Бэтчера"} \end{center}
+
+\vspace{8em}
+
+\begin{flushright}  \textbf{Выполнил:} \\ студент группы 381808-1  \\ Камсков Е.М. \end{flushright}
+\begin{flushright}  \textbf{Проверил:}  \\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\ \end{flushright}
+
+\vspace{\fill}
+\begin{center} Нижний Новгород  2021г \end{center}
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+
+\newpage
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+В 1959 году американский ученый Дональд Шелл опубликовал алгоритм сортировки, который впоследствии получил его имя – «Сортировка Шелла». Этот алгоритм может рассматриваться и как обобщение пузырьковой сортировки, так и сортировки вставками. Его суть заключается в сравнении элементов, необязательно являющихся "соседями".
+\par Алгоритм четно-нечетной сортировки слиянием был разработан K.E. Бэтчером. Он основан на алгоритме слияния, который объединяет две отсортированные половины последовательности, заключающие четные и нечетные элементы соответственно, в полностью отсортированную последовательность.
+\par В этой работе была реализована последовательная версия сортировки Шелла с четно-нечетным слиянием Бэтчера, а также с использованием библиотек для реализации параллельных вычислений
+
+\newpage
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+\par В данной работе необходимо реализовать сортировку Шелла с четно-нечетным слиянием Бэтчера.
+Работа должна содержать реализацию следующих технологий:
+\begin{itemize}
+\item Последовательная реализация
+\item OpenMP.
+\item TBB.
+\end{itemize}
+\par Должны быть проведены вычислительные эксперименты с целью сравнить время работы каждой реализации и проанализировать результаты.
+
+\newpage
+
+% Описание алгоритма
+\section*{Описание алгоритма}
+\textbf{Сортировка Шелла:}
+\par Идея метода заключается в сравнение разделенных на группы элементов последовательности, находящихся друг от друга на некотором расстоянии. Изначально это расстояние равно $d$ или $N/2$, где $N$ — общее число элементов. На первом шаге каждая группа включает в себя два элемента расположенных друг от друга на расстоянии $N/2$; они сравниваются между собой, и, в случае необходимости, меняются местами. На последующих шагах также происходят проверка и обмен, но расстояние $d$ сокращается на $d/2$, и количество групп, соответственно, уменьшается. Постепенно расстояние между элементами уменьшается, и на $d=1$ проход по массиву происходит в последний раз.\\
+\\
+\textbf{Четно-нечетное слияние Бэтчера:}
+\par Исходная последовательность разбивается на две части, в одну записываются элементы, стоящие на четных местах исходной последовательности, в другую на нечетных. Получившиеся две последовательности сортируются отдельно и затем "сливаются" в полностью отсортированную последовательность.
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+\par Вектор размера $size$ разбивается на  $\frac{size}{n}$ частей, где $n$ - количество потоков. 
+В каждом из потоков происходит сортировка Шелла полученной части. Затем эти части сливаются в один результирующий вектор сортировкой четно-нечетного слияния Бэтчера.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+В программе реализованы следующие функци:
+\begin{enumerate}
+
+\item Функция, инициализирующая вектор, заполненный случайными целыми числами:
+\begin{lstlisting}
+std::vector<int> getRandomVector(int);
+\end{lstlisting}
+\item Функция, разбивающая исходный вектор на $\frac{size}{n}$ частей, где $n$ - количество потоков:
+\begin{lstlisting}
+std::vector<std::vector<int>> splitV(const std::vector<int>&, size_t);
+\end{lstlisting}
+\item Функция сортировки Шелла
+\begin{lstlisting}
+std::vector<int> shellSort(const std::vector<int>&, int);
+\end{lstlisting}
+\item Функция, сортирующая элементы с четным индексом
+\begin{lstlisting}
+std::vector<int> evenBatch(const std::vector<int>&, const std::vector<int>&);
+\end{lstlisting}
+\item Функция, сортирующая элементы с нечетным индексом
+\begin{lstlisting}
+std::vector<int> oddBatch(const std::vector<int>&, const std::vector<int>&);
+\end{lstlisting}
+\item Функция, разбивающая вектор на два вектора пополам, сортирующая эти половины методом Шелла, создающая 2 новых вектора: в первом элементы с четными индексами, во втором с нечетными, и "сливающая" эти два в один
+\begin{lstlisting}
+std::vector<int> batchShellSort(const std::vector<int>&, int);	
+\end{lstlisting}
+\item Распаралелленная с помощью технологии TBB функция batchShellSort
+\begin{lstlisting}
+std::vector<int> batchShellSortTbb(const std::vector<int>&, const int, int s);
+\end{lstlisting}
+\item Распаралелленная с помощью технологии Omp функция batchShellSort
+\begin{lstlisting}
+std::vector<int> batchShellSortOmp(const std::vector<int>&, const int, int);
+\end{lstlisting}
+\item Функция "слияния" двух векторов с четными и нечетными элементами
+\begin{lstlisting}
+std::vector<int> mergeBatch(const std::vector<int>&, const std::vector<int>&);
+\end{lstlisting}
+\item Функция вывода элементов вектора на экран
+\begin{lstlisting}
+void print(std::vector<int> const&);
+\end{lstlisting}
+\end{enumerate}
+\par Описание TBB версии:
+\\С помощью директивы \verb|tbb::parallel_for|, которая позволяет распараллеливать вычисления внутри цикла for с диапазоном \verb|0, vec.size()| и \verb|grainsize = 1|.  
+\begin{lstlisting}
+std::vector<std::vector<int>> vec = splitV(A, n);
+    tbb::task_scheduler_init init(n);
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, vec.size(), 1),
+        [&vec](const tbb::blocked_range<size_t>& r) {
+        int begin = r.begin(), end = r.end();
+        for (int i = begin; i != end; ++i)
+            vec[i] = shellSort(vec[i], vec[i].size());
+        }, tbb::simple_partitioner());
+
+    init.terminate();
+\end{lstlisting}
+После параллельных сортировок, полученные векторы, сливаются в один последовательным четно-нечетным слиянием Бэтчера.
+\par Описание OpenMP версии:
+\\С помощью директивы \verb|#pragma omp for|, которая позволяет распараллеливать блоки команд внутри цикла for. Отдадим каждому из процессов часть вектора на сортировку: 
+\begin{lstlisting}
+    std::vector<std::vector<int>> vec = split(v, n);
+    std::vector<int> res;
+    #pragma omp parallel shared(vec)
+    {
+    #pragma omp for
+        for (int i = 0; i < static_cast<int> (vec.size()); i++) {
+            vec[i] = shellSort(vec[i], vec[i].size());
+        }
+    }
+    res = mergeOmp(vec, n, size);
+\end{lstlisting}
+После параллельных сортировок, полученные векторы, сливаются в один последовательным четно-нечетным слиянием Бэтчера.
+
+\newpage
+
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Эксперименты проводились на устройстве со следующей конфигурацией:
+\begin{enumerate}
+\item Процессор: Intel Core i5-8400, 2,80 GHz, ядер - 6;
+\item Оперативная память:  16Gb;
+\item ОС: Windows 10;
+\end{enumerate}
+Все эксперименты проводились над вектором размером 1000000 элементов, результаты приведены в таблице:
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов}
+\centering
+\begin{tabular}{ | l | l | l | l  | l | l | }
+\hline
+Процессы  & Последовательно & OpenMP & TBB  \\ \hline
+4  & 0.838034 & 0.208168 &  0.206482 \\ \hline
+3  & 0.8560474 & 0.233334 &  0.236473 \\ \hline
+2  & 0.855045 & 0.319511 &  0.30992 \\ \hline
+1  & 0.861526 & 0.579284 &  0.590958  \\ \hline
+\end{tabular}
+\end{table}
+
+\par По полученным данным можно сделать вывод, что параллельная реализация алгоритма быстрее последовательного. Небольшое скорение параллельных версий на одном процессе объясняется изменением в алгоритме сортировки.
+
+\newpage
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+\par В ходе работы были реализованы:
+\begin{enumerate}
+\item Сортировки Шелла
+\item Сортировка четно-нечетным слиянием Бэтчера
+\item Распараллеливание сортировки Шелла с помощью технологий OpenMP, TBB
+\end{enumerate}
+\par А так же были проведены эксперименты, доказывающие быстродействие параллельных версий алгоритма по отношению к последовательной.
+\newpage
+
+% Литература
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{1}Что такое OpenMP? [Электронный ресурс] // URL: \url { https://parallel.ru/tech/tech_dev/openmp.html}
+\bibitem{2}Документация по TBB [Электронный ресурс] // URL: \url {https://software.intel.com/content/www/ru/ru/develop/articles/tbb_async_io.html} 
+\bibitem{3}Odd-even Batcher sort [Электронный ресурс] // URL: \url {https://www.inf.hs-flensburg.de/lang/algorithmen/sortieren/networks/oemen.htm}
+\end{thebibliography}
+
+\newpage
+% Приложение - код
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\begin{lstlisting}
+// Copyright 2021 Kamskov Eugene
+#include "../../../modules/task_2/kamskov_e_shell_batcher_sort_omp/shell_batcher.h"
+
+std::vector<int> getRandomVector(int size) {
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::vector<int> vec(size);
+    for (int i = 0; i < size; ++i)
+        vec[i] = gen() % 100;
+    return vec;
+}
+std::vector<std::vector<int>> split(const std::vector<int>& vec, size_t n) {
+    size_t del = vec.size() / n;
+    size_t bal = vec.size() % n;
+    size_t begin = 0, end = 0;
+    std::vector<std::vector<int>> res;
+
+    for (size_t i = 0; i < n; ++i) {
+        if (bal > 0) {
+            end = end + (del + !!(bal--));
+        } else {
+            end = end + del;
+        }
+        res.push_back(std::vector<int>(vec.begin() + begin, vec.begin() + end));
+        begin = end;
+    }
+    return res;
+}
+std::vector<int> shellSort(const std::vector<int>& v, int size) {
+    int del, i, j;
+    std::vector<int>res(v);
+    for (del = size / 2; del > 0; del = del / 2) {
+        for (i = del; i < static_cast<int>(res.size()); i++) {
+            for (j = i - del; j >= 0 && res[j] > res[j + del]; j = j - del) {
+                std::swap(res[j], res[j + del]);
+            }
+        }
+    }
+    return res;
+}
+
+std::vector<int> batchShellSort(const std::vector<int>& v, int size) {
+    std::vector<int>fHalf;
+    std::copy(v.begin(), v.end() - size / 2, inserter(fHalf, fHalf.begin()));
+    fHalf = shellSort(fHalf, fHalf.size());
+    std::vector<int> sHalf;
+    std::copy(v.end() - size / 2, v.end(), inserter(sHalf, sHalf.begin()));
+    sHalf = shellSort(sHalf, sHalf.size());
+
+    std::vector<int>even = evenBatch(fHalf, sHalf), odd = oddBatch(fHalf, sHalf);
+    std::vector<int>res = mergeBatch(even, odd);
+    return res;
+}
+
+std::vector<int> batchShellSortOmp(const std::vector<int>& v, const int n, int size) {
+    std::vector<std::vector<int>> vec = split(v, n);
+    std::vector<int> res;
+    #pragma omp parallel shared(vec)
+    {
+    #pragma omp for
+        for (int i = 0; i < static_cast<int> (vec.size()); i++) {
+            vec[i] = shellSort(vec[i], vec[i].size());
+        }
+    }
+    res = mergeOmp(vec, n, size);
+    return res;
+}
+
+std::vector<int> mergeOmp(const std::vector<std::vector<int>>& A, const int n, int size) {
+    std::vector<int> res = A[0], odd, even;
+
+    for (int i = 1; i < n; i++) {  
+            odd = oddBatch(res, A[i]);
+            even = evenBatch(res, A[i]);
+            res = mergeBatch(even, odd);
+    }
+    return res;
+}
+
+std::vector<int> evenBatch(const std::vector<int>& A, const std::vector<int>& B) {
+    int size_res = A.size() / 2 + B.size() / 2 + A.size() % 2 + B.size() % 2;
+    std::vector <int> res(size_res);
+    size_t iA = 0, iB = 0, i = 0;
+    while ((iA < A.size()) && (iB < B.size())) {
+        if (A[iA] <= B[iB]) {
+            res[i] = A[iA];
+            iA += 2;
+        } else {
+            res[i] = B[iB];
+            iB += 2;
+        }
+        ++i;
+    }
+    if (iA >= A.size()) {
+        for (size_t j = iB; j < B.size(); j = j + 2) {
+            res[i] = B[j];
+            ++i;
+        }
+    } else {
+        for (size_t j = iA; j < A.size(); j = j + 2) {
+            res[i] = A[j];
+            ++i;
+        }
+    }
+    return res;
+}
+
+std::vector<int> oddBatch(const std::vector<int>& A, const std::vector<int>& B) {
+    int size_res = A.size() / 2 + B.size() / 2;
+    std::vector <int> res(size_res);
+    size_t iA = 1, iB = 1, i = 0;
+    while ((iA < A.size()) && (iB < B.size())) {
+        if (A[iA] <= B[iB]) {
+            res[i] = A[iA];
+            iA = iA + 2;
+        } else {
+            res[i] = B[iB];
+            iB = iB + 2;
+        }
+        ++i;
+    }
+    if (iA >= A.size()) {
+        for (size_t j = iB; j < B.size(); j = j + 2) {
+            res[i] = B[j];
+            ++i;
+        }
+    } else {
+        for (size_t j = iA; j < A.size(); j = j + 2) {
+            res[i] = A[j];
+            ++i;
+        }
+    }
+    return res;
+}
+
+std::vector<int> mergeBatch(const std::vector<int>& even, const std::vector<int>& odd) {
+    size_t sizeE = even.size();
+    size_t sizeO = odd.size();
+    size_t size = sizeE + sizeO;
+    std::vector<int> res(size);
+    size_t i = 0, e = 0, o = 0;
+    while ((e < sizeE) && (o < sizeO)) {
+        res[i] = even[e];
+        res[i + 1] = odd[o];
+        i = i + 2;
+        ++e;
+        ++o;
+    }
+    if ((o >= sizeO) && (e < sizeE)) {
+        for (size_t l = i; l < size; l++) {
+            res[l] = even[e];
+            ++e;
+        }
+    }
+    for (size_t i = 0; i < size - 1; i++) {
+        if (res[i] > res[i + 1]) {
+            std::swap(res[i], res[i + 1]);
+        }
+    }
+    return res;
+}
+
+void print(std::vector<int> const& a) {
+    for (size_t i = 0; i < a.size(); ++i) std::cout << a[i] << ' ';
+    std::cout << std::endl;
+}
+
+\end{lstlisting}
+
+\begin{lstlisting}
+
+// Copyright 2021 Kamskov Eugene
+
+#include "../../../modules/task_3/kamskov_e_shell_batcher_sort_tbb/shell_batcher.h"
+#include <tbb/tbb.h>
+#include <omp.h>
+
+std::vector<int> getRandomVector(int size) {
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::vector<int> res(size);
+    for (int i = 0; i < size; ++i)
+        res[i] = gen() % 100;
+    return res;
+}
+
+void print(std::vector<int> const& a) {
+    for (size_t i = 0; i < a.size(); ++i) std::cout << a[i] << ' ';
+    std::cout << std::endl;
+}
+
+std::vector<std::vector<int>> splitV(const std::vector<int>& vec, size_t n) {
+    size_t del = vec.size() / n;
+    size_t bal = vec.size() % n;
+    size_t begin = 0, end = 0;
+    std::vector<std::vector<int>> res;
+    for (size_t i = 0; i < n; ++i) {
+        if (bal > 0) {
+            end = end + (del + !!(bal--));
+        } else {
+            end = end + del;
+        }
+        res.push_back(std::vector<int>(vec.begin() + begin, vec.begin() + end));
+        begin = end;
+    }
+  return res;
+}
+
+std::vector<int> shellSort(const std::vector<int>& v, int size) {
+    int del, i, j;
+    std::vector<int>res(v);
+    for (del = size / 2; del > 0; del = del / 2) {
+        for (i = del; i < static_cast<int>(res.size()); i++) {
+            for (j = i - del; j >= 0 && res[j] > res[j + del]; j = j - del) {
+                std::swap(res[j], res[j + del]);
+            }
+        }
+    }
+    return res;
+}
+
+std::vector<int> batchShellSort(const std::vector<int>& v, int size) {
+    std::vector<int>fHalf;
+    std::copy(v.begin(), v.end() - size / 2, inserter(fHalf, fHalf.begin()));
+    fHalf = shellSort(fHalf, fHalf.size());
+    std::vector<int> sHalf;
+    std::copy(v.end() - size / 2, v.end(), inserter(sHalf, sHalf.begin()));
+    sHalf = shellSort(sHalf, sHalf.size());
+
+    std::vector<int>even = evenBatch(fHalf, sHalf), odd = oddBatch(fHalf, sHalf);
+    std::vector<int>res = mergeBatch(even, odd);
+    return res;
+}
+
+std::vector<int> batchShellSortTbb(const std::vector<int>& A, const int n, int size) {
+    std::vector<std::vector<int>> vec = splitV(A, n);
+    tbb::task_scheduler_init init(n);
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, vec.size(), 1),
+        [&vec](const tbb::blocked_range<size_t>& r) {
+        int begin = r.begin(), end = r.end();
+        for (int i = begin; i != end; ++i)
+            vec[i] = shellSort(vec[i], vec[i].size());
+        }, tbb::simple_partitioner());
+
+    init.terminate();
+    std::vector<int> res = vec[0];
+    std::vector<int> odd, even;
+
+    for (int i = 1; i < n; i++) {
+        odd = oddBatch(res, vec[i]);
+        even = evenBatch(res, vec[i]);
+        res = mergeBatch(even, odd);
+    }
+    return res;
+}
+
+std::vector<int> evenBatch(const std::vector<int>& A, const std::vector<int>& B) {
+    std::vector <int> res(A.size() / 2 + B.size() / 2 + A.size() % 2 + B.size() % 2);
+    size_t a = 0, b = 0, i = 0;
+    while ((a < A.size()) && (b < B.size())) {
+        if (A[a] <= B[b]) {
+            res[i] = A[a];
+            a = a + 2;
+        } else {
+            res[i] = B[b];
+            b = b + 2;
+        }
+        ++i;
+    }
+    if (a >= A.size()) {
+        for (size_t j = b; j < B.size(); j = j + 2) {
+            res[i] = B[j];
+            ++i;
+        }
+    } else {
+        for (size_t j = a; j < A.size(); j = j + 2) {
+            res[i] = A[j];
+            ++i;
+        }
+    }
+    return res;
+}
+
+std::vector<int> oddBatch(const std::vector<int>& A, const std::vector<int>& B) {
+    std::vector <int> res(A.size() / 2 + B.size() / 2);
+    size_t a = 1, b = 1, i = 0;
+    while ((a < A.size()) && (b < B.size())) {
+        if (A[a] <= B[b]) {
+            res[i] = A[a];
+            a = a + 2;
+        } else {
+            res[i] = B[b];
+            b = b + 2;
+        }
+        ++i;
+    }
+    if (a >= A.size()) {
+        for (size_t j = b; j < B.size(); j = j + 2) {
+            res[i] = B[j];
+            ++i;
+        }
+    } else {
+        for (size_t j = a; j < A.size(); j = j + 2) {
+            res[i] = A[j];
+            ++i;
+        }
+    }
+    return res;
+}
+
+std::vector<int> mergeBatch(const std::vector<int>& even, const std::vector<int>& odd) {
+    size_t sizeE = even.size(), sizeO = odd.size(), j, size = sizeE + sizeO, i = 0, ev = 0, od = 0;
+    int tmp;
+    std::vector<int> res(size);
+    while ((ev < sizeE) && (od < sizeO)) {
+        res[i] = even[ev];
+        res[i + 1] = odd[od];
+        i = i + 2;
+        ++ev;
+        ++od;
+    }
+    if ((od >= sizeO) && (ev < sizeE)) {
+        for (j = i; j < size; j++) {
+            res[j] = even[ev];
+            ++ev;
+        }
+    }
+    for (size_t i = 0; i < size - 1; i++) {
+        if (res[i] > res[i + 1]) {
+            tmp = res[i];
+            res[i] = res[i + 1];
+            res[i + 1] = tmp;
+        }
+    }
+    return res;
+}
+
+
+\end{lstlisting}
+
+\begin{lstlisting}
+// Copyright 2021 Kamskov Eugene
+#include "../../../modules/task_1/kamskov_e_shell_batcher_sort/shell_batcher.h"
+
+
+std::vector<int> getRandomVector(int size) {
+    if (size < 1) {
+        throw - 1;
+    }
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    std::vector<int> vec(size);
+    for (int i = 0; i < size; ++i) vec[i] = gen() % 100;
+    return vec;
+}
+
+std::vector<int> shellSort(const std::vector<int>& v, int size) {
+    int del, i, j;
+    std::vector<int>res(v);
+    for (del = size / 2; del > 0; del = del / 2) {
+        for (i = del; i < static_cast<int>(res.size()); i++) {
+            for (j = i - del; j >= 0 && res[j] > res[j + del]; j = j - del) {
+                std::swap(res[j], res[j + del]);
+            }
+        }
+    }
+    return res;
+}
+
+std::vector<int> batchShellSort(const std::vector<int>& v, int size) {
+    std::vector<int>fHalf;
+    std::copy(v.begin(), v.end() - size / 2, inserter(fHalf, fHalf.begin()));
+    fHalf = shellSort(fHalf, fHalf.size());
+    std::vector<int> sHalf;
+    std::copy(v.end() - size / 2, v.end(), inserter(sHalf, sHalf.begin()));
+    sHalf = shellSort(sHalf, sHalf.size());
+
+    std::vector<int>even = evenBatch(fHalf, sHalf);
+    std::vector<int>odd = oddBatch(fHalf, sHalf);
+    std::vector<int>res = mergeBatch(even, odd);
+    return res;
+}
+
+std::vector<int> evenBatch(const std::vector<int>& A, const std::vector<int>& B) {
+    int size_res = A.size() / 2 + B.size() / 2 + A.size() % 2 + B.size() % 2;
+    std::vector <int> res(size_res);
+    size_t iA = 0, iB = 0, i = 0;
+    while ((iA < A.size()) && (iB < B.size())) {
+        if (A[iA] <= B[iB]) {
+            res[i] = A[iA];
+            iA += 2;
+        } else {
+            res[i] = B[iB];
+            iB += 2;
+        }
+        ++i;
+    }
+    if (iA >= A.size()) {
+        for (size_t j = iB; j < B.size(); j = j + 2) {
+            res[i] = B[j];
+            ++i;
+        }
+    } else {
+        for (size_t j = iA; j < A.size(); j = j + 2) {
+            res[i] = A[j];
+            ++i;
+        }
+    }
+    return res;
+}
+
+std::vector<int> oddBatch(const std::vector<int>& A, const std::vector<int>& B) {
+    int size_res = A.size() / 2 + B.size() / 2;
+    std::vector <int> res(size_res);
+    size_t iA = 1, iB = 1, i = 0;
+    while ((iA < A.size()) && (iB < B.size())) {
+        if (A[iA] <= B[iB]) {
+            res[i] = A[iA];
+            iA = iA + 2;
+        } else {
+            res[i] = B[iB];
+            iB = iB + 2;
+        }
+        ++i;
+    }
+    if (iA >= A.size()) {
+        for (size_t j = iB; j < B.size(); j = j + 2) {
+            res[i] = B[j];
+            ++i;
+        }
+    } else {
+        for (size_t j = iA; j < A.size(); j = j + 2) {
+            res[i] = A[j];
+            ++i;
+        }
+    }
+    return res;
+}
+
+std::vector<int> mergeBatch(const std::vector<int>& even, const std::vector<int>& odd) {
+    size_t sizeE = even.size();
+    size_t sizeO = odd.size();
+    size_t size = sizeE + sizeO;
+    std::vector<int> res(size);
+    size_t i = 0, e = 0, o = 0;
+    while ((e < sizeE) && (o < sizeO)) {
+        res[i] = even[e];
+        res[i + 1] = odd[o];
+        i = i + 2;
+        ++e;
+        ++o;
+    }
+    if ((o >= sizeO) && (e < sizeE)) {
+        for (size_t l = i; l < size; l++) {
+            res[l] = even[e];
+            ++e;
+        }
+    }
+    for (size_t i = 0; i < size - 1; i++) {
+        if (res[i] > res[i + 1]) {
+            std::swap(res[i], res[i + 1]);
+        }
+    }
+    return res;
+}
+
+void print(std::vector<int> const& a) {
+    for (size_t i = 0; i < a.size(); ++i) std::cout << a[i] << ' ';
+    std::cout << std::endl;
+}
+
+\end{lstlisting}
+
+\end{document}
