@@ -1,0 +1,1864 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Построение выпуклой оболочки для компонент бинарного изображения»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-1 \\ Макаров А. А.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Построение минимальной выпуклой оболочки компонент бинарного изображения является важным элементом в компьютерном зрении. Оно является частью отделения значимых элементов изображения от фона и позволяет работать лишь с представляющими интерес пикселами. Однако последовательная обработка большого количества изображений с множеством объектов или объектами, занимающими большую часть изображения, может занимать крайне много времени, из чего возникает естественная потребность в распараллеливании проводимых вычислений
+\par В данной лабораторной работе будет рассмотрено построение минимальной выпуклой оболочки компонент бинарного изображения с применением алгоритма Джарвиса. Будут реализованы последовательная и параллельная версии построения оболочки, что предполагает разбиение интересующих пикселов на части для обработки их на разных ядрах.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы необходимо реализовать последовательную и параллельную версии алгоритма построения минимальной выпуклой оболочки компонент бинарного изображения, проверить корректность работы алгоритмов, провести эксперименты для оценки эффективности параллельной реализации. По полученным результатам сделать выводы.
+\par Необходимо реализовать три версии, используя три технологии:  открытый стандарт для распараллеливания программ OpenMP, кроссплатформенную библиотеку шаблонов TBB и класс из стандартной библиотеки шаблонов stl - std::thread. Для проверки корректности работы алгоритмов требуется использовать Google C++ Testing Framework.
+\newpage
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+\par Поиск минимальной выпуклой оболочки компонент бинарного изобраежния подразумевает собой выделение этих самых компонент. В данной лабораторной работе применяется однопроходный рекурсивный алгоритм для выделения связных компонент. Процесс поиска сводится к следующим операциям. Находится непомеченный черный пиксель. Ему присваивается новая метка и вызывается процедура поиска всех черных необработанных соседей. Для каждого из найденных соседей производится рекурсивный вызов процедуры поиска. Очевидно, что во избежание множественных рекурсивных вызовов используется структура данныых "стек".
+
+\par Для нахождения минимальной выпуклой оболочки используется алгоритм Джарвиса. Алгоритм Джарвиса (или алгоритм обхода Джарвиса, или алгоритм заворачивания подарка) определяет последовательность элементов множества, образующих выпуклую оболочку для этого множества. Алгоритм работает за время $O(nh)$, где $n$ - общее число точек на плоскости, а $h$ - число точек в выпуклой оболочке.
+\par Сам алгоритм заключается в следующем. Пусть дано множество точек $P = \{p_1, p_2, ..., p_n\}$. В качестве начальной берётся самая левая нижняя точка $p_1$. Ее можно найти за время $O(n)$ обычным проходом по всем точкам, она точно является вершиной выпуклой оболочки. Следующей точкой $p_2$ берем любую из оставшихся точек. Далее проходимся по всем точкам, и если какая-либо точка $p_i$ так располагается относительно $p_1$, что векторное произведение векторов $p_1p_2$ и $p_1p_i$ направлено в положительную сторону оси z (в случае изображения на наблюдателя), т.е. $p_1p_i$ находится слева от $p_1p_2$, то $p_i$ становится новой следующей точкой. Таким образом мы находим самую "левую" точку относительно $p_1$. Далее мы проделываем те же операции с этой точкой, приняв ее за изначальную. Алгоритм завершается, когда следующей точкой оказывается $p_1$. Векторное произведение вычисляется по формуле (для векторов a и b):
+\begin{gather}
+[\vec{a}, \vec{b}] = \begin{vmatrix}a_x & a_y \\ b_x & b_y \end{vmatrix} = a_xb_y - a_yb_x
+\end{gather}
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+\par В данной лабораторной работе используется следующая схема реализации. Корневой поток проверяет, сколько он может создать потоков, и если это число превышает число меньше, чем число компонент, то компоненты распределяются между потоками. Если же число компонент меньше числа потоков, то происходит параллелизация алгоритма Джарвиса при вычислении оболочки для каждой компоненты. Так как алгоритм Джарвиса итерационный и для нахождения каждой следующей точки требуется предыдущая, то единственной операцией, которую можно распараллелить, остается поиск самой левой точки. Все точки компоненты в равных пропорциях распределяются между потоками, каждый поток ищет самую левую точку среди тех, что он получил, а конечный результат получается путем нахождения самой левой точки среди результатов работы всех потоков.
+\newpage
+
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\parАлгоритм маркировки связных компонент бинарного изображения реализован в функции:
+\begin{lstlisting}
+std::vector<int> mark_components(const std::vector<int>& bin_image, int w, int h)
+\end{lstlisting}
+\parВходные параметры:
+\begin{itemize}
+\item bin\_image - бинарное изображение для обработки
+\item w, h - ширина и высота этого изображения
+\end{itemize}
+\par Функция возвращает промаркированное изображение
+
+\parАлгоритм последовательного нахождения минимальной выпуклой оболочки реализован в функции:
+\begin{lstlisting}
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls_seq(const std::vector<int>& marked_image, int w, int h)
+\end{lstlisting}
+\par Входные параметры:
+\begin{itemize}
+\item marked\_image - изображение с промаркированными компонентами для обработки
+\item w, h - ширина и высота этого изображения
+\end{itemize}
+\par Функция возвращает набор выпуклых оболочек для каждой компоненты переданного изображения
+
+\par Алгоритм параллельного нахождения минимальной выпуклой оболочки реализован в функции:
+\begin{lstlisting}
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls_seq(const std::vector<int>& marked_image, int w, int h)
+\end{lstlisting}
+\par Входные параметры:
+\begin{itemize}
+\item marked\_image - изображение с промаркированными компонентами для обработки
+\item w, h - ширина и высота этого изображения
+\end{itemize}
+\par Функция возвращает набор выпуклых оболочек для каждой компоненты переданного изображения
+
+\par Определение направления векторного произведения реализовано в функции:
+\begin{lstlisting}
+int orientation(std::pair<int, int> c, std::pair<int, int> a,
+                std::pair<int, int> b)
+\end{lstlisting}
+\par Входные параметры:
+\begin{itemize}
+\item c - точка начала координат
+\item a - точка, соответствующая концу первого вектора
+\item b - точка, соответствующая концу второго вектора
+\end{itemize}
+
+\par Функция возвращает 1, если векторное произведение $[ca, cb]$ направлено в положительную сторону оси z (т.е. $cb$ находится слева от $ca$), 2 если в отрицательную ($cb$ справа от $ca$), 0 если векторное произведение - нулевой вектор ($ca$ и $cb$ коллинеарны)
+
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с использованием Google C++ Testing Framework.
+\par Набор представляет из себя несколько тестов на заданных в виде глобальных констант изображений одинакового размера, содержащих примитивные фигуры, минимальные выпуклые оболочки которых также заданы в глобальных константах. Корректность в этом случае проверяется путем сравнения полученных оболочек с заданными. Также присутствуют тесты, которые генерируют случайные указанного размера из примитивов выше. Случайность обеспечивается случайным выбором примитивов. Корректность проверяется путем сравнения составленного для изображения списка из заданных оболочек и списка, полученного после выполнения алгоритма. Также тесты проверяеют эффективность (сравнивается время выполнения последовательной и параллельной реализации).
+\par Успешное прохождение всех тестов доказывает корректность работы программного комплекса, а по времени выполнения можно судить об эффективности параллельной реализации
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Эксперименты для оценки эффективности нахождения минимальной выпуклой оболочки компонент бинарного изображения проводились на машине со следующей конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel(R) Core(TM) i5-4690K CPU @ 3.50GHz, количество ядер: 4;
+\item Оперативная память: 16 ГБ, DDR3;
+\item ОС: Microsoft Windows 10 Home, версия 1909 сборка 18363.1256.
+\end{itemize}
+
+\par Для проведения экспериментов производилось построение минимальной выпуклой обололочки случайного изображения, сгенерированного из примитивов размером 15000x15000. 
+\par Результаты экспериментов представлены в таблице.
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов}
+\centering
+\begin{tabular}{lllll}
+Последовательная версия & OpenMP & TBB & std::thread  \\
+41.2144                 & 28.994 (1.42 раза) & 20.6657 (1.99 раза) & 35.0822 (1,17 раза)
+\end{tabular}
+\end{table}
+
+\par По замерам времени экспериментов, можно сделать вывод о том, что параллельный случай действительно работает быстрее, чем последовательный. 
+\par Кроме того, можно сделать вывод, что при данной аппаратной конфигурации наиболее эффективным оказалась TBB реализация. Реализация на std::thread наоборот показала наименьшую эффективность, вероятно из-за излишней загруженности главного потока.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате лабораторной работы были разработаны последовательная и параллельная реализации построения минимальной выпуклой оболочки компонент бинарного изображения с помощью алгоритма Джарвиса.
+\par Задача данной лабораторной работы заключалась в параллельной реализации алгоритма, которая была бы более эффективная, чем последовательная. Задача была успешно выполнена, что следует из вышеприведенных результатов экспериментов.
+\par Кроме того, были разработаны и доведены до успешного выполнения тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{ТГУ} Препарата Ф., Шеймос М. Вычислительная геометрия: Введение / Пер. с англ. – М.: Мир, 1989. – 478 с. 
+\bibitem{Стержанов Максим Валерьевич} Стержанов Максим Валерьевич. Выделение связных компонент в штриховых бинарных изображениях
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В данном разделе находится листинг всего кода, написанного в рамках лабораторной работы. Последовательная реализация не приведена, т.к. она включена в код параллельной для сравнительных тестов.
+\subsection*{OpenMP реализация}
+\subsubsection*{Заголовочный файл}
+\begin{lstlisting}
+// Copyright 2021 Makarov Alexander
+#ifndef MODULES_TASK_2_MAKAROV_A_IMAGE_CONVEX_HULL_IMAGE_CONVEX_HULL_H_
+#define MODULES_TASK_2_MAKAROV_A_IMAGE_CONVEX_HULL_IMAGE_CONVEX_HULL_H_
+
+#include <vector>
+#include <list>
+#include <utility>
+
+std::vector<int> mark_components(const std::vector<int>& bin_image, int w,
+                                 int h);
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls(
+                           const std::vector<int>& marked_image, int w, int h);
+
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls_seq(
+                          const std::vector<int>& marked_image, int w, int h);
+
+#endif  // MODULES_TASK_2_MAKAROV_A_IMAGE_CONVEX_HULL_IMAGE_CONVEX_HULL_H_
+\end{lstlisting}
+\subsubsection{Файл с реализацией}
+\begin{lstlisting}
+// Copyright 2021 Makarov Alexander
+#include "../../../modules/task_2/makarov_a_image_convex_hull/image_convex_hull.h"
+
+#include <omp.h>
+
+#include <utility>
+#include <stack>
+#include <iostream>
+#include <list>
+#include <algorithm>
+
+std::vector<int> mark_components(const std::vector<int>& bin_image,
+                                 int w, int h) {
+    int components_count = 1;  // plus background
+    std::vector<int> result(bin_image);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (result[i * w + j] == 0) {
+                components_count++;
+                std::pair<int, int> burn_point(j, i);
+                result[i * w + j] = components_count;
+                std::stack<std::pair<int, int> > burn_stack;
+                burn_stack.push(burn_point);
+                while (!burn_stack.empty()) {
+                    std::pair<int, int> curr_point = burn_stack.top();
+                    int x = curr_point.first;
+                    int y = curr_point.second;
+                    burn_stack.pop();
+                    if (y > 0 &&
+                        result[(y - 1) * w + x] == 0) {
+                        result[(y - 1) * w + x] = components_count;
+                        burn_stack.push(std::pair<int, int>(x, y - 1));
+                    }
+                    if (y + 1 < h &&
+                        result[(y + 1) * w + x] == 0) {
+                        result[(y + 1) * w + x] = components_count;
+                        burn_stack.push(std::pair<int, int>(x, y + 1));
+                    }
+                    if (x > 0 &&
+                        result[y * w + x - 1] == 0) {
+                        result[y * w + x - 1] = components_count;
+                        burn_stack.push(std::pair<int, int>(x - 1, y));
+                    }
+                    if (x + 1 < w &&
+                        result[y * w + x + 1] == 0) {
+                        result[y * w + x + 1] = components_count;
+                        burn_stack.push(std::pair<int, int>(x + 1, y));
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+int orientation(std::pair<int, int> c, std::pair<int, int> a,
+                std::pair<int, int> b) {
+    int vec_mlp = (a.first - c.first) * (b.second - c.second) -
+                  (a.second - c.second) * (b.first - c.first);
+    /*int vec_mlp = (q.second - p.second) * (r.first - p.first) -
+              (q.first - p.first) * (r.second - q.second);*/
+    if (vec_mlp == 0) return 0;  // colinear
+    return (vec_mlp > 0) ? 1: 2;
+    // 1 - b on left side ca, 2 - b on rigth side ca
+}
+
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls(
+                          const std::vector<int>& marked_image, int w, int h) {
+    int comp_count = *std::max_element(marked_image.begin(),
+                                       marked_image.end()) - 1;
+    std::vector<std::list<std::pair<int, int> > > components(comp_count);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (marked_image[i * w + j] == 1) {
+                continue;
+            } else {
+                std::pair<int, int> point(j, i);
+                components[marked_image[i * w + j] - 2].push_back(point);
+            }
+        }
+    }
+    std::vector<std::list<std::pair<int, int> > > result(comp_count);
+    int condition;
+    int threads_count = omp_get_max_threads();
+    if (threads_count < static_cast<int>(components.size()))
+        condition = 1;
+    else
+        condition = 0;
+    #pragma omp parallel if (condition)
+    {
+        int thread_num = omp_get_thread_num();
+        #pragma omp for
+        for (int comp_num = 0; comp_num < static_cast<int>(components.size());
+                                                                  comp_num++) {
+            std::list<std::pair<int, int> > component_list =
+                                                    components[comp_num];
+            if (component_list.size() < 3) {
+                result[comp_num] = component_list;
+            } else {
+                std::pair<int, int> start(w, h);
+                int start_idx = 0;
+                int n = component_list.size();
+                std::vector<std::pair<int, int> > component(n);
+                int counter_1 = 0;
+                for (auto point : component_list) {
+                    component[counter_1] = point;
+                    if (point.first < start.first) {
+                        start = point;
+                        start_idx = counter_1;
+                    }
+                    counter_1++;
+                }
+                int curr = start_idx;
+                int next;
+                do {
+                    result[comp_num].push_back(component[curr]);
+                    next = (curr + 1) % n;
+                    std::vector<int> next_array(threads_count, next);
+                    #pragma omp parallel private(thread_num)
+                    {
+                        thread_num = omp_get_thread_num();
+                        #pragma omp for
+                        for (int i = 0; i < n; i++) {
+                            int orient = orientation(component[curr],
+                              component[next_array[thread_num]], component[i]);
+                            if (orient == 1)
+                                next_array[thread_num] = i;
+                        }
+                    }
+                    next = next_array[0];
+                    for (int i = 0; i < static_cast<int>(next_array.size());
+                                                                         i++) {
+                        int orient = orientation(component[curr],
+                                    component[next], component[next_array[i]]);
+                        if (orient == 1)
+                            next = next_array[i];
+                    }
+                    curr = next;
+                } while (curr != start_idx);
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls_seq(
+                          const std::vector<int>& marked_image, int w, int h) {
+    int comp_count = *std::max_element(marked_image.begin(),
+                                       marked_image.end()) - 1;
+    std::vector<std::list<std::pair<int, int> > > components(comp_count);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (marked_image[i * w + j] == 1) {
+                continue;
+            } else {
+                std::pair<int, int> point(j, i);
+                components[marked_image[i * w + j] - 2].push_back(point);
+            }
+        }
+    }
+    std::vector<std::list<std::pair<int, int> > > result(comp_count);
+    for (int comp_num = 0; comp_num < static_cast<int>(components.size());
+                                                                  comp_num++) {
+        std::list<std::pair<int, int> > component_list = components[comp_num];
+        if (component_list.size() < 3) {
+            result[comp_num] = component_list;
+        } else {
+            std::pair<int, int> start(w, h);
+            int start_idx = 0;
+            int n = component_list.size();
+            std::vector<std::pair<int, int> > component(n);
+            int counter_1 = 0;
+            for (auto point : component_list) {
+                component[counter_1] = point;
+                if (point.first < start.first) {
+                    start = point;
+                    start_idx = counter_1;
+                }
+                counter_1++;
+            }
+            int curr = start_idx;
+            int next;
+            do {
+                result[comp_num].push_back(component[curr]);
+                next = (curr + 1) % n;
+                for (int i = 0; i < n; i++) {
+                    int orient = orientation(component[curr], component[next],
+                                                                 component[i]);
+                    if (orient == 1)
+                        next = i;
+                }
+                curr = next;
+            } while (curr != start_idx);
+        }
+    }
+    return result;
+}
+\end{lstlisting}
+\subsubsection{Файл с тестами}
+\begin{lstlisting}
+// Copyright 2021 Makarov Alexander
+
+#include <omp.h>
+
+#include <gtest/gtest.h>
+#include <vector>
+#include <iostream>
+#include <random>
+
+#include "./image_convex_hull.h"
+
+const int prm_size = 15;
+std::vector<std::vector<int> > primitives = {
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1,
+        1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+        1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+        1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1,
+        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+};
+
+std::vector<std::list <std::pair<int, int> > > primitives_convex_hulls = {
+    {
+        {1, 6}, {1, 7}, {1, 8}, {6, 13}, {7, 13}, {8, 13}, {13, 8}, {13, 6},
+        {8, 1}, {6, 1}
+    },
+    {
+        {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9},
+        {1, 10}, {1, 11}, {1, 12}, {1, 13}, {2, 13}, {3, 13}, {4, 13}, {5, 13},
+        {6, 13}, {7, 13}, {8, 13}, {9, 13}, {10, 13}, {11, 13}, {12, 13},
+        {13, 13}
+    },
+    {
+        {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9},
+        {1, 10}, {1, 11}, {1, 12}, {1, 13}, {2, 13}, {3, 13}, {4, 13}, {5, 13},
+        {6, 13}, {7, 13}, {8, 13}, {9, 13}, {10, 13}, {11, 13}, {12, 13},
+        {13, 13}, {13, 1}
+    },
+    {
+        {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {1, 10}, {2, 11},
+        {3, 12}, {4, 13}, {5, 13}, {6, 13}, {7, 13}, {8, 13}, {9, 13},
+        {10, 13}, {13, 10}, {13, 4}, {10, 1}, {4, 1}, {3, 2}, {2, 3}
+    },
+    {
+        {1, 1}, {1, 2}, {1, 12}, {1, 13}, {2, 13}, {12, 13}, {13, 13}, {13, 1}
+    },
+};
+
+TEST(Components, Test_Vert_Cross) {
+    const std::vector<int> image = primitives[0];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    /*for (int i = 0; i < h; i++){
+        for (int j = 0; j < w; j++)
+            std::cout << marked_image[i * w + j] << " ";
+        std::cout << std::endl;
+    }*/
+
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    /*for (int i = 0; i < convex_hulls.size(); i++) {
+        std::cout << i + 2 << ": ";
+        for (auto point : convex_hulls[i]) {
+            std::cout << "(" << point.first << ";" << point.second << ") ";
+        }
+        std::cout << std::endl;
+    }*/
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[0]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Triangle) {
+    const std::vector<int> image = primitives[1];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[1]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Perimeter) {
+    const std::vector<int> image = primitives[2];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[2]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Sqr_Without_Angles) {
+    const std::vector<int> image = primitives[3];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[3]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Diag_Cross) {
+    const std::vector<int> image = primitives[4];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                            get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[4]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_50x50_prim_image) {
+    int h = 50, w = 50;
+    int size = w * h;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::vector<int> image(size * prm_size * prm_size);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls(size);
+    for (int i = 0; i < h; i++)
+        for (int j = 0; j < w; j++) {
+            int prm_num = static_cast<int>(gen() % primitives.size());
+            expected_hulls[i * w + j] = primitives_convex_hulls[prm_num];
+            for (std::pair<int, int>& point : expected_hulls[i * w + j]) {
+                point.first += j * prm_size;
+                point.second += i * prm_size;
+            }
+            for (int k = 0; k < prm_size; k++)
+                for (int q = 0; q < prm_size; q++) {
+                    int idx = (i * w * prm_size + j) * prm_size +
+                           k * w * prm_size + q;
+                    image[idx] = primitives[prm_num][k * prm_size + q];
+                }
+        }
+    std::vector<int> marked_image = mark_components(image, w * prm_size,
+                                                           h * prm_size);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls_seq,
+                                                   convex_hulls_par;
+
+    double start_time, end_time, seq_time, par_time;
+
+    start_time = omp_get_wtime();
+    convex_hulls_seq = get_convex_hulls_seq(marked_image, w * prm_size,
+                                                          h * prm_size);
+    end_time = omp_get_wtime();
+    seq_time = end_time - start_time;
+
+    int threads_num = omp_get_num_procs();
+    omp_set_num_threads(threads_num);
+    start_time = omp_get_wtime();
+    convex_hulls_par = get_convex_hulls(marked_image, w * prm_size,
+                                                      h * prm_size);
+    end_time = omp_get_wtime();
+    par_time = end_time - start_time;
+
+    std::cout << "Seq time: " << seq_time << " s" << std::endl;
+    std::cout << "Par time: " << par_time << " s" << std::endl;
+
+    ASSERT_EQ(convex_hulls_par, convex_hulls_seq);
+    ASSERT_EQ(convex_hulls_par, expected_hulls);
+}
+
+TEST(Components, Test_100x100_worst) {
+    int h = 100, w = 100;
+    int size = w * h;
+    std::vector<int> image(size, 0);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls(1);
+    for (int i = 0; i < h; i++) {
+        expected_hulls[0].push_back(std::pair<int, int>(0, i));
+    }
+    for (int i = 1; i < w; i++) {
+        expected_hulls[0].push_back(std::pair<int, int>(i, h - 1));
+    }
+    expected_hulls[0].push_back(std::pair<int, int>(w - 1, 0));
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls_seq,
+                                                   convex_hulls_par;
+
+    double start_time, end_time, seq_time, par_time;
+
+    start_time = omp_get_wtime();
+    convex_hulls_seq = get_convex_hulls_seq(marked_image, w, h);
+    end_time = omp_get_wtime();
+    seq_time = end_time - start_time;
+
+    int threads_num = omp_get_num_procs();
+    omp_set_num_threads(threads_num);
+    start_time = omp_get_wtime();
+    convex_hulls_par = get_convex_hulls(marked_image, w, h);
+    end_time = omp_get_wtime();
+    par_time = end_time - start_time;
+
+    std::cout << "Seq time: " << seq_time << " s" << std::endl;
+    std::cout << "Par time: " << par_time << " s" << std::endl;
+
+    ASSERT_EQ(convex_hulls_par, convex_hulls_seq);
+    ASSERT_EQ(convex_hulls_par, expected_hulls);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\subsection*{TBB реализация}
+\subsubsection*{Заголовочный файл}
+\begin{lstlisting}
+// Copyright 2021 Makarov Alexander
+#ifndef MODULES_TASK_3_MAKAROV_A_IMAGE_CONVEX_HULL_IMAGE_CONVEX_HULL_H_
+#define MODULES_TASK_3_MAKAROV_A_IMAGE_CONVEX_HULL_IMAGE_CONVEX_HULL_H_
+
+#include <vector>
+#include <list>
+#include <utility>
+
+std::vector<int> mark_components(const std::vector<int>& bin_image, int w,
+                                 int h);
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls(
+                           const std::vector<int>& marked_image, int w, int h);
+
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls_seq(
+                          const std::vector<int>& marked_image, int w, int h);
+
+#endif  // MODULES_TASK_3_MAKAROV_A_IMAGE_CONVEX_HULL_IMAGE_CONVEX_HULL_H_
+\end{lstlisting}
+\subsubsection{Файл с реализацией}
+\begin{lstlisting}
+// Copyright 2021 Makarov Alexander
+#include "../../../modules/task_3/makarov_a_image_convex_hull/image_convex_hull.h"
+
+#include <utility>
+#include <stack>
+#include <iostream>
+#include <list>
+#include <algorithm>
+
+#include "tbb/blocked_range.h"
+#include "tbb/parallel_for.h"
+#include "tbb/parallel_reduce.h"
+
+#define PAR_THRESHOLD 1000
+
+std::vector<int> mark_components(const std::vector<int>& bin_image,
+                                 int w, int h) {
+    int components_count = 1;  // plus background
+    std::vector<int> result(bin_image);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (result[i * w + j] == 0) {
+                components_count++;
+                std::pair<int, int> burn_point(j, i);
+                result[i * w + j] = components_count;
+                std::stack<std::pair<int, int> > burn_stack;
+                burn_stack.push(burn_point);
+                while (!burn_stack.empty()) {
+                    std::pair<int, int> curr_point = burn_stack.top();
+                    int x = curr_point.first;
+                    int y = curr_point.second;
+                    burn_stack.pop();
+                    if (y > 0 &&
+                        result[(y - 1) * w + x] == 0) {
+                        result[(y - 1) * w + x] = components_count;
+                        burn_stack.push(std::pair<int, int>(x, y - 1));
+                    }
+                    if (y + 1 < h &&
+                        result[(y + 1) * w + x] == 0) {
+                        result[(y + 1) * w + x] = components_count;
+                        burn_stack.push(std::pair<int, int>(x, y + 1));
+                    }
+                    if (x > 0 &&
+                        result[y * w + x - 1] == 0) {
+                        result[y * w + x - 1] = components_count;
+                        burn_stack.push(std::pair<int, int>(x - 1, y));
+                    }
+                    if (x + 1 < w &&
+                        result[y * w + x + 1] == 0) {
+                        result[y * w + x + 1] = components_count;
+                        burn_stack.push(std::pair<int, int>(x + 1, y));
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+int orientation(std::pair<int, int> c, std::pair<int, int> a,
+                std::pair<int, int> b) {
+    int vec_mlp = (a.first - c.first) * (b.second - c.second) -
+                  (a.second - c.second) * (b.first - c.first);
+    if (vec_mlp == 0) return 0;  // colinear
+    return (vec_mlp > 0) ? 1: 2;
+    // 1 - b on left side ca, 2 - b on rigth side ca
+}
+
+class FindLeft {
+    const std::vector<std::pair<int, int> >& component;
+    const int curr;
+    int next;
+
+ public:
+    explicit FindLeft(const std::vector<std::pair<int, int> >& i_component,
+                               int i_curr, int i_next): component(i_component),
+        curr(i_curr), next(i_next) {}
+    FindLeft(const FindLeft& f, tbb::split): component(f.component),
+                                                  curr(f.curr), next(f.next) {}
+
+    void operator() (const tbb::blocked_range<int>& r) {
+        int begin = r.begin(), end = r.end();
+        for (int i = begin; i != end; i++) {
+            int orient = orientation(component[curr], component[next],
+                                                 component[i]);
+            if (orient == 1)
+                next = i;
+        }
+    }
+
+    void join(const FindLeft &reduct) {
+        int orient = orientation(component[curr], component[next],
+                                             component[reduct.next]);
+        if (orient == 1) next = reduct.next;
+    }
+
+    int Result() {
+        return next;
+    }
+};
+
+class JarvisAlgorithm {
+    const std::vector<std::list<std::pair<int, int> > > &components;
+    std::vector<std::list<std::pair<int, int> > > * const result;
+
+ public:
+    JarvisAlgorithm(
+             const std::vector<std::list<std::pair<int, int> > > &i_components,
+        std::vector<std::list<std::pair<int, int> > > * const i_result):
+                                  components(i_components), result(i_result) {}
+
+    void operator() (const tbb::blocked_range<int>& r) const {
+        int begin = r.begin(), end = r.end();
+        for (int comp_num = begin; comp_num != end; comp_num++) {
+            std::list<std::pair<int, int> > component_list =
+                                                          components[comp_num];
+            if (component_list.size() < 3) {
+                (*result)[comp_num] = component_list;
+            } else {
+                std::pair<int, int> start(component_list.front());
+                int start_idx = 0;
+                int n = component_list.size();
+                std::vector<std::pair<int, int> > component(n);
+                int counter_1 = 0;
+                for (auto point : component_list) {
+                    component[counter_1] = point;
+                    if (point.first < start.first) {
+                        start = point;
+                        start_idx = counter_1;
+                    }
+                    counter_1++;
+                }
+                int curr = start_idx;
+                int next;
+                do {
+                    (*result)[comp_num].push_back(component[curr]);
+                    next = (curr + 1) % n;
+                    FindLeft f(component, curr, next);
+                    if (component.size() < PAR_THRESHOLD) {
+                        for (int i = 0; i < n; i++) {
+                            int orient = orientation(component[curr],
+                                                component[next], component[i]);
+                            if (orient == 1)
+                                next = i;
+                        }
+                        curr = next;
+                    } else {
+                        tbb::parallel_reduce(tbb::blocked_range<int>(0, n), f);
+                        curr = f.Result();
+                    }
+                } while (curr != start_idx);
+            }
+        }
+    }
+};
+
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls(
+                          const std::vector<int>& marked_image, int w, int h) {
+    int comp_count = *std::max_element(marked_image.begin(),
+                                       marked_image.end()) - 1;
+    std::vector<std::list<std::pair<int, int> > > components(comp_count);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (marked_image[i * w + j] == 1) {
+                continue;
+            } else {
+                std::pair<int, int> point(j, i);
+                components[marked_image[i * w + j] - 2].push_back(point);
+            }
+        }
+    }
+    std::vector<std::list<std::pair<int, int> > > result(comp_count);
+    tbb::parallel_for(tbb::blocked_range<int>(0,
+                                          static_cast<int>(components.size())),
+        JarvisAlgorithm(components, &result));
+    return result;
+}
+
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls_seq(
+                          const std::vector<int>& marked_image, int w, int h) {
+    int comp_count = *std::max_element(marked_image.begin(),
+                                       marked_image.end()) - 1;
+    std::vector<std::list<std::pair<int, int> > > components(comp_count);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (marked_image[i * w + j] == 1) {
+                continue;
+            } else {
+                std::pair<int, int> point(j, i);
+                components[marked_image[i * w + j] - 2].push_back(point);
+            }
+        }
+    }
+    std::vector<std::list<std::pair<int, int> > > result(comp_count);
+    for (int comp_num = 0; comp_num < static_cast<int>(components.size());
+                                                                  comp_num++) {
+        std::list<std::pair<int, int> > component_list = components[comp_num];
+        if (component_list.size() < 3) {
+            result[comp_num] = component_list;
+        } else {
+            std::pair<int, int> start(w, h);
+            int start_idx = 0;
+            int n = component_list.size();
+            std::vector<std::pair<int, int> > component(n);
+            int counter_1 = 0;
+            for (auto point : component_list) {
+                component[counter_1] = point;
+                if (point.first < start.first) {
+                    start = point;
+                    start_idx = counter_1;
+                }
+                counter_1++;
+            }
+            int curr = start_idx;
+            int next;
+            do {
+                result[comp_num].push_back(component[curr]);
+                next = (curr + 1) % n;
+                for (int i = 0; i < n; i++) {
+                    int orient = orientation(component[curr], component[next],
+                                                                 component[i]);
+                    if (orient == 1)
+                        next = i;
+                }
+                curr = next;
+            } while (curr != start_idx);
+        }
+    }
+    return result;
+}
+\end{lstlisting}
+\subsubsection{Файл с тестами}
+\begin{lstlisting}
+// Copyright 2021 Makarov Alexander
+
+#include <gtest/gtest.h>
+#include <vector>
+#include <iostream>
+#include <random>
+
+#include "tbb/tick_count.h"
+#include "./image_convex_hull.h"
+
+const int prm_size = 15;
+std::vector<std::vector<int> > primitives = {
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1,
+        1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+        1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+        1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1,
+        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+};
+
+std::vector<std::list <std::pair<int, int> > > primitives_convex_hulls = {
+    {
+        {1, 6}, {1, 7}, {1, 8}, {6, 13}, {7, 13}, {8, 13}, {13, 8}, {13, 6},
+        {8, 1}, {6, 1}
+    },
+    {
+        {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9},
+        {1, 10}, {1, 11}, {1, 12}, {1, 13}, {2, 13}, {3, 13}, {4, 13}, {5, 13},
+        {6, 13}, {7, 13}, {8, 13}, {9, 13}, {10, 13}, {11, 13}, {12, 13},
+        {13, 13}
+    },
+    {
+        {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9},
+        {1, 10}, {1, 11}, {1, 12}, {1, 13}, {2, 13}, {3, 13}, {4, 13}, {5, 13},
+        {6, 13}, {7, 13}, {8, 13}, {9, 13}, {10, 13}, {11, 13}, {12, 13},
+        {13, 13}, {13, 1}
+    },
+    {
+        {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {1, 10}, {2, 11},
+        {3, 12}, {4, 13}, {5, 13}, {6, 13}, {7, 13}, {8, 13}, {9, 13},
+        {10, 13}, {13, 10}, {13, 4}, {10, 1}, {4, 1}, {3, 2}, {2, 3}
+    },
+    {
+        {1, 1}, {1, 2}, {1, 12}, {1, 13}, {2, 13}, {12, 13}, {13, 13}, {13, 1}
+    },
+};
+
+TEST(Components, Test_Vert_Cross) {
+    const std::vector<int> image = primitives[0];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    /*for (int i = 0; i < h; i++){
+        for (int j = 0; j < w; j++)
+            std::cout << marked_image[i * w + j] << " ";
+        std::cout << std::endl;
+    }*/
+
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    /*for (int i = 0; i < convex_hulls.size(); i++) {
+        std::cout << i + 2 << ": ";
+        for (auto point : convex_hulls[i]) {
+            std::cout << "(" << point.first << ";" << point.second << ") ";
+        }
+        std::cout << std::endl;
+    }*/
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[0]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Triangle) {
+    const std::vector<int> image = primitives[1];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[1]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Perimeter) {
+    const std::vector<int> image = primitives[2];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[2]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Sqr_Without_Angles) {
+    const std::vector<int> image = primitives[3];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[3]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Diag_Cross) {
+    const std::vector<int> image = primitives[4];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                            get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[4]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_50x50_prim_image) {
+    int h = 50, w = 50;
+    int size = w * h;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::vector<int> image(size * prm_size * prm_size);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls(size);
+    for (int i = 0; i < h; i++)
+        for (int j = 0; j < w; j++) {
+            int prm_num = static_cast<int>(gen() % primitives.size());
+            expected_hulls[i * w + j] = primitives_convex_hulls[prm_num];
+            for (std::pair<int, int>& point : expected_hulls[i * w + j]) {
+                point.first +=  j * prm_size;
+                point.second += i * prm_size;
+            }
+            for (int k = 0; k < prm_size; k++)
+                for (int q = 0; q < prm_size; q++) {
+                    int idx = (i * w * prm_size + j) * prm_size +
+                           k * w * prm_size + q;
+                    image[idx] = primitives[prm_num][k * prm_size + q];
+                }
+        }
+    std::vector<int> marked_image = mark_components(image, w * prm_size,
+                                                           h * prm_size);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls_seq,
+                                                   convex_hulls_par;
+
+    tbb::tick_count start_time, end_time;
+    tbb::tick_count::interval_t seq_time, par_time;
+
+    start_time = tbb::tick_count::now();
+    convex_hulls_seq = get_convex_hulls_seq(marked_image, w * prm_size,
+                                                          h * prm_size);
+    end_time = tbb::tick_count::now();
+    seq_time = end_time - start_time;
+
+    start_time = tbb::tick_count::now();
+    convex_hulls_par = get_convex_hulls(marked_image, w * prm_size,
+                                                      h * prm_size);
+    end_time = tbb::tick_count::now();
+    par_time = end_time - start_time;
+
+    std::cout << "Seq time: " << seq_time.seconds() << " s" << std::endl;
+    std::cout << "Par time: " << par_time.seconds() << " s" << std::endl;
+
+    ASSERT_EQ(convex_hulls_par, convex_hulls_seq);
+    ASSERT_EQ(convex_hulls_par, expected_hulls);
+}
+
+TEST(Components, Test_100x100_worst) {
+    int h = 100, w = 100;
+    int size = w * h;
+    std::vector<int> image(size, 0);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls(1);
+    for (int i = 0; i < h; i++) {
+        expected_hulls[0].push_back(std::pair<int, int>(0, i));
+    }
+    for (int i = 1; i < w; i++) {
+        expected_hulls[0].push_back(std::pair<int, int>(i, h - 1));
+    }
+    expected_hulls[0].push_back(std::pair<int, int>(w - 1, 0));
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls_seq,
+                                                   convex_hulls_par;
+
+    tbb::tick_count start_time, end_time;
+    tbb::tick_count::interval_t seq_time, par_time;
+
+    start_time = tbb::tick_count::now();
+    convex_hulls_seq = get_convex_hulls_seq(marked_image, w, h);
+    end_time = tbb::tick_count::now();
+    seq_time = end_time - start_time;
+
+    start_time = tbb::tick_count::now();
+    convex_hulls_par = get_convex_hulls(marked_image, w, h);
+    end_time = tbb::tick_count::now();
+    par_time = end_time - start_time;
+
+    std::cout << "Seq time: " << seq_time.seconds() << " s" << std::endl;
+    std::cout << "Par time: " << par_time.seconds() << " s" << std::endl;
+
+    ASSERT_EQ(convex_hulls_par, convex_hulls_seq);
+    ASSERT_EQ(convex_hulls_par, expected_hulls);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+\subsection*{std::thread реализация}
+\subsubsection*{Заголовочный файл}
+\begin{lstlisting}
+// Copyright 2021 Makarov Alexander
+#ifndef MODULES_TASK_4_MAKAROV_A_IMAGE_CONVEX_HULL_IMAGE_CONVEX_HULL_H_
+#define MODULES_TASK_4_MAKAROV_A_IMAGE_CONVEX_HULL_IMAGE_CONVEX_HULL_H_
+
+#include <vector>
+#include <list>
+#include <utility>
+
+std::vector<int> mark_components(const std::vector<int>& bin_image, int w,
+                                 int h);
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls(
+                           const std::vector<int>& marked_image, int w, int h);
+
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls_seq(
+                          const std::vector<int>& marked_image, int w, int h);
+
+#endif  // MODULES_TASK_4_MAKAROV_A_IMAGE_CONVEX_HULL_IMAGE_CONVEX_HULL_H_
+\end{lstlisting}
+\subsubsection{Файл с реализацией}
+\begin{lstlisting}
+// Copyright 2021 Makarov Alexander
+#include "../../../modules/task_4/makarov_a_image_convex_hull/image_convex_hull.h"
+
+#include <utility>
+#include <stack>
+#include <iostream>
+#include <list>
+#include <algorithm>
+
+#include "../../../3rdparty/unapproved/unapproved.h"
+
+std::vector<int> mark_components(const std::vector<int>& bin_image,
+                                 int w, int h) {
+    int components_count = 1;  // + background
+    std::vector<int> result(bin_image);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (result[i * w + j] == 0) {
+                components_count++;
+                std::pair<int, int> burn_point(j, i);
+                result[i * w + j] = components_count;
+                std::stack<std::pair<int, int> > burn_stack;
+                burn_stack.push(burn_point);
+                while (!burn_stack.empty()) {
+                    std::pair<int, int> curr_point = burn_stack.top();
+                    int x = curr_point.first;
+                    int y = curr_point.second;
+                    burn_stack.pop();
+                    if (y > 0 &&
+                        result[(y - 1) * w + x] == 0) {
+                        result[(y - 1) * w + x] = components_count;
+                        burn_stack.push(std::pair<int, int>(x, y - 1));
+                    }
+                    if (y + 1 < h &&
+                        result[(y + 1) * w + x] == 0) {
+                        result[(y + 1) * w + x] = components_count;
+                        burn_stack.push(std::pair<int, int>(x, y + 1));
+                    }
+                    if (x > 0 &&
+                        result[y * w + x - 1] == 0) {
+                        result[y * w + x - 1] = components_count;
+                        burn_stack.push(std::pair<int, int>(x - 1, y));
+                    }
+                    if (x + 1 < w &&
+                        result[y * w + x + 1] == 0) {
+                        result[y * w + x + 1] = components_count;
+                        burn_stack.push(std::pair<int, int>(x + 1, y));
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+int orientation(std::pair<int, int> c, std::pair<int, int> a,
+                std::pair<int, int> b) {
+    int vec_mlp = (a.first - c.first) * (b.second - c.second) -
+                  (a.second - c.second) * (b.first - c.first);
+    if (vec_mlp == 0) return 0;  // colinear
+    return (vec_mlp > 0) ? 1: 2;
+    // 1 - b on left side ca, 2 - b on rigth side ca
+}
+
+void jarvis_algorithm(const std::list<std::pair<int, int> >* components,
+         const int chunk_size, std::list<std::pair<int, int> >* const result) {
+    for (int comp_num = 0; comp_num < chunk_size; comp_num++) {
+        std::list<std::pair<int, int> > component_list = components[comp_num];
+        if (component_list.size() < 3) {
+            result[comp_num] = component_list;
+        } else {
+            std::pair<int, int> start(component_list.front());
+            int start_idx = 0;
+            int n = component_list.size();
+            std::vector<std::pair<int, int> > component(n);
+            std::pair<int, int>* comp_ptr = component.data();
+            int counter_1 = 0;
+            for (auto point : component_list) {
+                comp_ptr[counter_1] = point;
+                if (point.first < start.first) {
+                    start = point;
+                    start_idx = counter_1;
+                }
+                counter_1++;
+            }
+            int curr = start_idx;
+            int next;
+            do {
+                std::pair<int, int> curr_point = comp_ptr[curr];
+                result[comp_num].push_back(comp_ptr[curr]);
+                next = (curr + 1) % n;
+                std::pair<int, int> next_point = comp_ptr[next];
+                for (int i = 0; i < n; i++) {
+                    int orient = orientation(curr_point, next_point,
+                                                                 comp_ptr[i]);
+                    if (orient == 1) {
+                        next_point = comp_ptr[i];
+                        next = i;
+                    }
+                }
+                curr = next;
+            } while (curr != start_idx);
+        }
+    }
+}
+
+void find_left(const std::pair<int, int>* component,
+      std::pair<int, int> curr_point, int start, int end, int * const result) {
+    int next = *result;
+    std::pair<int, int> next_point(component[next]);
+    for (int i = start; i < end; i++) {
+        int orient = orientation(curr_point, next_point,
+                                                     component[i]);
+        if (orient == 1) {
+            next_point = component[i];
+            next = i;
+        }
+    }
+    *result = next;
+}
+
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls(
+                          const std::vector<int>& marked_image, int w, int h) {
+    int comp_count = *std::max_element(marked_image.begin(),
+                                       marked_image.end()) - 1;
+    std::vector<std::list<std::pair<int, int> > > components(comp_count);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (marked_image[i * w + j] == 1) {
+                continue;
+            } else {
+                std::pair<int, int> point(j, i);
+                components[marked_image[i * w + j] - 2].push_back(point);
+            }
+        }
+    }
+    std::vector<std::list<std::pair<int, int> > > result(comp_count);
+
+    int cores_count = std::thread::hardware_concurrency();
+    int components_size = static_cast<int>(components.size());
+
+    if (cores_count == 1) {
+        jarvis_algorithm(components.data(), components_size, result.data());
+    } else if (cores_count < components_size) {
+        int sub_chunk_size = components_size / (cores_count - 1);
+        int main_chunk_size = components_size % (cores_count - 1);
+        std::vector<std::thread> thrds(cores_count - 1);
+        for (int i = 0; i < cores_count - 1; i++) {
+            thrds[i] = std::thread(jarvis_algorithm,
+                        components.data() + i * sub_chunk_size, sub_chunk_size,
+                                           result.data() + i * sub_chunk_size);
+        }
+        jarvis_algorithm(
+                        components.data() + (cores_count - 1) * sub_chunk_size,
+                                                               main_chunk_size,
+                           result.data() + (cores_count - 1) * sub_chunk_size);
+        for (int i = 0; i < cores_count - 1; i++) {
+            thrds[i].join();
+        }
+    } else {
+        for (int comp_num = 0; comp_num < static_cast<int>(components.size());
+                                                                  comp_num++) {
+            std::list<std::pair<int, int> > component_list =
+                                                          components[comp_num];
+            if (component_list.size() < 3) {
+                result[comp_num] = component_list;
+            } else {
+                std::pair<int, int> start(w, h);
+                int start_idx = 0;
+                int n = component_list.size();
+                std::vector<std::pair<int, int> > component(n);
+                int counter_1 = 0;
+                for (auto point : component_list) {
+                    component[counter_1] = point;
+                    if (point.first < start.first) {
+                        start = point;
+                        start_idx = counter_1;
+                    }
+                    counter_1++;
+                }
+                int curr = start_idx;
+                int next;
+                int sub_chunk_size = n / (cores_count - 1);
+                int main_chunk_size = n % (cores_count - 1);
+                do {
+                    std::pair<int, int> curr_point(component[curr]);
+                    result[comp_num].push_back(curr_point);
+                    next = (curr + 1) % n;
+                    std::vector<int> next_array(cores_count, next);
+                    std::vector<std::thread> thrds(cores_count - 1);
+                    for (int i = 0; i < cores_count - 1; i++) {
+                        thrds[i] = std::thread(find_left, component.data(),
+                                                curr_point, i * sub_chunk_size,
+                                                      (i + 1) * sub_chunk_size,
+                                                        next_array.data() + i);
+                    }
+                    std::thread final_thread(find_left, component.data(),
+                                curr_point, (cores_count - 1) * sub_chunk_size,
+                          (cores_count - 1) * sub_chunk_size + main_chunk_size,
+                                        next_array.data() + (cores_count - 1));
+                    for (int i = 0; i < cores_count - 1; i++) {
+                        thrds[i].join();
+                    }
+                    final_thread.join();
+                    for (int i = 0; i < cores_count; i++) {
+                        int orient = orientation(curr_point, component[next],
+                                                     component[next_array[i]]);
+                        if (orient == 1) {
+                            next = next_array[i];
+                        }
+                    }
+                    curr = next;
+                } while (curr != start_idx);
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<std::list <std::pair<int, int> > > get_convex_hulls_seq(
+                          const std::vector<int>& marked_image, int w, int h) {
+    int comp_count = *std::max_element(marked_image.begin(),
+                                       marked_image.end()) - 1;
+    std::vector<std::list<std::pair<int, int> > > components(comp_count);
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            if (marked_image[i * w + j] == 1) {
+                continue;
+            } else {
+                std::pair<int, int> point(j, i);
+                components[marked_image[i * w + j] - 2].push_back(point);
+            }
+        }
+    }
+    std::vector<std::list<std::pair<int, int> > > result(comp_count);
+    for (int comp_num = 0; comp_num < static_cast<int>(components.size());
+                                                                  comp_num++) {
+        std::list<std::pair<int, int> > component_list = components[comp_num];
+        if (component_list.size() < 3) {
+            result[comp_num] = component_list;
+        } else {
+            std::pair<int, int> start(w, h);
+            int start_idx = 0;
+            int n = component_list.size();
+            std::vector<std::pair<int, int> > component(n);
+            std::pair<int, int>* comp_ptr = component.data();
+            int counter_1 = 0;
+            for (auto point : component_list) {
+                comp_ptr[counter_1] = point;
+                if (point.first < start.first) {
+                    start = point;
+                    start_idx = counter_1;
+                }
+                counter_1++;
+            }
+            int curr = start_idx;
+            int next;
+            do {
+                std::pair<int, int> curr_point(comp_ptr[curr]);
+                result[comp_num].push_back(curr_point);
+                next = (curr + 1) % n;
+                std::pair<int, int> next_point(comp_ptr[next]);
+                for (int i = 0; i < n; i++) {
+                    int orient = orientation(curr_point, next_point,
+                                                                 comp_ptr[i]);
+                    if (orient == 1) {
+                        next_point = comp_ptr[i];
+                        next = i;
+                    }
+                }
+                curr = next;
+            } while (curr != start_idx);
+        }
+    }
+    return result;
+}
+\end{lstlisting}
+\subsubsection{Файл с тестами}
+\begin{lstlisting}
+// Copyright 2021 Makarov Alexander
+
+#include <time.h>
+
+#include <gtest/gtest.h>
+#include <vector>
+#include <iostream>
+#include <random>
+
+#include "./image_convex_hull.h"
+
+const int prm_size = 15;
+std::vector<std::vector<int> > primitives = {
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+        1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+    {
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1,
+        1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+        1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
+        1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1,
+        1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1,
+        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    },
+};
+
+std::vector<std::list <std::pair<int, int> > > primitives_convex_hulls = {
+    {
+        {1, 6}, {1, 7}, {1, 8}, {6, 13}, {7, 13}, {8, 13}, {13, 8}, {13, 6},
+        {8, 1}, {6, 1}
+    },
+    {
+        {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9},
+        {1, 10}, {1, 11}, {1, 12}, {1, 13}, {2, 13}, {3, 13}, {4, 13}, {5, 13},
+        {6, 13}, {7, 13}, {8, 13}, {9, 13}, {10, 13}, {11, 13}, {12, 13},
+        {13, 13}
+    },
+    {
+        {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9},
+        {1, 10}, {1, 11}, {1, 12}, {1, 13}, {2, 13}, {3, 13}, {4, 13}, {5, 13},
+        {6, 13}, {7, 13}, {8, 13}, {9, 13}, {10, 13}, {11, 13}, {12, 13},
+        {13, 13}, {13, 1}
+    },
+    {
+        {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {1, 10}, {2, 11},
+        {3, 12}, {4, 13}, {5, 13}, {6, 13}, {7, 13}, {8, 13}, {9, 13},
+        {10, 13}, {13, 10}, {13, 4}, {10, 1}, {4, 1}, {3, 2}, {2, 3}
+    },
+    {
+        {1, 1}, {1, 2}, {1, 12}, {1, 13}, {2, 13}, {12, 13}, {13, 13}, {13, 1}
+    },
+};
+
+TEST(Components, Test_Vert_Cross) {
+    const std::vector<int> image = primitives[0];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    /*for (int i = 0; i < h; i++){
+        for (int j = 0; j < w; j++)
+            std::cout << marked_image[i * w + j] << " ";
+        std::cout << std::endl;
+    }*/
+
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    /*for (int i = 0; i < convex_hulls.size(); i++) {
+        std::cout << i + 2 << ": ";
+        for (auto point : convex_hulls[i]) {
+            std::cout << "(" << point.first << ";" << point.second << ") ";
+        }
+        std::cout << std::endl;
+    }*/
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[0]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Triangle) {
+    const std::vector<int> image = primitives[1];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[1]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Perimeter) {
+    const std::vector<int> image = primitives[2];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[2]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Sqr_Without_Angles) {
+    const std::vector<int> image = primitives[3];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                             get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[3]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_Diag_Cross) {
+    const std::vector<int> image = primitives[4];
+    int h = 15, w = 15;
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls =
+                            get_convex_hulls(marked_image, w, h);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls;
+    expected_hulls.push_back(primitives_convex_hulls[4]);
+    ASSERT_EQ(convex_hulls, expected_hulls);
+}
+
+TEST(Components, Test_50x50_prim_image) {
+    int h = 50, w = 50;
+    int size = w * h;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::vector<int> image(size * prm_size * prm_size);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls(size);
+    for (int i = 0; i < h; i++)
+        for (int j = 0; j < w; j++) {
+            int prm_num = static_cast<int>(gen() % primitives.size());
+            expected_hulls[i * w + j] = primitives_convex_hulls[prm_num];
+            for (std::pair<int, int>& point : expected_hulls[i * w + j]) {
+                point.first += j * prm_size;
+                point.second += i * prm_size;
+            }
+            for (int k = 0; k < prm_size; k++)
+                for (int q = 0; q < prm_size; q++) {
+                    int idx = (i * w * prm_size + j) * prm_size +
+                           k * w * prm_size + q;
+                    image[idx] = primitives[prm_num][k * prm_size + q];
+                }
+        }
+    std::vector<int> marked_image = mark_components(image, w * prm_size,
+                                                           h * prm_size);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls_seq,
+                                                   convex_hulls_par;
+
+    clock_t start_time, end_time;
+    start_time = clock();
+    convex_hulls_seq = get_convex_hulls_seq(marked_image, w * prm_size,
+                                                          h * prm_size);
+    end_time = clock();
+    double seq_time = (static_cast<double>(end_time - start_time)) /
+                                                                CLOCKS_PER_SEC;
+
+    start_time = clock();
+    convex_hulls_par = get_convex_hulls(marked_image, w * prm_size,
+                                                      h * prm_size);
+    end_time = clock();
+    double par_time = (static_cast<double>(end_time - start_time)) /
+                                                                CLOCKS_PER_SEC;
+
+    std::cout << "Seq time: " << seq_time << " s" << std::endl;
+    std::cout << "Par time: " << par_time << " s" << std::endl;
+
+    ASSERT_EQ(convex_hulls_par, convex_hulls_seq);
+    ASSERT_EQ(convex_hulls_par, expected_hulls);
+}
+
+TEST(Components, Test_100x100_worst) {
+    int h = 100, w = 100;
+    int size = w * h;
+    std::vector<int> image(size, 0);
+    std::vector<std::list <std::pair<int, int> > > expected_hulls(1);
+    for (int i = 0; i < h; i++) {
+        expected_hulls[0].push_back(std::pair<int, int>(0, i));
+    }
+    for (int i = 1; i < w; i++) {
+        expected_hulls[0].push_back(std::pair<int, int>(i, h - 1));
+    }
+    expected_hulls[0].push_back(std::pair<int, int>(w - 1, 0));
+    std::vector<int> marked_image = mark_components(image, w, h);
+    std::vector<std::list <std::pair<int, int> > > convex_hulls_seq,
+                                                   convex_hulls_par;
+
+    clock_t start_time, end_time;
+    start_time = clock();
+    convex_hulls_seq = get_convex_hulls_seq(marked_image, w, h);
+    end_time = clock();
+    double seq_time = (static_cast<double>(end_time - start_time)) /
+                                                                CLOCKS_PER_SEC;
+
+    start_time = clock();
+    convex_hulls_par = get_convex_hulls(marked_image, w,
+                                                      h);
+    end_time = clock();
+    double par_time = (static_cast<double>(end_time - start_time)) /
+                                                                CLOCKS_PER_SEC;
+
+    std::cout << "Seq time: " << seq_time << " s" << std::endl;
+    std::cout << "Par time: " << par_time << " s" << std::endl;
+
+    ASSERT_EQ(convex_hulls_par, convex_hulls_seq);
+    ASSERT_EQ(convex_hulls_par, expected_hulls);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+\end{document}
