@@ -1,0 +1,494 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+    basicstyle=\footnotesize,
+    keywordstyle=\color{blue}\ttfamily,
+    stringstyle=\color{red}\ttfamily,
+    commentstyle=\color{green}\ttfamily,
+    morecomment=[l][\color{magenta}]{\#},
+    tabsize=4,
+    breaklines=true,
+    breakatwhitespace=true,
+    title=\lstname,
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+    \begin{titlepage}
+
+        \begin{center}
+            Министерство науки и высшего образования Российской Федерации
+        \end{center}
+
+        \begin{center}
+            Федеральное государственное автономное образовательное учреждение высшего образования \\
+            Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+        \end{center}
+
+        \begin{center}
+            Институт информационных технологий, математики и механики
+        \end{center}
+
+        \vspace{4em}
+
+        \begin{center}
+            \textbf{\LargeОтчет по лабораторной работе} \\
+        \end{center}
+        \begin{center}
+            \textbf{\Large«Поразрядная сортировка целых чисел с простым слиянием»} \\
+        \end{center}
+
+        \vspace{4em}
+
+        \newbox{\lbox}
+        \savebox{\lbox}{\hbox{text}}
+        \newlength{\maxl}
+        \setlength{\maxl}{\wd\lbox}
+        \hfill\parbox{7cm}{
+            \hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-2 \\ Баулин М.А. \\
+            \\
+            \hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В. \\
+        }
+        \vspace{\fill}
+
+        \begin{center} Нижний Новгород \\ 2021 \end{center}
+
+    \end{titlepage}
+
+    \setcounter{page}{2}
+
+    % Содержание
+    \tableofcontents
+    \newpage
+
+    % Введение
+    \section*{Введение}
+    \addcontentsline{toc}{section}{Введение}
+    Существуют десятки различных способов расположить элементы данных по порядку. Среди них выделяют те, что работают быстро, такие, что, например, могут в максимум за минуты отсортировать любой массив данных, размещенный в оперативной памяти компьютера. Более конкретно можно сказать, что сортировка, работающая быстро, упорядочивает на хорошем современном персональном компьютере миллиард целых чисел за менее, чем сто секунд. Одной из таких как раз и является поразрядная сортировка. Она очень чувствительна к типу данных для сортировки, например, нужно иметь свой вариант такой сортировки для данных каждого размера, нужно делать специальный варианты для беззнаковых и знаковых целых чисел, а поддержка работы с вещественными числами может потребовать совсем немаленьких усилий.
+    \newpage
+
+    % Постановка задачи
+    \section*{Постановка задачи}
+    \addcontentsline{toc}{section}{Постановка задачи}
+    Целью данной лабораторной работы является разработка последовательной и параллельной версий алгоритма поразрядной сортировки вещественных чисел простым слиянием, а также сравнение скорости работы последовательной и параллельной версий.
+    \par Исходные данные - неупорядоченный набор вещественных чисел. Результат работы - отсортированный по возрастанию набор элементов.
+    \par Необходимо реализовать последовательную и параллельную версию программы. Для реализации параллельной версии необходимо использовать средства OMP, TBB. Для проверки корректности работы программы необходимо использовать GTest.
+    \newpage
+
+    % Описание алгоритма
+    \section*{Описание алгоритма}
+    \addcontentsline{toc}{section}{Описание алгоритма}
+    На вход алгоритма поступает неупорядоченный набор вещественных чисел.
+    \par Описание алгоритма:
+    \begin{itemize}
+        \item Числа представляются как массивы символов (char) для рассмотрения каждого байта по отдельности
+        \item Производится сортировка чисел на основе байта, соответствующего итерации сортировки (от 0 до 6)
+        \item Далее происходит обработка байта, содержашего в себе знаковый бит, и сортировка с учетом знаковой части
+
+    \end{itemize}
+
+    \newpage
+
+    % Описание схемы распараллеливания
+    \section*{Описание схемы распараллеливания}
+    \addcontentsline{toc}{section}{Описание схемы распараллеливания}
+    Для распаралеливания используется подход разбиения массива входных данных на куски с последующей обработкой внутри подчиненных потоков. Для слияния результата обработки используется simple merge.
+    \par Для достижения данного результата в OpenMP существует деректива препроцессора $pragma omp parallel for$
+    \newpage
+
+    % Описание программной реализации
+    \section*{Описание программной реализации}
+    \addcontentsline{toc}{section}{Описание программной реализации}\
+    Входными параметрами всех реализаций алгоритма являются:
+    \begin{itemize}
+        \item std::vector<double> source
+        \item std::vector<double> tmp
+        \item const int offset
+    \end{itemize}
+
+    \par Для корректной работы программы используются следующие методы:
+
+    \par GetRandomVector(int sz) - получение вектора с рандомными значениями
+    \par CountingSort(std::vector<double> source, std::vector<double> tmp, const int offset) - непосредственно для сортировки элементов на основе значения конкретного байта.
+    \par SignSort(std::vector<double> source) - непосредственно для сортировки элементов на основе значения байта, хранящего знаковый бит, и сортировки с учетом этого бита.
+    \par RadixSort(const std::vector<double> source) - Метод, представляющий собой саму поразрядную сортировку
+
+    \newpage
+
+    % Результаты экспериментов
+    \section*{Результаты экспериментов}
+    \addcontentsline{toc}{section}{Результаты экспериментов}
+    Вычислительные эксперименты проводились на оборудовании со следующей аппаратной конфигурацией:
+
+    \begin{itemize}
+        \item Процессор: Intel(R) Core(TM) i5-7200 CPU @ 2.4GHz, ядер: 4
+        \item Оперативная память: 12 ГБ DDR4;
+        \item ОС: Microsoft Windows 10 Pro
+    \end{itemize}
+
+    \begin{table}[!h]
+        \begin{center}
+            \begin{tabular}{l l l l l l l}
+                Реализация & Время & Ускорение   \\
+                SEQ        & 1.2 & 1           \\
+                OMP        & 1.4 & 0.85      \\
+
+
+            \end{tabular}
+        \end{center}
+        \caption{Результаты вычислительных экспериментов}
+        \centering
+    \end{table}
+
+    \par Из полученных результатов видно, что не удалось получить значительное ускорение в параллельной реализациях метода из-за неправильно выбранного метода распаралеливания.
+    \newpage
+
+    % Заключение
+    \section*{Заключение}
+    \addcontentsline{toc}{section}{Заключение}
+    В результате лабораторной работы были разработаны последовательная и параллельная реализация метода поразрядной сортировки вещественных чисел простым слиянием.
+    \par Из результатов вычислительных экспериментов видно, что параллельные версии программы не работают быстрее, если их плохо написать.
+    \newpage
+
+    % Литература
+    \begin{thebibliography}{1}
+        \addcontentsline{toc}{section}{Литература}
+        \bibitem{} «Параллельное программирование на OpenMP»
+        \\URL:\url {http://ccfit.nsu.ru/arom/data/openmp.pdf}
+ \bibitem{Sidnev} Сиднев А.А., Мееров И.Б., Сысоев А.В. «Разработка параллельных программ в системах с общей памятью с использованием библиотеки Intel Threading Building Blocks (TBB)».
+        \\URL:\url {http://hpc-education.ru/files/lectures/meerov/ppt06.pdf}
+ \bibitem{} «Параллельное программирование. С++. Thread Support Library. Atomic Operations Library.»
+        \\URL:\url {https://ppt-online.org/184002}
+ \end{thebibliography}
+    \newpage
+
+    % Приложение
+    \section*{Приложение}
+    \addcontentsline{toc}{section}{Приложение}
+    В данном разделе находится реализация методов последовательной и параллельной реализции алгоритма
+    \begin{lstlisting}
+
+ // Copyright 2021 Baulin Mikhail
+
+#include "../../../modules/task_1/baulin_m_radix_sort_simple_merge/radix_sort.h"
+
+#include <algorithm>
+#include <random>
+#include <vector>
+
+std::vector<double> GetRandomVector(int sz) {
+  std::random_device dev;
+  std::mt19937 gen(dev());
+  std::vector<double> vec(sz);
+  for (int i = 0; i < sz; i++) {
+    vec[i] = gen() % 100;
+  }
+  return vec;
+}
+
+std::vector<double> CountingSort(std::vector<double> source, std::vector<double> tmp,
+                         const int offset) {
+  auto const size = static_cast<int>(source.size());
+  auto byteArr = (unsigned char*)source.data();
+  auto acc = 0;
+  int counters[256] = {0};
+
+  for (auto i = 0; i < size; i++) {
+    counters[byteArr[offset + 8 * i]]++;
+  }
+
+  for (int i = 0; i < 256; i++) {
+    int tmp = counters[i];
+    counters[i] = acc;
+    acc += tmp;
+  }
+
+  for (auto i = 0; i < size; i++) {
+    auto byteIndex = offset + 8 * i;
+    auto byte = byteArr[byteIndex];
+    auto counter = counters[byte];
+    tmp[counter] = source[i];
+    counters[byte]++;
+  }
+
+  return tmp;
+}
+
+std::vector<double> SignSort(std::vector<double> source) {
+  auto const offset = 7;
+  auto const size = static_cast<int>(source.size());
+  auto byteArr = (unsigned char*)source.data();
+  auto acc = 0;
+
+  auto result = std::vector<double>(source);
+  int counters[256] = {0};
+
+  for (auto i = 0; i < size; i++) {
+    counters[byteArr[7 + 8 * i]]++;
+  }
+
+  for (int i = 255; i > 127; i--) {
+    counters[i] += acc;
+    acc = counters[i];
+  }
+
+  for (int i = 0; i < 128; i++) {
+    int tmp = counters[i];
+    counters[i] = acc;
+    acc += tmp;
+  }
+
+  for (int i = 0; i < size; i++) {
+    auto byteIndex = offset + 8 * i;
+    auto byte = byteArr[byteIndex];
+    if (byte < 128) {
+      result[counters[byte]] = source[i];
+      counters[byte]++;
+    } else {
+      counters[byte]--;
+      result[counters[byte]] = source[i];
+    }
+  }
+
+  return result;
+}
+
+std::vector<double> RadixSort(const std::vector<double>& source) {
+  auto tmp = std::vector<double>(source.size());
+  auto tmpForSwap = std::vector<double>(source.size());
+  auto copy = std::vector<double>(source);
+
+  for (int i = 0; i < 8; i++) {
+    tmp = CountingSort(copy, tmp, i);
+    tmpForSwap = copy;
+    copy = tmp;
+    tmp = tmpForSwap;
+  }
+
+  return SignSort(copy);
+}
+
+std::vector<double> Merge(const std::vector<double>& left,
+                          const std::vector<double>& right) {
+  std::vector<double> result((left.size() + right.size()));
+
+  auto const leftSize = static_cast<int>(left.size());
+  auto const rightSize = static_cast<int>(right.size());
+
+  auto i = 0, j = 0, k = 0;
+  for (k = 0; k < leftSize + rightSize - 1; k++) {
+    if (left[i] < right[j])
+      result[k] = left[i++];
+    else
+      result[k] = right[j++];
+  }
+
+  while (i < leftSize) {
+    result[k++] = left[i++];
+  }
+  while (j < rightSize) {
+    result[k++] = right[j++];
+  }
+
+  return result;
+}
+
+    \end{lstlisting}
+
+    \begin{lstlisting}
+ // Copyright 2021 Baulin Mikhail
+
+#include "../../../modules/task_2/baulin_m_radix_sort_simple_merge_omp/radix_sort.h"
+
+#include <omp.h>
+
+#include <algorithm>
+#include <iterator>
+#include <random>
+#include <vector>
+
+std::vector<double> GetRandomVector(int sz) {
+  std::random_device dev;
+  std::mt19937 gen(dev());
+  std::vector<double> vec(sz);
+  for (int i = 0; i < sz; i++) {
+    vec[i] = gen() % 100;
+  }
+  return vec;
+}
+
+std::vector<double> CountingSort(std::vector<double> source,
+                                 std::vector<double> tmp, const int offset) {
+  auto const size = static_cast<int>(source.size());
+  auto byteArr = (unsigned char*)source.data();
+  auto acc = 0;
+  int counters[256] = {0};
+
+  for (auto i = 0; i < size; i++) {
+    counters[byteArr[offset + 8 * i]]++;
+  }
+
+  for (auto i = 0; i < 256; i++) {
+    int tmp = counters[i];
+    counters[i] = acc;
+    acc += tmp;
+  }
+
+  for (auto i = 0; i < size; i++) {
+    auto byteIndex = offset + 8 * i;
+    auto byte = byteArr[byteIndex];
+    auto counter = counters[byte];
+    tmp[counter] = source[i];
+    counters[byte]++;
+  }
+
+  return tmp;
+}
+
+std::vector<double> SignSort(std::vector<double> source) {
+  auto const offset = 7;
+  auto const size = static_cast<int>(source.size());
+  auto byteArr = (unsigned char*)source.data();
+  auto acc = 0;
+
+  auto result = std::vector<double>(source);
+  int counters[256] = {0};
+
+  for (auto i = 0; i < size; i++) {
+    counters[byteArr[7 + 8 * i]]++;
+  }
+
+  for (int i = 255; i > 127; i--) {
+    counters[i] += acc;
+    acc = counters[i];
+  }
+
+  for (int i = 0; i < 128; i++) {
+    int tmp = counters[i];
+    counters[i] = acc;
+    acc += tmp;
+  }
+
+  for (int i = 0; i < size; i++) {
+    auto byteIndex = offset + 8 * i;
+    auto byte = byteArr[byteIndex];
+    if (byte < 128) {
+      result[counters[byte]] = source[i];
+      counters[byte]++;
+    } else {
+      counters[byte]--;
+      result[counters[byte]] = source[i];
+    }
+  }
+
+  return result;
+}
+
+std::vector<double> serialRadixSort(const std::vector<double>& source) {
+  auto tmp = std::vector<double>(source.size());
+  auto tmpForSwap = std::vector<double>(source.size());
+  auto copy = std::vector<double>(source);
+
+  for (int i = 0; i < 8; i++) {
+    tmp = CountingSort(copy, tmp, i);
+    tmpForSwap = copy;
+    copy = tmp;
+    tmp = tmpForSwap;
+  }
+
+  return SignSort(copy);
+}
+
+std::vector<double> RadixSort(const std::vector<double>& source) {
+  int threadCount = 4;
+  std::vector<double> resultVector;
+  std::vector<std::vector<double>> sortedVectors;
+
+  int bunch_size = (source.size() - 1) / threadCount + 1;
+  std::vector<std::vector<double>> bunches((source.size() + bunch_size) /
+                                           bunch_size);
+  int bunchesCount = bunches.size();
+
+  for (size_t i = 0; i < source.size(); i += bunch_size) {
+    auto last = std::min(source.size(), i + bunch_size);
+    auto index = i / bunch_size;
+    auto& vec = bunches[index];
+    vec.reserve(last - i);
+    move(source.begin() + i, source.begin() + last, back_inserter(vec));
+  }
+
+  bunchesCount = bunches.size();
+
+#pragma omp parallel num_threads(threadCount)
+  {
+#pragma omp for
+    for (auto i = 0; i < bunchesCount; i++) {
+      auto sortedBunch = serialRadixSort(bunches[i]);
+#pragma omp critical
+      sortedVectors.push_back(sortedBunch);
+      sortedBunch.clear();
+    }
+  }
+
+  resultVector = sortedVectors[0];
+  if (bunchesCount != 1) {
+    for (auto i = 0; i < bunchesCount - 1; i++) {
+      resultVector = Merge(resultVector, sortedVectors[i + 1]);
+    }
+  }
+  sortedVectors.clear();
+  bunches.clear();
+
+  return resultVector;
+}
+
+std::vector<double> Merge(const std::vector<double>& left,
+                          const std::vector<double>& right) {
+  std::vector<double> result((left.size() + right.size()));
+
+  auto const leftSize = static_cast<int>(left.size());
+  auto const rightSize = static_cast<int>(right.size());
+
+  auto i = 0, j = 0, k = 0;
+  for (k = 0; k < (leftSize + rightSize - 1) && i < leftSize && j < rightSize;
+       k++) {
+    if (left[i] < right[j])
+      result[k] = left[i++];
+    else
+      result[k] = right[j++];
+  }
+
+  while (i < leftSize) {
+    result[k++] = left[i++];
+  }
+  while (j < rightSize) {
+    result[k++] = right[j++];
+  }
+
+  return result;
+}
+    \end{lstlisting}
+
+\end{document}
