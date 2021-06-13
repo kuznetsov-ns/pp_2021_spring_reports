@@ -1,0 +1,954 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Поразрядная сортировка целых чисел с простым слиянием»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-1 \\ Соловьев А. Ю.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Людям, как и компьютерам удобнее работать с упорядоченными наборами данных. Основным способом упорядочения множества элементов является сортировка.
+\par Очень часто сортировки представляют собой алгоритмы, требующие многократных операций сравнения и обходов сортируемого диапазона. Логично предположить, что чем больше количество элементов, которые необходимо отсортировать, тем больше времени требуется для сортировки. Уменьшить затраты времени на сортировку может помочь распараллеливание реализации алгоритма с помощью его запуска на нескольких процессорах вычислительного оборудования.
+\par Следовательно, мы можем разделить исходный набор данных на части, для каждой вычислительной единицы поровну, отсортировать их независимо друг от друга, а затем объединить, чтобы получить отсортированный набор.
+\par В ходе данной лабораторной работе будет реализован один из алгоритмов сортировок - поразрядная сортировка, а также алгоритм простого слияния.
+
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы необходимо реализовать последовательную и параллельную реализации алгоритма поразрядной сортировки для целых чисел с простым слиянием, проверить корректность работы алгоритмов, сравнить эффективность последовательной и параллельной реализаций.
+\par Для реализации параллельной версии необходимо использовать библиотеки OpenMP и TBB. Для проверки корректности работы алгоритмов используется Google Testing Framework.
+\newpage
+
+% Метод решения
+\section*{Описание алгоритмов}
+\addcontentsline{toc}{section}{Метод решения}
+Поразрядная сортировка позволяет отсортировать исходный массив данных, в моем случае, мы сортируем только целые числа, но в принципе, мы можем сортировать любые типы данных. 
+\par Шаги алгоритма:
+\begin{enumerate}
+\item В начале алгоритма разобьем наши элементы на положительные и отрицательные, и сохраним в двух разных массивах. Это сделано, для корректного поразрядного сравнения.
+\item Отдельные массивы положительных и отрицательных чисел будем сортировать. Сравнение производится поразрядно, сначала сравниваются значения одного, крайнего разряда, затем элементы группируются, и затем сравниваются следующие разряды.
+\end{enumerate}
+\par Сложность алгоритма варьируется от $ O(n*k)$ до $O(n)$, где $n$ --- количество элементов в массиве.
+
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Для распараллеливания алгоритма поразрядной сортировки необходимо разделить массив на равные по размеру фрагменты, количество которых равно количеству потоков. Если размер исходного массива не делится нацело на количество потоков, необходимо работу с остаточными элементами производить на последнем по счету потоке. Затем эти фрагменты сортируются параллельно на разных потоках. Далее выполняется простое слияние отсортированных фрагментов массива на одном потоке.
+
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Алгоритм сортировки Хоара вызывается с помощью функции:
+\begin{lstlisting}
+int RadixSort(std::vector<int> *buffer);
+\end{lstlisting}
+\par Входными параметрами являются: исходный массив
+\par Реализация распараллеливания сортировки представлена в функциях:
+\begin{lstlisting}
+ParallelSorting(std::vector<int> *buffer);
+\end{lstlisting}
+\begin{lstlisting}
+int ParallelSortingTBB(std::vector<int> *arr);
+\end{lstlisting}
+\par На вход они принимают только исходный массив.
+\par Слияние осуществляется за счет функций:
+\begin{lstlisting}
+int MergeArrays(std::vector<int> *buffer1, std::vector<int> *buffer2, int left, std::vector<int> *result);
+\end{lstlisting}
+\par Входными параметрами являются: массивы отрицательных и положительных чисел, а также результирующий вектор.
+\begin{lstlisting}
+void merge(int* a, int size_a, int* b, int size_b)
+\end{lstlisting}
+\par На вход она принимает два массива и их размеры.
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с Google Testing Framework.
+\par Набор представляет из себя тесты, которые проверяют корректность вычислений (сравниваются массивы, полученные из последовательного и параллельного алгоритма), а также эффективность (вычисление занимаемого последовательной и параллельной сортировок времени и сравнение полученных данных).
+\par Успешное прохождение всех тестов подтверждает корректность работы написанной программы.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельного алгоритма сортировки Хоара проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel Core i5-3470f, 2.40 GHz, 4 ядра;
+\item Оперативная память: 8 ГБ;
+\item ОС: Microsoft Windows 10 Home 64-bit.
+\end{itemize}
+
+\par В рамках эксперимента было вычислено время работы последовательного и параллельного алгоритма поразрядной сортировки.
+\par В качестве тестируемых данных генерируется массив случайных чисел типа double от -10000 до 10000. Размер массива --- 150000000 элементов.
+\par Результаты экспериментов представлены ниже.
+
+\begin{table}[!h]
+\caption{Результаты экспериментов версии с OpenMP}
+\centering
+\begin{tabular}{lllll}
+Число потоков & Последовательно (OpenMP) & Параллельно & Ускорение  \\
+4        & 12.23412         & 3.81234     & 3.2     \\
+      
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты экспериментов версии с TBB}
+\centering
+\begin{tabular}{lllll}
+Число потоков & Последовательно (TBB) & Параллельно & Ускорение  \\
+4        & 12.23412         & 4.35312    & 2.8       \\
+      
+\end{tabular}
+\end{table}
+
+\par По данным экспериментов видно, что параллельный алгоритм поразрядной сортировки работает значительно быстрее, но из-за примущества последовательной реализации, в виде не слияния, а скоейки отрицательной и положительной части исходного вектора, ускорение не идеально.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения лабораторной работы был разработан последовательный и два параллельных алгоритма поразрядной сортировки целых чисел с простым слиянием.
+\par По данным экспериментов удалось сравнить время работы последовательной и параллельных реализаций. Выявлено, что параллельные алгоритмы работают в несколько раз быстрее, что подтверждает преимущество параллельных вычислений.
+\par Для подтверждения корректности работы программы написаны тесты с использованием Google Testing Framework.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{wiki} Википедия: Быстрая сортировка  \url {https://en.wikipedia.org/wiki/Radix_sort} 
+\bibitem{wiki1} Википедия: Сортировка слиянием \url {https://en.wikipedia.org/wiki/Merge_sort}
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\par Реализация с использованием технологии OpenMP:
+\begin{lstlisting}
+// Copyright 2021 Solovev Aleksandr
+#ifndef MODULES_TASK_2_SOLOVEV_A_RADIX_SORT_RADIX_SORT_H_
+#define MODULES_TASK_2_SOLOVEV_A_RADIX_SORT_RADIX_SORT_H_
+#include <omp.h>
+#include <time.h>
+#include <stdlib.h>
+#include <random>
+#include <vector>
+
+int generateRandomArray(std::vector<int> *buffer, int min, int max);
+int SortingCheck(std::vector<int> *buffer);
+int RadixSort(std::vector<int> *buffer);
+int ParallelSorting(std::vector<int> *buffer);
+#endif  // MODULES_TASK_2_SOLOVEV_A_RADIX_SORT_RADIX_SORT_H_
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Solovev Aleksandr
+#include "../../../modules/task_2/solovev_a_radix_sort/radix_sort.h"
+#include <stdio.h>
+#include <cstring>
+#include <utility>
+
+
+
+
+int generateRandomArray(std::vector<int> *buffer, int min, int max) {
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    for (size_t i = 0; i < buffer->size(); i++) {
+        buffer->at(i) = static_cast<int>(gen()) % (max - min + 1) + min;
+    }
+    return 0;
+}
+
+int MergeArrays(std::vector<int> *buffer1, std::vector<int> *buffer2, int left, std::vector<int> *result) {
+    int current_buff = 0;
+    for (size_t i = left; i < buffer1->size() + left; i++) {
+        result->at(i) = buffer1->at(current_buff);
+        current_buff++;
+    }
+    current_buff = 0;
+    for (size_t i = left + buffer1->size() ; i < buffer2->size() + left + buffer1->size(); i++) {
+        result->at(i) = buffer2->at(current_buff);
+        current_buff++;
+    }
+
+    return 0;
+}
+
+
+
+int SortingCheck(std::vector<int> *buffer) {
+    for (size_t i = 0; i < buffer->size() - 1; i++) {
+        if (buffer->at(i) <= buffer->at(i + 1)) {
+            continue;
+        } else {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+void CountingSort(std::vector<int> *input, std::vector<int> *output, int valbyte) {
+    unsigned char *buffer = (unsigned char *)input->data();
+    int counter[256] = {0};
+    size_t length_counter = 256;
+    int value = 0;
+
+    for (size_t i = 0; i < input->size(); i++) {
+        counter[buffer[4 * i + valbyte]]++;
+    }
+
+    for (size_t j = 0; j < length_counter; j++) {
+        int tmp = counter[j];
+        counter[j] = value;
+        value += tmp;
+    }
+
+    for (size_t i = 0; i < input->size(); i++) {
+        output->at(counter[buffer[4 * i + valbyte]]++) = input->at(i);
+    }
+}
+
+int RadixSortUnsigned(std::vector<int> *buffer) {
+    if (buffer->empty()) {
+        return -1;
+    }
+    std::vector<int> outbuf(buffer->size());
+    if (outbuf.data() == nullptr) {
+        return -1;
+    }
+    for (int i = 0; i < 2; i++) {
+        CountingSort(buffer, &outbuf, 2 * i);
+        CountingSort(&outbuf, buffer, 2 * i + 1);
+    }
+    return 0;
+}
+int RadixSortUnsignedParallel(std::vector<int> *buffer) {
+    if (buffer->empty()) {
+        return -1;
+    }
+    std::vector<int> outbuf(buffer->size());
+    if (outbuf.data() == nullptr) {
+        return -1;
+    }
+    for (int i = 0; i < 2; i++) {
+        CountingSort(buffer, &outbuf, 2 * i);
+        CountingSort(&outbuf, buffer, 2 * i + 1);
+    }
+    return 0;
+}
+int RadixSort(std::vector<int> *buffer) {
+    if (buffer->size() < 1)
+        return -1;
+    int positive_length = 0, negative_length = 0;
+    int status = 0;
+
+    for (size_t i = 0; i < buffer->size(); i++) {
+        if (buffer->at(i) >= 0) {
+            positive_length++;
+        } else {
+            negative_length++;
+        }
+    }
+    std::vector<int> positive_numbers(positive_length);
+    std::vector<int> negative_numbers(negative_length);
+    positive_length = 0;
+    negative_length = 0;
+    for (size_t i = 0; i < buffer->size(); i++) {
+        if (buffer->at(i) >= 0) {
+            positive_numbers[positive_length] = buffer->at(i);
+            positive_length++;
+        } else {
+            negative_numbers[negative_length] = buffer->at(i);
+            negative_length++;
+        }
+    }
+
+    status = RadixSortUnsigned(&positive_numbers);
+    status = RadixSortUnsigned(&negative_numbers);
+
+    status = MergeArrays(&negative_numbers,  &positive_numbers, 0,  buffer);
+    return status;
+}
+int RadixSortParallel(std::vector<int> *buffer, int left, int right) {
+    if (buffer->size() < 1)
+        return -1;
+    int positive_length = 0, negative_length = 0;
+    int status = 0;
+    for (int i = left; i <= right; i++) {
+        if (buffer->at(i) >= 0) {
+            positive_length+=1;
+        } else {
+            negative_length+=1;
+        }
+    }
+    std::vector<int> positive_numbers(positive_length);
+    std::vector<int> negative_numbers(negative_length);
+    positive_length = 0;
+    negative_length = 0;
+
+    for (int i = left; i <= right; i++) {
+        if (buffer->at(i) >= 0) {
+            positive_numbers[positive_length] = buffer->at(i);
+            positive_length+=1;
+        } else {
+            negative_numbers[negative_length] = buffer->at(i);
+            negative_length+=1;
+        }
+    }
+
+    status = RadixSortUnsigned(&positive_numbers);
+    status = RadixSortUnsigned(&negative_numbers);
+
+    status = MergeArrays(&negative_numbers,  &positive_numbers, left,  buffer);
+
+    return status;
+}
+void merge(int* a, int size_a, int* b, int size_b) {
+    int i = 0, j = 0, k = 0;
+    int size_c = size_a + size_b;
+    int* c = new int[size_c];
+    while ((i < size_a) && (j < size_b)) {
+        if (a[i] <= b[j]) {
+            c[k++] = a[i++];
+        } else {
+            c[k++] = b[j++];
+        }
+    }
+
+    if (i == size_a) {
+        while (j < size_b) {
+            c[k++] = b[j++];
+        }
+    } else {
+        while (i < size_a) {
+            c[k++] = a[i++];
+        }
+    }
+
+    for (int i = 0; i < size_c; i++) {
+        a[i] = c[i];
+    }
+}
+
+int ParallelSorting(std::vector<int> *buffer) {
+    int part_vec_size = 0;
+    int n_threads = 0;
+    #pragma omp parallel
+    {
+        n_threads = omp_get_num_threads();
+        part_vec_size = static_cast<int>(buffer->size()) / n_threads;
+        int thread_id = omp_get_thread_num();
+        if (thread_id != n_threads - 1) {
+            RadixSortParallel(buffer, thread_id * part_vec_size, (thread_id + 1) * part_vec_size - 1);
+        } else {
+            RadixSortParallel(buffer, thread_id * part_vec_size, static_cast<int>(buffer->size()) - 1);
+        }
+    }
+    for (int i = 1; i < n_threads; i++) {
+        int current_size = part_vec_size;
+        if (i == n_threads - 1) {
+            current_size = static_cast<int>(buffer->size()) - (n_threads - 1) * part_vec_size;
+        }
+        merge(buffer->data(), part_vec_size * i, buffer->data() + part_vec_size * i, current_size);
+    }
+    return 0;
+}
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Solovev Aleksandr
+#include <numeric>
+#include <utility>
+#include <algorithm>
+#include "gtest/gtest.h"
+#include "../../../modules/task_2/solovev_a_radix_sort/radix_sort.h"
+
+
+TEST(Parallel, Test_Very_Micro_Length) {
+    const int length = 10;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1, -100, 100);
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+    statuspar = ParallelSorting(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+
+TEST(Parallel, Test_Very_Small_Length) {
+    const int length = 100;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1, -1000, 1000);
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+    statuspar = ParallelSorting(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+TEST(Parallel, Test_Small_length) {
+    const int length = 500;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1, -10000, 10000);
+
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+    statuspar = ParallelSorting(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+TEST(Parallel, Test_Medium_Length) {
+    const int length = 1000;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1,  -1000, 1000);
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+
+    statuspar = ParallelSorting(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+TEST(Senquential, Test_Large_Length) {
+    const int length = 1500;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1,  -1000, 1000);
+    std::vector<int> buffer2 = buffer1;
+
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+
+    statuspar = ParallelSorting(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+TEST(Senquential, Test_Very_Large_Length) {
+    const int length = 2000;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1,  -5000, 5000);
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+
+    statuspar = ParallelSorting(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+// TEST(Seqvssspar, Test_Only_Positive) {
+//     const int length = 150000000;
+//     int statusseq = 0;
+//     int statuspar = 0;
+//     std::vector<int> buffer1(length);
+//     statusseq = generateRandomArray(&buffer1, -10000, 10000);
+//     std::vector<int> buffer2 = buffer1;
+//     double t1_seq = omp_get_wtime();
+//     statusseq = RadixSort(&buffer1);
+//     statusseq = SortingCheck(&buffer1);
+//     double t2_seq = omp_get_wtime();
+//     double time_seq = t2_seq - t1_seq;
+//     std::cout << "Time seq: " << time_seq << std::endl;
+//     double t1_omp = omp_get_wtime();
+//     statuspar = ParallelSorting(&buffer2);
+//     statuspar = SortingCheck(&buffer2);
+//     double t2_omp = omp_get_wtime();
+//     double time_omp = t2_omp - t1_omp;
+//     std::cout << "Time omp: " << time_omp << std::endl;
+//     std::cout << "Acceleration: " << time_seq / time_omp << std::endl;
+//     ASSERT_EQ(buffer2, buffer1);
+// }
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\par Реализация с использованием технологии TBB:
+
+\begin{lstlisting}
+// Copyright 2021 Solovev Aleksandr
+#ifndef MODULES_TASK_3_SOLOVEV_A_RADIX_SORT_RADIX_SORT_H_
+#define MODULES_TASK_3_SOLOVEV_A_RADIX_SORT_RADIX_SORT_H_
+
+#include <time.h>
+#include <vector>
+#include <random>
+
+int generateRandomArray(std::vector<int> *buffer, int min, int max);
+int SortingCheck(std::vector<int> *buffer);
+int RadixSort(std::vector<int> *buffer);
+int ParallelSortingTBB(std::vector<int> *buffer);
+
+#endif  // MODULES_TASK_3_SOLOVEV_A_RADIX_SORT_RADIX_SORT_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Solovev Aleksandr
+
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+
+#include "../../../modules/task_3/solovev_a_radix_sort/radix_sort.h"
+
+int generateRandomArray(std::vector<int> *buffer, int min, int max) {
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    for (size_t i = 0; i < buffer->size(); i++) {
+        buffer->at(i) = static_cast<int>(gen()) % (max - min + 1) + min;
+    }
+    return 0;
+}
+
+int MergeArrays(std::vector<int> *buffer1, std::vector<int> *buffer2, int left, std::vector<int> *result) {
+    int current_buff = 0;
+    for (size_t i = left; i < buffer1->size() + left; i++) {
+        result->at(i) = buffer1->at(current_buff);
+        current_buff++;
+    }
+    current_buff = 0;
+    for (size_t i = left + buffer1->size() ; i < buffer2->size() + left + buffer1->size(); i++) {
+        result->at(i) = buffer2->at(current_buff);
+        current_buff++;
+    }
+
+    return 0;
+}
+
+
+
+int SortingCheck(std::vector<int> *buffer) {
+    for (size_t i = 0; i < buffer->size() - 1; i++) {
+        if (buffer->at(i) <= buffer->at(i + 1)) {
+            continue;
+        } else {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+void CountingSort(std::vector<int> *input, std::vector<int> *output, int valbyte) {
+    unsigned char *buffer = (unsigned char *)input->data();
+    int counter[256] = {0};
+    size_t length_counter = 256;
+    int value = 0;
+
+    for (size_t i = 0; i < input->size(); i++) {
+        counter[buffer[4 * i + valbyte]]++;
+    }
+
+    for (size_t j = 0; j < length_counter; j++) {
+        int tmp = counter[j];
+        counter[j] = value;
+        value += tmp;
+    }
+
+    for (size_t i = 0; i < input->size(); i++) {
+        output->at(counter[buffer[4 * i + valbyte]]++) = input->at(i);
+    }
+}
+
+int RadixSortUnsigned(std::vector<int> *buffer) {
+    if (buffer->empty()) {
+        return -1;
+    }
+    std::vector<int> outbuf(buffer->size());
+    if (outbuf.data() == nullptr) {
+        return -1;
+    }
+    for (int i = 0; i < 2; i++) {
+        CountingSort(buffer, &outbuf, 2 * i);
+        CountingSort(&outbuf, buffer, 2 * i + 1);
+    }
+    return 0;
+}
+int RadixSort(std::vector<int> *buffer) {
+    if (buffer->size() < 1)
+        return -1;
+    int positive_length = 0, negative_length = 0;
+    int status = 0;
+
+    for (size_t i = 0; i < buffer->size(); i++) {
+        if (buffer->at(i) >= 0) {
+            positive_length++;
+        } else {
+            negative_length++;
+        }
+    }
+    std::vector<int> positive_numbers(positive_length);
+    std::vector<int> negative_numbers(negative_length);
+    positive_length = 0;
+    negative_length = 0;
+    for (size_t i = 0; i < buffer->size(); i++) {
+        if (buffer->at(i) >= 0) {
+            positive_numbers[positive_length] = buffer->at(i);
+            positive_length++;
+        } else {
+            negative_numbers[negative_length] = buffer->at(i);
+            negative_length++;
+        }
+    }
+
+    status = RadixSortUnsigned(&positive_numbers);
+    status = RadixSortUnsigned(&negative_numbers);
+
+    status = MergeArrays(&negative_numbers,  &positive_numbers, 0,  buffer);
+    return status;
+}
+int RadixSortParallel(std::vector<int> *buffer, int left, int right) {
+    if (buffer->size() < 1)
+        return -1;
+    int positive_length = 0, negative_length = 0;
+    int status = 0;
+    for (int i = left; i <= right; i++) {
+        if (buffer->at(i) >= 0) {
+            positive_length+=1;
+        } else {
+            negative_length+=1;
+        }
+    }
+    std::vector<int> positive_numbers(positive_length);
+    std::vector<int> negative_numbers(negative_length);
+    positive_length = 0;
+    negative_length = 0;
+
+    for (int i = left; i <= right; i++) {
+        if (buffer->at(i) >= 0) {
+            positive_numbers[positive_length] = buffer->at(i);
+            positive_length+=1;
+        } else {
+            negative_numbers[negative_length] = buffer->at(i);
+            negative_length+=1;
+        }
+    }
+
+    status = RadixSortUnsigned(&positive_numbers);
+    status = RadixSortUnsigned(&negative_numbers);
+
+    status = MergeArrays(&negative_numbers,  &positive_numbers, left,  buffer);
+
+    return status;
+}
+void merge(int* a, int size_a, int* b, int size_b) {
+    int i = 0, j = 0, k = 0;
+    int size_c = size_a + size_b;
+    int* c = new int[size_c];
+    while ((i < size_a) && (j < size_b)) {
+        if (a[i] <= b[j]) {
+            c[k++] = a[i++];
+        } else {
+            c[k++] = b[j++];
+        }
+    }
+
+    if (i == size_a) {
+        while (j < size_b) {
+            c[k++] = b[j++];
+        }
+    } else {
+        while (i < size_a) {
+            c[k++] = a[i++];
+        }
+    }
+
+    for (int i = 0; i < size_c; i++) {
+        a[i] = c[i];
+    }
+}
+
+int ParallelSortingTBB(std::vector<int> *arr) {
+    int size = static_cast<int>(arr->size());
+    int min_grain_size = 10;
+    int divider = 5;
+    int part_arr_size = size / divider;
+    int grain_size = part_arr_size > min_grain_size ? part_arr_size : min_grain_size;
+    tbb::parallel_for(tbb::blocked_range<int>(0, size, grain_size), [&arr](const tbb::blocked_range<int>& r) {
+        RadixSortParallel(arr, r.begin(), r.end() - 1);
+    });
+    int i_prev = 0;
+    int k = 0;
+    for (int i = 1; i < size; i++) {
+        if (arr->at(i) < arr->at(i - 1)) {
+            if (k++ > 0)
+                merge(arr->data(), i_prev, arr->data() + i_prev, i - i_prev);
+            i_prev = i;
+        }
+    }
+    merge(arr->data(), i_prev, arr->data() + i_prev, size - i_prev);
+    return 0;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Solovev Aleksandr
+#include <gtest/gtest.h>
+#include <tbb/tick_count.h>
+
+#include "../../../modules/task_3/solovev_a_radix_sort/radix_sort.h"
+
+
+TEST(Parallel, Test_Very_Micro_Length) {
+    const int length = 10;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1, -100, 100);
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+    statuspar = ParallelSortingTBB(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+
+TEST(Parallel, Test_Very_Small_Length) {
+    const int length = 100;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1, -1000, 1000);
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+    statuspar = ParallelSortingTBB(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+TEST(Parallel, Test_Small_length) {
+    const int length = 500;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1, -10000, 10000);
+
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+    statuspar = ParallelSortingTBB(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+TEST(Parallel, Test_Medium_Length) {
+    const int length = 1000;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1,  -1000, 1000);
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+
+    statuspar = ParallelSortingTBB(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+TEST(Senquential, Test_Large_Length) {
+    const int length = 1500;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1,  -1000, 1000);
+    std::vector<int> buffer2 = buffer1;
+
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+
+    statuspar = ParallelSortingTBB(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+TEST(Senquential, Test_Very_Large_Length) {
+    const int length = 2000;
+    int statusseq = 0;
+    int statuspar = 0;
+    std::vector<int> buffer1(length);
+    statusseq = generateRandomArray(&buffer1,  -5000, 5000);
+    std::vector<int> buffer2 = buffer1;
+    statusseq = RadixSort(&buffer1);
+    statusseq = SortingCheck(&buffer1);
+
+    statuspar = ParallelSortingTBB(&buffer2);
+    statuspar = SortingCheck(&buffer2);
+
+
+    ASSERT_EQ(statusseq, statuspar);
+}
+
+// TEST(Seqvssspar, Test_Only_Positive) {
+    // int n = 3000000;
+    // double start = 0, finish = 0, time_seq = 0, time_par = 0;
+    // std::vector<double> vec = createRandomVector(n);
+    // std::vector<double> vec_copy = vec;
+    // tbb::tick_count t1_seq = tbb::tick_count::now();
+    // qSortSeq(&vec, 0, n - 1);
+    // tbb::tick_count t2_seq = tbb::tick_count::now();
+    // time_seq = (t2_seq - t1_seq).seconds();
+    // std::cout << "Time sequential: " << time_seq << std::endl;
+    // tbb::tick_count t1_par = tbb::tick_count::now();
+    // qSortTbb(&vec_copy);
+    // tbb::tick_count t2_par = tbb::tick_count::now();
+    // time_par = (t2_par - t1_par).seconds();
+    // std::cout << "Time parallel: " << time_par << std::endl;
+    // std::cout << "Acceleration " << time_seq / time_par << std::endl;
+//     const int length = 15000000;
+//     int statusseq = 0;
+//     int statuspar = 0;
+//     std::vector<int> buffer1(length);
+//     statusseq = generateRandomArray(&buffer1, -10000, 10000);
+//     std::vector<int> buffer2 = buffer1;
+//     tbb::tick_count t1_seq = tbb::tick_count::now();
+//     statusseq = RadixSort(&buffer1);
+//     statusseq = SortingCheck(&buffer1);
+//     tbb::tick_count t2_seq = tbb::tick_count::now();
+//     double time_seq = (t2_seq - t1_seq).seconds();
+//     std::cout << "Time sequential: " << time_seq << std::endl;
+//     tbb::tick_count t1_par = tbb::tick_count::now();
+//     statuspar = ParallelSortingTBB(&buffer2);
+//     tbb::tick_count t2_par = tbb::tick_count::now();
+//     double time_par = (t2_par - t1_par).seconds();
+//     std::cout << "Time parallel: " << time_par << std::endl;
+//     std::cout << "Acceleration " << time_seq / time_par << std::endl;
+//     ASSERT_EQ(buffer2, buffer1);
+// }
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+
+\end{lstlisting}
+
+\end{document}
