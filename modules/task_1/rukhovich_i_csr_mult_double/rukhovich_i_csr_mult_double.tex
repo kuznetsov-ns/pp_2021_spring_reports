@@ -1,0 +1,654 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{indentfirst}
+\usepackage{pgfplots}
+\usepackage{bbm}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+
+\lstset{
+    language=C++,
+	numbers=left,
+	basicstyle=\footnotesize,
+	keywordstyle=\color{blue}\ttfamily,
+	stringstyle=\color{red}\ttfamily,
+	commentstyle=\color{green}\ttfamily,
+	morecomment=[l][\color{magenta}]{\#}, 
+	tabsize=2,
+	title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\LargeУмножение построчных разреженных (CSR) матриц с элементами действительного (double) типа} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ Игорь Рухович \\ группа 381808-1
+}
+
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+
+\newpage
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Матрицы удобно хранить в памяти компьютера в виде последовательного массива элементов, строчка за строчкой. С таким способом возможен доступ к любому из элементов матрицы за $\Theta(1)$, что делает очень удобным реализацию матричных операций и разделение этих операций на части для параллельного выполнения.
+
+В некоторых областях математики часто используются матрицы с большим количеством нулевых (или, что эквивалентно, очень близких к нулю) элементов, не несущих в себе никакой информационной ценности. Примем количество ненулевых элементов матрицы за $N$, а размеры матрицы - $A$ и $B$ по вертикали и горизонтали соответственно. \textbf{Будем использовать эти обозначения и далее.} Тогда, если $N = o(A\times B)$, то матрицу принято называть разреженной, а иначе - плотной. Операция умножения плотных матриц имеет кубическую сложность относительно размеров этих матриц ($A \times B \times C$ операций, если принять размеры правой за $B$ и $C$). Но если мы имеем разреженные матрицы, из формул видно, что такая сложность операции умножения будет не оптимальной (т. к. наличие хотя бы в одной из матриц нулевого элемента на конкретной позиции исключает вклад этого элемента в результат умножения).
+
+Итак, нам нужен новый способ представления матриц в памяти компьютера для оптимальной работы в описанном выше случае.
+
+\newpage
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+Требуется реализовать алгоритм умножения разреженных матриц, оперирующих элементами действительного (double) типа. В рамках задания к лабораторной работе предлагается использовать формат CSR (Compressed Sparse Row) для хранения матриц.
+
+Разобьём это задание на подзадачи:
+\begin{itemize}
+\item Реализовать структуру данных для хранения матриц в формате CSR
+\item Добавить возможность проверки матриц на равенство
+\item Подобрать оптимальный алгоритм и реализовать операцию умножения таких матриц
+\item Найти способ внедрить параллельные вычисления для более быстрого умножения двух матриц
+\item Реализовать аналогичные структуры данных, где умножение будет выполняться параллельно с помощью библиотек
+\begin{itemize}
+    \item OpenMP
+    \item Intel\textsuperscript{\textregistered}  oneAPI Threading Building Blocks (oneTBB)
+    \item C++ std::thread
+\end{itemize}
+\item Провести замеры производительности операции умножения для разных библиотек, а также последовательной реализации
+\item Проанализировать полученные результаты
+\end{itemize}
+
+\newpage
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+\begin{enumerate}
+\item Создадим новый класс (язык C++), в котором добавим следующие поля:
+    \begin{itemize}
+        \item Тип элементов, хранящихся в матрице (шаблонный параметр) <<ValueType>>
+        \item Целочисленный тип, используемый для индексации по матрице <<UIntType>>
+        \item Массив элементов типа UIntType, хранящий значения элементов матрицы <<values>>
+        \item Массив элементов типа UIntType, хранящий для каждого элемента vals номер его колонки <<columns>>
+        \item Массив элементов типа UIntType, хранящий $\sum_{k=1}^{N} \mathbbm{1}(line[values[k]] < i)$ в элементах $i, i \in (0, A]$ и 0 в первом элементе, где $line[values[k]]$ - строка, на которой находится элемент массива values с позиции k <<counts>>
+        \item Общее число столбцов матрицы
+    \end{itemize}
+\item Перегрузим operator== для сравнения таких матриц (причём элементы целочисленных матриц будут проверяться на равенство, а действительных - на нахождение в пределах погрешности eps ($10^3$ для float и $10^6$ для double).
+\item Перегрузим operator*= для умножения матриц.
+\item Создадим аналогичные классы, где operator*= будет использовать одну из перечисленных выше библиотек.
+\item Реализуем функцию, которая сможет измерять время умножения двух матриц и применять <<box filter>>. $f(t, p)$ будет проводить умножение $t$ раз, сортировать полученные времена работы по неубыванию, удалять из начала и конца массива $\lfloor t \times p \rfloor$ первых элементов и возвращать среднее арифметическое оставшихся.
+\item Используя эту функцию протестируем реализованные алгоритмы на разных матрицах и с использованием разного числа параллельных потоков.
+\end{enumerate}
+
+
+\newpage
+% Алгоритм умножения
+\section*{Алгоритм умножения}
+\addcontentsline{toc}{section}{Алгоритм умножения}
+По правилам умножения матриц, значение на позиции $c_{i, j}$ в результирующей матрице является результатом скалярного произведения вектора-строки $i$ левой матрицы на вектор-столбец $j$ правой. Имея матрицу в формате CSR мы легко можем проитерироваться по любой выбранной строке, но итерация по столбцу вызывает сложности: для этого придётся просмотреть весь массив элементов и потратить много лишнего времени. Мало того, используя такой способ, мы не сможем получить хорошего ускорения при параллельном вычислении: всем потокам придётся смотреть на одни и те же элементы правой матрицы, начнётся <<гонка>> за память и потеряется весь смысл параллельных вычислений.
+
+Можно вспомнить, что существует очень похожий формат хранения матриц - CSC (Compressed Sparsed Columns), который выглядит абсолютно так же, за исключением того, что он предоставляет возможность быстрой итерации по столбцам матрицы - как раз то, что нам и нужно. Можно также заметить, что приведение CSR матрицы в CSC формат (как и обратное) эквивалентно простому транспонированию матрицы, которое мы можем произвести за $\Theta(N)$ (детали реализации можно посмотреть в листинге кода; функция $GetTransposed()$. Таким образом, если мы возьмём левую матрицу <<как есть>>, а правую представим в виде CSC и будем производить их умножение, итерируясь по строчкам.
+
+Для ясности уточним сам алгоритм: чтобы получить элемент $c_{i,j}$ результирующей матрицы, поставим один указатель ($l$) в начало $i$-ой строки левой матрицы (соответствует позиции $counts[i]$ в массиве $values$), а другой ($r$) в начало $j$-ой строки [транспонированной] правой матрицы (находится аналогично). Пока $l < counts[i+1]$ левой и $r < counts[j+1]$ правой матрицы, будем делать следующее: смотрим на номера столбцов <<реальных>> элементов обеих матриц ($columns[l]$ левой, $columns[r]$ правой) и увеличиваем на единицу $l$ или $r$ в зависимости от того, какой из столбцов меньше. Если же $columns[l] == columns[r]$, значит мы нашли элемент, который даст нам вклад в результат. Увеличим $c_{i,j}$ на $values[l] \times values[r]$. Проделаем эту операцию для всех $i \in [0, A), j \in [0, C)$.
+
+
+\newpage
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Предложенный выше алгоритм очень легко исполнить параллельно - достаточно каждому из потоков дать какой-то набор строчек результирующей матрицы для вычисления. Формально: представим нахождение $i$-ой строки результирующей матрицы как отдельную операцию (в виде самостоятельной лямбда-функции, принимающей на вход $i$). Тогда вычисление всей результирующей матрицы можно представить как набор задач $Z_i, i \in [0, A)$. Поскольку эти задачи по определению независимы, можно в любом порядке назначить их для выполнения разным потокам.
+
+Для OpenMP используем динамическое распределение описанных выше задач между потоками. Каждый поток будет получать новую задачу из списка ещё не выполненных по мере завершения предыдущей.
+\begin{lstlisting}
+#pragma omp parallel for schedule(dynamic)
+    for (int32_t row = 0; row < static_cast<int32_t>(res_height); ++row) {
+        mult_fun(row);
+    }
+\end{lstlisting}
+
+Для oneTBB воспользуемся встроенной реализацией параллельного цикла. Параматр грануляции подобран экспериментально (с помощью способа из лекций).
+\begin{lstlisting}
+tbb::task_scheduler_init init(num_threads_);
+tbb::parallel_for(
+    tbb::blocked_range<UIntType>(0, res_height, 6),
+    [&](tbb::blocked_range<UIntType> &range) {
+        mult_fun(range);
+    });
+\end{lstlisting}
+
+В случае использования std::threads придётся вручную распределять задачи между потоками. Из простоты реализации выбрано <<статическое>> распределение.
+\begin{lstlisting}
+std::vector<std::thread> threads;
+UIntType rows_per_thread = res_height / static_cast<UIntType>(num_threads_);
+size_t num_threads_with_add = static_cast<size_t>(res_height) % num_threads_;
+UIntType cur_row = 0;
+for (size_t td = 0; td < num_threads_; ++td) {
+  UIntType num_row_for_cur_thread = rows_per_thread + 
+                                    (td < num_threads_with_add ? 1 : 0);
+  threads.emplace_back(mult_fun, cur_row, cur_row + num_row_for_cur_thread);
+  cur_row += num_row_for_cur_thread;
+}
+for (size_t td = 0; td < num_threads_; ++td) {
+  threads[td].join();
+}
+\end{lstlisting}
+
+\newpage
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+В общем случае класс для хранения матрицы выглядит так:
+
+\begin{lstlisting}
+template <class ValueType, typename UIntType = uint16_t>
+class CSRMatrix {
+ public:
+  CSRMatrix() = delete;
+
+  CSRMatrix(const CSRMatrix& other) = default;
+  CSRMatrix(CSRMatrix&& other) = default;
+
+  CSRMatrix(UIntType height, UIntType width);
+  CSRMatrix(UIntType height, UIntType width, const std::vector<ValueType>& matrix);
+  
+  ~CSRMatrix() = default;
+  
+  CSRMatrix& operator=(CSRMatrix other);
+  void Swap(CSRMatrix& other);
+
+  bool operator==(const CSRMatrix& rhs) const;
+
+  CSRMatrix& operator*=(const CSRMatrix& other);
+
+ protected:
+  const CSRMatrix GetTransposed() const;
+
+  UIntType num_cols_;
+  std::vector<ValueType> vals_;
+  std::vector<UIntType> cols_;
+  std::vector<UIntType> counts_;
+};
+\end{lstlisting}
+
+За неимением смысла наследование не использовалось для написания параллельных реализаций. В каждой из подзадач создавался аналогичный класс, в котором отличался лишь оператор умножения матриц. Главные отличия были перечислены в предыдущем параграфе, а полный листинг кода приведён в конце.
+
+
+\newpage
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Измерения производительности реализованных алгоритмов производились на ноутбуке со следующей конфигурацией:
+
+\begin{itemize}
+\item CPU: Intel\textsuperscript{\textregistered} Core\textsuperscript{\texttrademark} i5-8265U, 1.6 GHz, 1 socket, 4 cores, 2 threads per core
+\item RAM: 8GB, 2400MHz
+\item OS: Microsoft Windows 10
+\end{itemize}
+
+\begin{tikzpicture}
+\begin{axis}[
+    title = Матрица $512 \times 512$; процент ненулевых элементов 100,
+	xlabel = {Количество потоков},
+	ylabel = {Время выполнения, мс},
+	width = 400, 
+	height = 400,
+	legend pos = north west, 
+    ymin = 500,
+    ymax = 2100,
+    xmin = 1,
+    xmax = 16,
+    grid = major,
+]
+\legend{
+	Время OMP реализации,
+	Время TBB реализации,
+	Время STD реализации,
+};
+\addplot coordinates {
+	(1, 2037.)
+	(2, 1052.)
+	(4, 561.)
+	(8, 552.)
+	(16, 560.)
+};
+\addplot coordinates {
+	(1, 2084.749)
+	(2, 1077.938)
+	(4, 573.724)
+	(8, 584.495)
+	(16, 613.933)
+};
+\addplot coordinates {
+	(1, 2085.925)
+	(2, 1079.345)
+	(4, 597.451)
+	(8, 598.430)
+	(16, 613.125)
+};
+\end{axis}
+\end{tikzpicture}
+
+\begin{tikzpicture}
+\begin{axis}[
+    title = Матрица $512 \times 512$; процент ненулевых элементов 100,
+	xlabel = {Количество потоков},
+	ylabel = {Ускорение},
+	width = 400, 
+	height = 400,
+	legend pos = north west, 
+    ymin = 1,
+    ymax = 4.5,
+    xmin = 1,
+    xmax = 16,
+    grid = major,
+]
+\legend{
+	Ускорение OMP реализации,
+	Ускорение TBB реализации,
+	Ускорение STD реализации,
+};
+\addplot coordinates {
+	(1, 1.000)
+	(2, 1.937)
+	(4, 3.628)
+	(8, 3.688)
+	(16, 3.639)
+};
+\addplot coordinates {
+	(1, 1.000)
+	(2, 1.934)
+	(4, 3.634)
+	(8, 3.567)
+	(16, 3.396)
+};
+\addplot coordinates {
+	(1, 1.000)
+	(2, 1.933)
+	(4, 3.491)
+	(8, 3.486)
+	(16, 3.402)
+};
+\end{axis}
+\end{tikzpicture}
+
+
+
+\begin{tikzpicture}
+\begin{axis}[
+    title = Матрица $512 \times 512$; процент ненулевых элементов 33.3,
+	xlabel = {Количество потоков},
+	ylabel = {Время выполнения, мс},
+	width = 400, 
+	height = 400,
+	legend pos = north west, 
+    ymin = 250,
+    ymax = 1500,
+    xmin = 1,
+    xmax = 16,
+    grid = major,
+]
+\legend{
+	Время OMP реализации,
+	Время TBB реализации,
+	Время STD реализации,
+};
+\addplot coordinates {
+	(1, 1454.)
+	(2, 760.)
+	(4, 417.)
+	(8, 307.)
+	(16, 301.)
+};
+\addplot coordinates {
+	(1, 1403.027)
+	(2, 727.836)
+	(4, 387.732)
+	(8, 301.687)
+	(16, 312.988)
+};
+\addplot coordinates {
+	(1, 1395.202)
+	(2, 723.586)
+	(4, 445.053)
+	(8, 300.174)
+	(16, 313.800)
+};
+\end{axis}
+\end{tikzpicture}
+
+\begin{tikzpicture}
+\begin{axis}[
+    title = Матрица $512 \times 512$; процент ненулевых элементов 33.3,
+	xlabel = {Количество потоков},
+	ylabel = {Ускорение},
+	width = 400, 
+	height = 400,
+	legend pos = north west, 
+    ymin = 1,
+    ymax = 5.8,
+    xmin = 1,
+    xmax = 16,
+    grid = major,
+]
+\legend{
+	Ускорение OMP реализации,
+	Ускорение TBB реализации,
+	Ускорение STD реализации,
+};
+\addplot coordinates {
+	(1, 1.000)
+	(2, 1.913)
+	(4, 3.489)
+	(8, 4.737)
+	(16, 4.832)
+};
+\addplot coordinates {
+	(1, 1.000)
+	(2, 1.928)
+	(4, 3.619)
+	(8, 4.651)
+	(16, 4.483)
+};
+\addplot coordinates {
+	(1, 1.000)
+	(2, 1.928)
+	(4, 3.135)
+	(8, 4.648)
+	(16, 4.446)
+};
+\end{axis}
+\end{tikzpicture}
+
+\par По графикам можно сказать, что:
+\begin{itemize}
+    \item Чем меньше ненулевых элементов в матрице, тем быстрее происходит умножение
+    \item Разница между реализациями не так уж и заметна - задача слишком простая, чтобы её увидеть
+    \item Решение с помощью std::thread совсем немного, но уступает другим реализациям
+    \item Ускорение работы алгоритмов при увеличении физических процессоров практически линейно - признак хорошей параллельной реализации
+    \item При небольшом количестве ненулевых элементов в матрицах небольшое ускорение также даёт технология Hyper-Threading, а вот при отсутствии нулевых элементов - наоборот, происходит незначительное замедление при использовании большего числа потоков, чем есть физических процессоров
+\end{itemize}
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+Была реализована структура хранения матриц в формате CSR с возможностью умножения матриц с использованием различных библиотек параллелизации. Хорошо заметна шкалируемость результатов при увеличении физических (и даже логических) ядер. Максимальное ускорение составило 4.83 раза (на 16 потоках).
+
+
+\newpage
+% Источники
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Источники}
+\bibitem{Sysoev}
+Сысоев А.В., Мееров И.Б., Свистунов А.Н., Курылев А.Л., Сенин А.В., Шишков А.В., Корняков К.В., Сиднев А.А. «Параллельное программирование в системах с общей памятью. Инструментальная поддержка». Учебно-методические материалы по программе повышения квалификации «Технологии высокопроизводительных вычислений для обеспечения учебного процесса и научных исследований». Нижний Новгород, 2007, 110 с. 
+\bibitem{Gergel}
+Гергель В. П. Теория и практика параллельных вычислений. – 2007. 
+\bibitem{Gergel}
+Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\end{thebibliography}
+
+\newpage
+
+% Листинг
+\section*{Листинг}
+\addcontentsline{toc}{section}{Листинг}
+
+\par Так как реализация с использованием std::thread концептуально является самой сложной, в листинге приведена именно она. Остальные реализации, как было сказано выше, имеют мало отличий. 
+
+\begin{lstlisting}
+// Copyright 2021 Igor Rukhovich
+#ifndef MODULES_TASK_4_RUKHOVICH_I_CSR_MULT_DOUBLE_CSR_MULT_DOUBLE_H_
+#define MODULES_TASK_4_RUKHOVICH_I_CSR_MULT_DOUBLE_CSR_MULT_DOUBLE_H_
+
+#include <random>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+#include "../../3rdparty/unapproved/unapproved.h"
+
+class RandomDouble {
+ public:
+  static double Next() {
+    static RandomDouble rand = RandomDouble();
+    return rand.dist_(rand.gen_);
+  }
+
+ private:
+  RandomDouble() : gen_(std::random_device()()), dist_(-1e3, 1e3) {
+  }
+
+  std::mt19937_64 gen_;
+  std::uniform_real_distribution<double> dist_;
+};
+
+template <class T>
+bool Compare(const T &lhs, const T &rhs) {
+  static float float_eps = 1e-3;
+  static double double_eps = 1e-6;
+  if (std::is_same<T, float>::value) {
+    return (lhs + float_eps > rhs) && (lhs - float_eps < rhs);
+  }
+  if (std::is_same<T, double>::value) {
+    return (lhs + double_eps > rhs) && (lhs - double_eps < rhs);
+  }
+  return lhs == rhs;
+}
+
+template <class ValueType, typename UIntType = uint16_t>
+class CSRMatrixSTD {
+ public:
+  CSRMatrixSTD() = delete;
+
+  CSRMatrixSTD(const CSRMatrixSTD &other) = default;
+  CSRMatrixSTD(CSRMatrixSTD &&other) = default;
+
+  explicit CSRMatrixSTD(UIntType height, UIntType width, size_t num_threads = 1)
+      : counts_(height + 1, 0), num_threads_(num_threads), num_cols_(width) {
+  }
+
+  explicit CSRMatrixSTD(UIntType height, UIntType width, const std::vector<ValueType> &matrix,
+                        size_t num_threads = 1)
+      : counts_(height + 1), num_threads_(num_threads), num_cols_(width) {
+    if (static_cast<UIntType>(matrix.size()) != height * width) {
+      throw std::runtime_error("Init matrix must consist of height*width elements");
+    }
+    counts_[0] = 0;
+    for (UIntType row = 0; row < height; ++row) {
+      counts_[row + 1] = counts_[row];
+      for (UIntType col = 0; col < width; ++col) {
+        auto cur_val = matrix[width * row + col];
+        if (cur_val) {
+          vals_.emplace_back(cur_val);
+          cols_.emplace_back(col);
+          ++counts_[row + 1];
+        }
+      }
+    }
+  }
+
+  CSRMatrixSTD &operator=(CSRMatrixSTD other) {
+    Swap(other);
+    return *this;
+  }
+
+  void Swap(CSRMatrixSTD &other) {
+    std::swap(vals_, other.vals_);
+    std::swap(cols_, other.cols_);
+    std::swap(counts_, other.counts_);
+    std::swap(num_threads_, other.num_threads_);
+    std::swap(num_cols_, other.num_cols_);
+  }
+
+  bool operator==(const CSRMatrixSTD &rhs) const {
+    const CSRMatrixSTD &lhs = *this;
+    if (lhs.vals_.size() != rhs.vals_.size() || lhs.counts_.size() != rhs.counts_.size() ||
+        lhs.num_cols_ != rhs.num_cols_) {
+      return false;
+    }
+    for (UIntType i = 1; i < lhs.counts_.size(); ++i) {
+      if (lhs.counts_[i] != rhs.counts_[i]) {
+        return false;
+      }
+    }
+    for (UIntType i = 0; i < lhs.vals_.size(); ++i) {
+      if (lhs.cols_[i] != rhs.cols_[i] || !Compare(lhs.vals_[i], rhs.vals_[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  CSRMatrixSTD &operator*=(const CSRMatrixSTD &other) {
+    CSRMatrixSTD rhs = other.GetTransposed();
+    UIntType res_width = other.num_cols_;
+    UIntType res_height = counts_.size() - 1;
+    std::vector<ValueType> res_mat(res_width * res_height);
+    auto mult_fun = [&](UIntType first_row, UIntType last_row) {
+      for (UIntType row = first_row; row < last_row; ++row) {
+        for (UIntType col = 0; col < res_width; ++col) {
+          UIntType l_row_cur = counts_[row], r_row_cur = rhs.counts_[col];
+          ValueType cur_val = 0;
+          while (l_row_cur < counts_[row + 1] && r_row_cur < rhs.counts_[col + 1]) {
+            if (cols_[l_row_cur] < rhs.cols_[r_row_cur]) {
+              ++l_row_cur;
+            } else if (cols_[l_row_cur] > rhs.cols_[r_row_cur]) {
+              ++r_row_cur;
+            } else {
+              cur_val += vals_[l_row_cur++] * rhs.vals_[r_row_cur++];
+            }
+          }
+          res_mat[row * res_width + col] = cur_val;
+        }
+      }
+    };
+    std::vector<std::thread> threads;
+    UIntType rows_per_thread = res_height / static_cast<UIntType>(num_threads_);
+    size_t num_threads_with_add = static_cast<size_t>(res_height) % num_threads_;
+    UIntType cur_row = 0;
+    for (size_t td = 0; td < num_threads_; ++td) {
+      UIntType num_row_for_cur_thread = rows_per_thread + (td < num_threads_with_add ? 1 : 0);
+      threads.emplace_back(mult_fun, cur_row, cur_row + num_row_for_cur_thread);
+      cur_row += num_row_for_cur_thread;
+    }
+    for (size_t td = 0; td < num_threads_; ++td) {
+      threads[td].join();
+    }
+
+    num_cols_ = res_width;
+    vals_.resize(0);
+    cols_.resize(0);
+    counts_.resize(res_height + 1);
+    counts_[0] = 0;
+    for (UIntType row = 0; row < res_height; ++row) {
+      counts_[row + 1] = counts_[row];
+      for (UIntType col = 0; col < res_width; ++col) {
+        auto cur_val = res_mat[res_width * row + col];
+        if (cur_val) {
+          vals_.emplace_back(cur_val);
+          cols_.emplace_back(col);
+          ++counts_[row + 1];
+        }
+      }
+    }
+    return *this;
+  }
+
+  void SetNumThreads(size_t num_threads) {
+    num_threads_ = num_threads;
+  }
+
+ protected:
+  // We can think of it as converting CSR to CSC and back again
+  const CSRMatrixSTD GetTransposed() const {
+    CSRMatrixSTD other(num_cols_, counts_.size() - 1);
+    for (UIntType i = 0; i < cols_.size(); ++i) {
+      ++other.counts_[cols_[i]];
+    }
+    for (UIntType col = 0, sum = 0; col < other.counts_.size(); ++col) {
+      UIntType tmp = other.counts_[col];
+      other.counts_[col] = sum;
+      sum += tmp;
+    }
+    other.cols_.resize(other.counts_.back());
+    other.vals_.resize(other.counts_.back());
+
+    for (UIntType row = 0; static_cast<UIntType>(row + 1) < counts_.size(); ++row) {
+      for (UIntType cnt = counts_[row]; cnt < counts_[row + 1]; ++cnt) {
+        UIntType col = cols_[cnt];
+        UIntType dest_place = other.counts_[col];
+        other.vals_[dest_place] = vals_[cnt];
+        other.cols_[dest_place] = row;
+        ++other.counts_[col];
+      }
+    }
+    for (UIntType col = 0, last = 0; col <= num_cols_; ++col) {
+      UIntType tmp = other.counts_[col];
+      other.counts_[col] = last;
+      last = tmp;
+    }
+    return other;
+  }
+
+  std::vector<ValueType> vals_;
+  std::vector<UIntType> cols_;
+  std::vector<UIntType> counts_;
+  size_t num_threads_;
+  UIntType num_cols_;
+};
+
+#endif  // MODULES_TASK_4_RUKHOVICH_I_CSR_MULT_DOUBLE_CSR_MULT_DOUBLE_H_
+\end{lstlisting}
+
+\end{document}
