@@ -1,0 +1,319 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\newenvironment{pseudocode}[1][htb]
+  {\renewcommand{\algorithmcfname}{Алгоритм}
+   \begin{algorithm}[#1]%
+  }{\end{algorithm}}
+
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#},
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\LargeПоиск кратчайших путей из одной вершины (алгоритм Дейкстры)} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-1 \\ Воронин А.А\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.
+}
+
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Граф — математическая абстракция реальной системы объектов любой природы, обладающих парными связями. Граф как математический объект есть совокупность двух множеств —
+множества самих объектов, называемого множеством вершин и множеством их парных связей, называемой множеством рёбер. Элемент множества рёбер есть пара элементов множества вершин.
+Графы находят широкое применение в современной науке и технике. Они используются и в естественных науках (физике и химии) и в социальных науках (например, социологии),
+но наибольших масштабов применение графов получило в информатике и сетевых технологиях.
+Задaча о кратчaйшем пути — задача поиска самого короткого пути между двумя точками (вершинами) на графе,
+в которой минимизируется сумма весов рёбер, составляющих путь. Задача о кратчайшем пути является одной из важнейших классических задач теории графов. Сегодня известно множество алгоритмов для её решения.Один из них — алгоритм Дейкстры
+Эдсгера Дейкстры. Алгоритм был создан в 1959 и позволяет найти все кратчайшие пути из одной изначально заданной вершины графа до всех остальных. Алгоритм работает только для графов без рёбер отрицательного веса.
+Реализация алгоритма Дейкстры, а также вариенты его параллельных реализваций будут представлены в этой лабораторной работе.
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+Цель данной лабораторной работы - разработка программы на языке C++ реализующего алгоритм Дейкстры, а также реализация ускоренных версий с помощью фреймворков для параллелизации - OpenMP и TBB.
+\par В работе представлены:
+\begin{itemize}
+\item Последовательный версия алгоритма Дейкстры;
+\item Параллельный алгоритм Дейкстры реализванный на OpenMP;
+\item Параллельный алгоритм Дейкстры реализванный на TBB;
+\end{itemize}
+\newpage
+
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+Каждой вершине из V сопоставим метку — минимальное известное расстояние от этой вершины до a.
+Алгоритм работает пошагово — на каждом шаге он «посещает» одну вершину и пытается уменьшать метки.Работа алгоритма завершается, когда все вершины посещены.
+На начальном этапе - метка самой вершины a полагается равной 0, метки остальных вершин — бесконечности.
+Это отражает то, что расстояния от a до других вершин пока неизвестны.Все вершины графа помечаются как непосещённые.
+Затем, с помощью повторений, пока все вершины не будут посещены выбирается непосещённая вершина u, имеющая минимальную метку.
+Мы рассматриваем всевозможные маршруты, в которых u является предпоследним пунктом. Вершины, в которые ведут рёбра из u, назовём соседями этой вершины.
+Для каждого соседа вершины u, кроме отмеченных как посещённые, рассмотрим новую длину пути, равную сумме значений текущей метки u и длины ребра, соединяющего u с этим соседом.
+\newpage
+
++\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+В алгоритме Дейкстры можно выделить два основных участка для эффективного распараллеливания:
+\begin{itemize}
+\item поиск вершины с минимальным расстоянием до исходной точки(редукция).;
+\item поиск и запоминание расстояний от исходной точки до всех непройденных вершин,смежных с обрабатываемой вершиной;
+\end{itemize}
+\par Соответственно на каждой итерации цикла на первом этапе каждый поток находит локальный минимум проходя по свеому набору вершин, затем избирается глобальный минимум.
+После чего каждый из потоков работает со своим наборов перезаписываемых расстояний от исходной вершины до других.
+\newpage
+
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Ниже представлена послежовательная реализация алгоритма - вначале отбор специальных случаев, создание необходимых переменных.
+Затем исполнение основного цикла и формирование результата.
+В качестве входных параметров передаются: граф и номер исходной вершины. номер вершины до которой ищем кратчайший путь.
+\begin{lstlisting}
+std::vector<int> dijkstra(const std::vector<int>& graph, int start, int end) {
+    if (graph.size() == 0) {
+        throw "Empty graph";
+    }
+
+    if (start == end)
+        return std::vector<int>(1, 0);
+
+    if (start > end) {
+        std::swap(start, end);
+    }
+
+    int points_count = sqrt(graph.size());
+
+    if (sqrt(graph.size()) != points_count) {
+        throw "Wrong size";
+    }
+
+    int max_weight = std::numeric_limits<int>::max();
+    int min, min_point, tmp;
+    std::vector<int> points_len(points_count, max_weight);
+    std::vector<int> path;
+    std::vector<bool> processed(points_count, false);
+
+    // Align start and end with array indexes
+    --start;
+    --end;
+
+    points_len[start] = 0;
+
+    do {
+        min_point = max_weight;
+        min = max_weight;
+
+        // Choose a point to work with
+        for (int i = 0; i < points_count; i++) {
+            if (!processed[i] && points_len[i] < min) {
+                min_point = i;
+                min = points_len[i];
+            }
+        }
+
+        if (min_point != max_weight) {
+            for (int i = 0; i < points_count; i++) {
+                if (graph[min_point * points_count + i] > 0) {
+                    tmp = min + graph[min_point * points_count + i];
+                    if (points_len[i] > tmp) {
+                        points_len[i] = tmp;
+                    }
+                }
+            }
+            processed[min_point] = true;
+        }
+    } while (min_point < max_weight);
+
+    // Configuring a path
+    path.push_back(end + 1);
+    int weight = points_len[end];
+
+    while (end != start) {
+        for (int i = 0; i < points_count; i++) {
+            if (graph[end * points_count + i] < 0) {
+                throw "Graph weight can not be less then zero.";
+            }
+            if (graph[end * points_count + i] > 0) {
+                tmp = weight - graph[end * points_count + i];
+                if (points_len[i] == tmp) {
+                    weight = tmp;
+                    end = i;
+                    path.push_back(i + 1);
+                }
+            }
+        }
+    }
+
+    return path;
+}
+\end{lstlisting}
+\par Параллельные реализации - копируют схему работы, за исключением вышеописанных секций.
+
+\subsection*{OpenMP}
+\addcontentsline{toc}{subsection}{OpenMP}
+Первая часть распараллеливания была реализована с секциями
+\par \verb| #pragma omp parallel ,  #pragma omp for, #pragma omp critical|
+\par Работа осуществялется в параллельной секции (omp parallel) цикл поиска минимальных расстояний распараллелен с помощью omp for и редукция выполняется в секции omp critical
+\par Для распараллеливания втрой секции используется \verb|  #pragma omp parallel for private(tmp)|.
+
+\subsection*{TBB}
+\addcontentsline{toc}{subsection}{TBB}
+TBB реализация редукции проще в связи с наличием готовой функции \verb|tbb::parallel_reduce(...)|. Разделение на участки проиходит автоматически, обработка осуществляется внутри\verb| tbb:blocked_range|.
+\par торой участок кода распараллеленс с помощью  \verb|tbb::parallel_for(...)|.
+
+
+\newpage
+
+
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности использован GTest framework.
+\par Логически тесты можно разделить на проверку отрицательных и положительных сценариев
+\begin{itemize}
+\item Отрицательный - создание графа с отрицательным весом;
+\item Отрицательный - создание неверного графа;
+\item Отрицательный - создание пустого графа;
+\item Положительный- поиск пути в начальную вершину;
+\item Положительный- обработка графа из 3 вершин;
+\item Положительный- обработка графа из 6 вершин;
+\item Положительный- проверка создания графа;
+\end{itemize}
+
+\par Тесты для параллельных частей
+\begin{itemize}
+\item обработка графа из 6 вершин;
+\item сравнение времени и результата с последовательной секцией;
+\end{itemize}
+
+\par Если все тесты пройдены, то работу алгоритма можно полагать корректной.
+
+\newpage
+
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Оборудование используемое в ходе работ:
+
+\begin{itemize}
+\item Процессор: Intel(R) Core(TM) i5-8250U CPU @ 1.60GHz, 3015 MHz, ядер: 8;
+\item Оперативная память: 8 GB (DDR4);
+\item ОС: Ubuntu 20.10;
+\end{itemize}
+
+\par Для замеров времени использован единичный граф с 8000 вершинами.
+\par Результаты замеров приведены ниже.
+
+
+\begin{table}[!h]
+\caption{Резултаты вычислительных экспериментов}
+\centering
+\begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+\multirow{2}{*}
+	{\begin{tabular}[c]{@{}c@{}}Thread\\ count\end{tabular}} &
+\multirow{2}{*}
+	{\begin{tabular}[c]{@{}c@{}}Sequential\\ algorithm\end{tabular}} &
+\multicolumn{2}{c|}
+	{Prallel algorithm}	\\
+	\cline{3-4} & &
+	\multicolumn{1}{c|}{OpenMP} &
+	\multicolumn{1}{c|}{TBB}
+	\\ \cline{2-4}
+	& t, с	    & t, с 		& t, с 			\\ \hline
+2   & 1.43     & 0.89       & 0.78       	\\ \hline
+4   &  1.43     & 0.67       & 0.62         \\ \hline
+\end{tabular}
+\end{table}
+
+\par Эксперименты показывают,что параллельные вычисления в алгоритме Дейкстры позволяют получить выигрыш в скорости работы, однако он не так велик. Это связано с тем, что в любых алгоритмах на графах приходится делать много секций синхронизаций.
+\newpage
+
+
+
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В процессе работы был реализован алгоритм Дейкстры для поиска кратчайшего пути. С помощью параллельных вычислений получилось ускорить работу алгоритма как с помощью OpenMP так и TBB. TBB реализация показала чуть лучшие результаты. Решение было протестировано c помощью GTest.
+\newpage
+
+
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\item Гергель В.П., Стронгин Р.Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. Учебное пособие – Нижний Новгород: Изд-во ННГУ им. Н.И. Лобачевского, 2003. 184 с. ISBN 5-85746-602-4.(дата обращения: 1.03.2021)
+\bibitem{Course} Сысоев А.В., Мееров И.Б., Свистунов А.Н., Курылев А.Л., Сенин А.В., Шишков А.В., Корняков К.В., Сиднев А.А. «Параллельное программирование в системах с общей памятью. Инструментальная поддержка». Учебно-методические материалы по программе повышения квалификации «Технологии высокопроизводительных вычислений для обеспечения учебного процесса и научных исследований». Нижний Новгород, 2007, 110 с.(дата обращения: 1.03.2021)
+\bibitem{Wiki1} Wikipedia: the free encyclopedia [Электронный ресурс] // URL: https://en.wikipedia.org/wiki/ (дата обращения: 25.03.2021)
+\bibitem{Parallel} Parallel: Что такое OpenMP [Электронный ресурс] // URL: \url { https://parallel.ru/tech/tech_dev/openmp.html} (дата обращения: 10.04.2021)
+\bibitem{Intel} Intel: Документация по TBB [Электронный ресурс] // URL: \url {https://software.intel.com/content/www/ru/ru/develop/articles/tbb_async_io.html} (дата обращения: 10.05.2021)
+\end{thebibliography}
+\newpage
+
+\end{document}
