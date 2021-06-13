@@ -1,0 +1,506 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large Поразрядная сортировка для вещественных чисел (тип double) с простым слиянием} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-3 \\ Щекотилова Ю. А.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+\par Сортировка — один из базовых видов действий, выполняемых над множествами. Существует огромное множество алгоритмов. В основном алгоритм сортировки является подзадачей и используется для обработки больших объёмов данных, поэтому необходимо чтобы этот процесс происходил максимально быстро и эффективно, тем самым оптимизировав выполнение всей поставленной задачи, в которой он используется. 
+\par Рассмотрим поразрядную сортировку. Она может похвастаться тем, что выполняет свою задачу за линейное время, то есть O(n), где n - количество элементов в массиве. Кроме последовательной реализации данного алгоритма будет представлено несколько вариантов параллельного алгоритма поразрядной сортировки.
+\par Итак, в данной лабораторной работе будут рассмотрены порязрадная сортировка и сортировка слиянем.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы необходимо реализовать последовательный и параллельный алгоритмы поразрядной сортировки с простым слиянием, проверить корректность работы алгоритмов, сравнить эффективность последовательной и параллельной реализаций.
+\par Для реализации параллельной версии необходимо использовать библиотеки OpenMP и TBB. Для проверки корректности работы алгоритмов используется Google Testing Framework.
+\newpage
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+Алгоритм поразрядной сортировки состоит в следующем:
+\begin{enumerate}
+\item Взять младшую позицию байта.
+\item Для каждого числа в множестве узнать значение на текущей позиции байта и запомнить количество таких значений.
+\item Выписать в результирующее множество, упорядоченные по текущей позиции байта, значения.
+\item Взять следующую позицию байта.
+\end{enumerate}
+\par Таким образом, будет произведен обход всех байтов от младшего к старшему и по результату каждой итерации цикла мы получим, упорядоченное по текущей позиции байта, множество, причем это множество так же будет упорядоченно для всех позиций байта, которые меньше текущей. 
+\par По результату прохода от младшей позиции байта к старшей, множество будет полностью отсортировано.
+Недостатком подхода является то, что для сортировки множества размера n, сложность алгоритма будет составлять $O(2*n)$.
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Чтобы распараллелить последовательный алгоритм, поделим исходное вектор элементов на несколько частей, равных количеству потоков и запишем каждый из полученных подвекторов в вспомогательный вектор векторов. 
+Далее в параллельном цикле на разных потоках для каждой части вектора векторов запускается последовательная версия сортировки. На выходе мы получаем вектора, количество которых равно количеству потоков. С помощью простого слияния соединяем эти вектора в один и по итогу мы получаем отсортированный вектор элементов.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+Алгоритм последовательной сортировки представлен в функции
+\begin{lstlisting}
+std::vector<double> radix_sort(const std::vector<double>& in)
+\end{lstlisting}
+где in – входной вектор элементов, который будет отсортирован. Функция использует методы
+\begin{lstlisting}
+std::vector<double> sorting(std::vector<double> in, std::vector<double> out, const int val)
+std::vector<double> last_sorting(std::vector<double> in)
+\end{lstlisting}
+где in – входной вектор элементов, out – выходной вектор, который отсортирован по байту val. Функция поразрядной сортировки последовательно вызывает функцию sorting и передает ей порядок байта, по которому будет проводится сортировка. Функция last sorting вызывается на старшем байте, она записывает в выходной массив значения с учетом знака.
+\par Параллельная реализация поразрядной сортировки с помощью OpenMP и TBB представлена в следующих функциях
+\begin{lstlisting}
+std::vector<double> radix_sort_omp(const std::vector<double>& in)
+std::vector<double> radix_sort_tbb(const std::vector<double>& in)
+\end{lstlisting}
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с Google Testing Framework.
+\par Набор представляет из себя тесты, которые проверяют корректность вычислений (сравниваются наборы элементов, полученные из последовательного и параллельного алгоритма), а также эффективность (вычисление занимаемого последовательной и параллельной сортировок времени и сравнение полученных данных).
+\par Успешное прохождение всех тестов подтверждает корректность работы написанной программы.
+\newpage
+
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельной реализации поразрядной сортировки проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel(R) Core(TM) i5-8250U CPU @ 1.60GHz, ядер: 4, логических процессоров: 8;
+\item Оперативная память: 8,00 ГБ, 2400 MHz;
+\item ОС: Microsoft Windows 10 Home, версия 2004 сборка 19041.685.
+\end{itemize}
+
+\par Эксперименты проводились на 4 потоках. Результаты представлены в Таблице 1.
+
+\begin{table}[!h]
+\caption{Результаты экспериментов. Сравнение с OpenMP}
+\centering
+\begin{tabular}{lllll}
+Размер вектора & Последовательно & Параллельно & Ускорение   \\
+10000000       & 1.53625         & 1.08021     & 1.422       \\
+15000000       & 2.31946         & 1.58239     & 1.465       \\
+30000000       & 5.48229         & 4.47722     & 1.224       \\
+25000000       & 26.2226         & 12.2152     & 2.148       \\
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты экспериментов. Сравнение с TBB}
+\centering
+\begin{tabular}{lllll}
+Размер вектора & Последовательно & Параллельно & Ускорение   \\
+10000000       & 1.53625         & 0.91188     & 1.684       \\
+15000000       & 2.31946         & 1.35955     & 1.706       \\
+30000000       & 5.48229         & 3.75725     & 1.459       \\
+25000000       & 26.2226         & 10.8824     & 2.409       \\
+\end{tabular}
+\end{table}
+
+\par По данным, полученным в результате экспериментов, можно сделать вывод о том, что параллельный алгоритм работает действительно быстрее, чем последовательный. Кроме того, можно сделать вывод, что при использовани технологии OpenMP время чуть больше, чем при TBB, но ускорение не идеально за счет слияния упорядоченных частей вектора на одном потоке.
+
+\newpage 
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения лабораторной работы был разработан последовательный и два параллельных алгоритма поразрядной сортировки с простым слиянием. Основной задачей была реализация параллельных версий с использованием средств OpenMP и TBB, которые должны были быть эффективнее последовательной. Эта задача была успешно достигнута. Об этом говорят результаты экспериментов, проведенных в ходе работы. Они показывают, что параллельный алгоритм работает действительно быстрее, чем последовательный. 
+\par Кроме того, были разработаны и доведены до успешного выполнения тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Gergel} Гергель В.П., Стронгин Р.Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. Учебное пособие – Нижний Новгород: Изд-во ННГУ им. Н.И. Лобачевского, 2003. 184 с. ISBN 5-85746-602-4. 
+\bibitem{Wiki1} Wikipedia: the free encyclopedia [Электронный ресурс] // URL: https://ru.wikipedia.org/wiki/Поразрядная\_сортировка
+\bibitem{PDF1} Библиотека Intel Threading Building Blocks // URL: http://www.hpcc.unn.ru/multicore/materials/tech/tbb.pdf
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\begin{lstlisting}
+// radix_merge_double.h
+
+// Copyright 2021 Schekotilova Julia
+#ifndef MODULES_TASK_3_SCHEKOTILOVA_JU_RADIX_MERGE_DOUBLE_RADIX_MERGE_DOUBLE_H_
+#define MODULES_TASK_3_SCHEKOTILOVA_JU_RADIX_MERGE_DOUBLE_RADIX_MERGE_DOUBLE_H_
+
+#include <omp.h>
+#include <time.h>
+#include <stdio.h>
+#include <tbb/tbb.h>
+#include <math.h>
+#include <algorithm>
+#include <iterator>
+#include <ctime>
+#include <utility>
+#include <random>
+#include <vector>
+
+std::vector<double> sorting(std::vector<double> in, std::vector<double> out, const int val);
+std::vector<double> last_sorting(std::vector<double> in);
+std::vector<double> radix_sort(const std::vector<double>& in);
+std::vector<double> radix_sort_omp(const std::vector<double>& in);
+std::vector<double> radix_sort_tbb(const std::vector<double>& in);
+std::vector<double> merge(const std::vector<double>& arr, const std::vector<double>& arr_);
+bool checker(std::vector<double> arr, int size);
+std::vector<double> generate(int size);
+
+#endif  // MODULES_TASK_3_SCHEKOTILOVA_JU_RADIX_MERGE_DOUBLE_RADIX_MERGE_DOUBLE_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// radix_merge_double.cpp
+
+// Copyright 2021 Schekotilova Julia
+#define NOMINMAX
+#include <vector>
+#include "../../../modules/task_3/schekotilova_ju_radix_merge_double/radix_merge_double.h"
+
+std::vector<double> sorting(std::vector<double> in, std::vector<double> out, const int val) {
+  const int size = in.size();
+  unsigned char* arr = (unsigned char*)in.data();
+  int counter[256], res = 0;
+  for (int i = 0; i < 256; i++) counter[i] = 0;
+  for (int i = 0; i < size; i++) counter[arr[8 * i + val]]++;
+  for (int i = 0; i < 256; i++) {
+    int out = counter[i];
+    counter[i] = res;
+    res += out;
+  }
+  for (int i = 0; i < size; i++) {
+    out[counter[arr[8 * i + val]]] = in[i];
+    counter[arr[8 * i + val]]++;
+  }
+  return out;
+}
+
+std::vector<double> last_sorting(std::vector<double> in) {
+  std::vector<double> out = std::vector<double>(in);
+  int const val = 7;
+  int size = in.size();
+  int res = 0, counter[256];
+  unsigned char* arr = (unsigned char*)in.data();
+  for (int i = 0; i < 256; i++) counter[i] = 0;
+
+  for (int i = 0; i < size; i++) counter[arr[8 * i + val]]++;
+  for (int i = 255; i > 127; i--) {
+    counter[i] += res;
+    res = counter[i];
+  }
+  for (int i = 0; i < 128; i++) {
+    int tmp = counter[i];
+    counter[i] = res;
+    res += tmp;
+  }
+  for (int i = 0; i < size; i++) {
+    if (arr[8 * i + val] < 128) {
+      out[counter[arr[8 * i + val]]] = in[i];
+      counter[arr[8 * i + val]]++;
+    } else {
+      counter[arr[8 * i + val]]--;
+      out[counter[arr[8 * i + val]]] = in[i];
+    }
+  }
+  return out;
+}
+
+std::vector<double> radix_sort(const std::vector<double>& in) {
+  std::vector<double> out = std::vector<double>(in.size()), tmp = std::vector<double>(in.size());
+  std::vector<double> arr = std::vector<double>(in);
+  std::vector<double> k;
+  for (int i = 0; i < 8; i++) {
+    out = sorting(arr, out, i);
+    tmp = arr;
+    arr = out;
+    out = tmp;
+  }
+  k = last_sorting(arr);
+  return k;
+}
+
+std::vector<double> radix_sort_omp(const std::vector<double>& in) {
+  int thrd = 4, size_arr, counter;
+  std::vector<double> res;
+  std::vector<std::vector<double>> arr, result;
+  size_arr = (in.size() - 1) / thrd + 1;
+  arr = std::vector<std::vector<double>>((in.size() + size_arr) / size_arr);
+  for (size_t i = 0; i < in.size(); i += size_arr) {
+    int last = std::min(in.size(), (i + size_arr));
+    int idx = i / size_arr;
+    std::vector<double>& vector = arr[idx];
+    vector.reserve(last - i);
+    move(in.begin() + i, in.begin() + last, back_inserter(vector));
+  }
+  counter = arr.size();
+#pragma omp parallel num_threads(thrd)
+#pragma omp for
+  for (int i = 0; i < counter; i++) {
+    std::vector<double>  res_arr = radix_sort(arr[i]);
+#pragma omp critical
+    result.push_back(res_arr);
+  }
+  res = result[0];
+  if (counter != 1) {
+    for (int i = 0; i < counter - 1; i++) {
+      res = merge(res, result[i + 1]);
+    }
+  }
+  return res;
+}
+
+std::vector<double> radix_sort_tbb(const std::vector<double>& in) {
+  int thrd = 4, size_arr, counter;
+  std::vector<double> res;
+  std::vector<std::vector<double>> arr, result;
+  size_arr = (in.size() - 1) / thrd + 1;
+  arr = std::vector<std::vector<double>>((in.size() + size_arr) / size_arr);
+  for (size_t i = 0; i < in.size(); i += size_arr) {
+    int last = std::min(in.size(), (i + size_arr));
+    int idx = i / size_arr;
+    std::vector<double>& vector = arr[idx];
+    vector.reserve(last - i);
+    move(in.begin() + i, in.begin() + last, back_inserter(vector));
+  }
+  counter = arr.size();
+
+  tbb::task_scheduler_init init(thrd);
+  tbb::parallel_for(0, counter, [&](const int i) {
+    arr[i] = radix_sort(arr[i]);
+  });
+
+  res = arr[0];
+  for (int i = 0; i < counter - 1; i++) {
+    res = merge(res, arr[i + 1]);
+  }
+  return res;
+}
+
+  std::vector<double> merge(const std::vector<double> & arr, const std::vector<double> & arr_) {
+  const int size = arr.size(), size_ = arr_.size();
+  int i = 0, j = 0, k = 0;
+  std::vector<double> result(size + size_);
+  for (k = 0; (k < (size + size_ - 1)) && ((i < size) && (j < size_)); k++) {
+    if (arr[i] < arr_[j]) {
+      result[k] = arr[i++];
+    } else {
+      result[k] = arr_[j++];
+    }
+  }
+  while (i < size) {
+    result[k] = arr[i];
+    k++;
+    i++;
+  }
+  while (j < size_) {
+    result[k] = arr_[j];
+    k++;
+    j++;
+  }
+  return result;
+}
+
+bool checker(std::vector<double> arr, int size) {
+  for (int i = 0; i < size - 1; i++) {
+    if (arr[i + 1] >= arr[i]) {
+      i++;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<double> generate(int size) {
+  std::random_device dev;
+  std::mt19937 gen(dev());
+  std::vector<double> vec(size);
+  for (int i = 0; i < size; i++) {
+    vec[i] = gen() % 100;
+  }
+  return vec;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+// main.cpp
+
+// Copyright 2021 Schekotilova Julia
+#include <gtest/gtest.h>
+#include <vector>
+
+#include "../../../modules/task_3/schekotilova_ju_radix_merge_double/radix_merge_double.h"
+
+TEST(TEST_TBB, TEST_SEQ_SIZE_5) {
+  std::vector<double> vec = std::vector<double>({ 1.65, 5.5582, 29.9, 9.155, 52.864 });
+  std::vector<double> res_v = radix_sort(vec);
+  bool res = false;
+  res = checker(res_v, 5);
+  ASSERT_EQ(res, true);
+}
+
+TEST(TEST_TBB, TEST_SIZE_5) {
+  std::vector<double> vec = std::vector<double>({ 26.048, -1.52, 20.22, 8.46, 92.942 });
+  std::vector<double> res_v = radix_sort_tbb(vec);
+  bool res = false;
+  res = checker(res_v, 5);
+  ASSERT_EQ(res, true);
+}
+
+TEST(TEST_TBB, TEST_SIZE_3_3) {
+  int size = 3;
+  std::vector<double> vec = std::vector<double>({ 8.53, 73.4, 63.26 });
+  std::vector<double> vec_ = std::vector<double>({ 8.23, 56.2, -0.25 });
+  std::vector<double> res_v = radix_sort_tbb(vec), res_v_ = radix_sort_tbb(vec_);
+  std::vector<double> result = merge(res_v, res_v_);
+  bool res = false;
+  res = checker(result, 2 * size);
+  ASSERT_EQ(res, true);
+}
+
+TEST(TEST_TBB, TEST_RANDOM) {
+  int size = 4;
+  std::vector<double> vec = generate(size), vec_ = generate(size);
+  std::vector<double> res_v = radix_sort_tbb(vec), res_v_ = radix_sort_tbb(vec_);
+  std::vector<double> result = merge(res_v, res_v_);
+  bool res = false;
+  res = checker(result, size + size);
+  ASSERT_EQ(res, true);
+}
+
+TEST(TEST_TBB, TEST_SIZE_2) {
+  int size = 2;
+  std::vector<double> vec = std::vector<double>({ 8.53, 73.4 });
+  std::vector<double> vec_ = std::vector<double>({ 56.2, -0.25 });
+  std::vector<double> res_v = radix_sort_tbb(vec), res_v_ = radix_sort_tbb(vec_);
+  std::vector<double> result = merge(res_v, res_v_);
+  bool res = false;
+  res = checker(result, 2 * size);
+  ASSERT_EQ(res, true);
+}
+
+TEST(TEST_TBB, TEST_CHECK_OMP_TBB) {
+	bool res = false;
+	int size = 100000000;
+	std::vector<double> vec_ = generate(size);
+	std::vector<double> vec = vec_;
+	std::vector<double> vec__ = vec;
+
+	tbb::tick_count time_st = tbb::tick_count::now();
+	std::vector<double> seq = radix_sort(vec_);
+	tbb::tick_count time_e = tbb::tick_count::now();
+	std::cout << "seq time: " << (time_e - time_st).seconds() << std::endl;
+
+	tbb::tick_count time_start = tbb::tick_count::now();
+	std::vector<double> omp = radix_sort_omp(vec);
+	tbb::tick_count time_end = tbb::tick_count::now();
+	std::cout << "omp time: " << (time_end - time_start).seconds() << std::endl;
+
+	tbb::tick_count time_strt = tbb::tick_count::now();
+	std::vector<double> tbb = radix_sort_tbb(vec__);
+	tbb::tick_count time_en = tbb::tick_count::now();
+	std::cout << "tbb time: " << (time_en - time_strt).seconds() << std::endl;
+
+	res = checker(tbb, size);
+	ASSERT_EQ(true, res);
+}
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+\end{document}
