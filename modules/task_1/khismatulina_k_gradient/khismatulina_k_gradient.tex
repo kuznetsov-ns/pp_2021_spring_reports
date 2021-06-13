@@ -1,0 +1,399 @@
+\documentclass{report}
+
+ \usepackage[T2A]{fontenc}
+ \usepackage[utf8]{luainputenc}
+ \usepackage[english, russian]{babel}
+ \usepackage[pdftex]{hyperref}
+ \usepackage[14pt]{extsizes}
+ \usepackage{listings}
+ \usepackage{color}
+ \usepackage{geometry}
+ \usepackage{enumitem}
+ \usepackage{multirow}
+ \usepackage{graphicx}
+ \usepackage{indentfirst}
+ \usepackage{amsmath}
+
+ \geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+ \setlength{\parskip}{0.5cm}
+ \setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+ \lstset{language=C++,
+ 		basicstyle=\footnotesize,
+ 		keywordstyle=\color{blue}\ttfamily,
+ 		stringstyle=\color{red}\ttfamily,
+ 		commentstyle=\color{green}\ttfamily,
+ 		morecomment=[l][\color{magenta}]{\#}, 
+ 		tabsize=4,
+ 		breaklines=true,
+   		breakatwhitespace=true,
+   		title=\lstname,       
+ }
+
+ \makeatletter
+ \renewcommand\@biblabel[1]{#1.\hfil}
+ \makeatother
+
+ \begin{document}
+
+ \begin{titlepage}
+
+ \begin{center}
+ Министерство науки и высшего образования Российской Федерации
+ \end{center}
+
+ \begin{center}
+ Федеральное государственное автономное образовательное учреждение высшего образования \\
+ Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+ \end{center}
+
+ \begin{center}
+ Институт информационных технологий, математики и механики
+ \end{center}
+
+ \vspace{4em}
+
+ \begin{center}
+ \textbf{\LargeОтчет по лабораторной работе} \\
+ \end{center}
+ \begin{center}
+ \textbf{\Large«Решение систем линейных уравнений методом сопряженных градиентов»} \\
+ \end{center}
+
+ \vspace{4em}
+
+ \newbox{\lbox}
+ \savebox{\lbox}{\hbox{text}}
+ \newlength{\maxl}
+ \setlength{\maxl}{\wd\lbox}
+ \hfill\parbox{7cm}{
+ \hspace*{5cm}\hspace*{-5cm}\textbf{Выполнила:} \\ студентка группы 381808-2 \\ Хисматулина К.Ф. \\
+ \\
+ \hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В. \\
+ }
+ \vspace{\fill}
+
+ \begin{center} Нижний Новгород \\ 2021 \end{center}
+
+ \end{titlepage}
+
+ \setcounter{page}{2}
+
+ % Содержание
+ \tableofcontents
+ \newpage
+
+ % Введение
+ \section*{Введение}
+ \addcontentsline{toc}{section}{Введение}
+ Метод сопряженных градиентов – один из наиболее известных итерационных методов решения систем линейных уравнений. Он может быть применен для решения системы линейных уравнений с симметричной, положительноопределенной матрицей.
+ \newpage
+
+ % Постановка задачи
+ \section*{Постановка задачи}
+ \addcontentsline{toc}{section}{Постановка задачи}
+ Целью данной лабораторной работы является разработка последовательной и параллельной версий решения СЛАУ методом сопряжённых градиентов. 
+ \par Под задачей решения системы линейных уравнений для заданных матрицы А и вектора b понимается нахождение значения вектора неизвестных x, при котором выполняются все уравнения системы.
+ \par Необходимо реализовать последовательную и параллельную версию программы. Для реализации параллельной версии необходимо использовать средства OMP, TBB. Для проверки корректности работы программы необходимо использовать GTest.
+ \newpage
+
+ % Описание алгоритма
+ \section*{Описание алгоритма}
+ \addcontentsline{toc}{section}{Описание алгоритма}
+ После выполнения n итераций метода сопряженных градиентов(n есть порядок решаемой системы линейных уравнений), очередное приближение Xn совпадает с точным решением. Итерация метода сопряженных градиентов состоит в вычислении очередного приближения к точному решению.
+ \par Описание алгоритма:
+ \begin{itemize}
+ \item Вычисление градиента
+ \item Вычисление вектора направления
+ \item Вычисление величины смещения по заданному направлению
+ \item Вычисление нового приближения
+ \end{itemize}
+
+ \newpage
+
+ % Описание схемы распараллеливания
+ \section*{Описание схемы распараллеливания}
+ \addcontentsline{toc}{section}{Описание схемы распараллеливания}
+
+ Выполнение итераций метода осуществляется последовательно, следовательно наиболее целесообразный подход состоит в распараллеливании вычислений, реализуемых в ходе выполнения отдельных итераций. Основные вычисления, выполняемые в соответствии с методом, состоят в перемножении матрицы на вектора. Дополнительные вычисления, имеющие меньший порядок сложности, представляют собой различные операции обработки векторов(скалярное произведение, сложение и вычитание, умножение на скаляр).
+ \par Для достижения данного результата в OpenMP существует деректива препроцессора $pragma omp parallel for reduction$, а в TBB $tbb::parallel_reduce$.
+ \newpage
+
+ % Описание программной реализации
+ \section*{Описание программной реализации}
+ \addcontentsline{toc}{section}{Описание программной реализации}\
+ Входными параметрами всех реализаций алгоритма являются:
+ \begin{itemize}
+ \item const std::vector<double>matrix - положительно определённая симметричная матрица
+ \item const std::vector<double> vector - вектор
+ \item int size, int proc - размер матрицы, кол-во процессов
+ \end{itemize}
+
+ \par Используемые методы:
+ \par multVVOMP(std::vector<double> A, std::vector<double> B) - перемножение векторов
+ \par multMVOMP(std::vector<double> m, std::vector<double> v) - перемножение матрицы на вектор
+ \par gradient(const std::vector<double> matrix, const std::vector<double> vector, int size, int proc) - сам процесс решения СЛАУ
+
+ \newpage
+
+ % Результаты экспериментов
+ \section*{Результаты экспериментов}
+ \addcontentsline{toc}{section}{Результаты экспериментов}
+ Вычислительные эксперименты проводились на оборудовании со следующей аппаратной конфигурацией:
+
+ \begin{itemize}
+ \item Процессор: Intel(R) Core(TM) i5-6800 CPU @ 2.1GHz, ядер: 4
+ \item Оперативная память: 8 ГБ DDR4;
+ \item ОС: Microsoft Windows 10 Pro
+ \end{itemize}
+
+ \par Тестирование производилось при $N=100$ млн., $f=sin(x_1)+sin(x_2)+sin(x_3)$
+ \\
+
+ \begin{table}[!h]
+ \begin{center}
+ \begin{tabular}{lllllll}
+ Реализация & Время & Ускорение   \\
+ SEQ        & 3.4 & 1           \\
+ OMP        & 2.9 & 1.17      \\
+
+ \end{tabular}
+ \end{center}
+ \caption{Результаты вычислительных экспериментов}
+ \centering
+ \end{table}
+
+ \par Из полученных результатов видно, что удалось получить значительное ускорение в параллельных реализациях можно, но для этого надо иметь мозг. Исходя из этого можно сделать вывод, что данный алгоритм в принципе  хорошо поддается распараллеливанию.
+ \newpage
+
+ % Заключение
+ \section*{Заключение}
+ \addcontentsline{toc}{section}{Заключение}
+ В результате лабораторной работы были разработаны последовательная и параллельная реализация решения СЛАУ методом сопряжённых градиентов.
+ \par Была разработана последовательная версия алгоритма,  и на ее основе были полученны параллельные реализации с использованием OpenMP и TBB.
+ \par Из результатов вычислительных экспериментов видно, что параллельные реализации алгоритма могут являться эффективными, но не в моём случае.
+ \newpage
+
+ % Литература
+ \begin{thebibliography}{1}
+ \addcontentsline{toc}{section}{Литература}
+ \bibitem{} «Параллельное программирование на OpenMP»
+ \bibitem{Sidnev} Сиднев А.А., Мееров И.Б., Сысоев А.В. «Разработка параллельных программ в системах с общей памятью с использованием библиотеки Intel Threading Building Blocks (TBB)».
+ \bibitem{} «Параллельное программирование. С++. Thread Support Library. Atomic Operations Library.»
+ \end{thebibliography}
+ \newpage
+
+ % Приложение
+ \section*{Приложение}
+ \addcontentsline{toc}{section}{Приложение}
+ В данном разделе находится реализация методов последовательной и параллельной реализции алгоритма
+ \begin{lstlisting}
+ // Copyright 2021 Khismatulina Karina
+ #include <vector>
+ #include <cassert>
+ #include <random>
+ #include "../../../modules/task_1/khismatulina_k_gradient/seq.h"
+
+ std::vector<double> getRandomVector(int size) {
+     // assert(size > 0);
+     if (size < 0) throw("size ouhgt to be > 0");
+     std::random_device rd;
+     std::mt19937 mersenne(rd());
+     std::vector<double> vec(size, 1);
+     for (int i = 0; i < size; ++i) {
+         vec[i] = mersenne() * mersenne() % 7;
+     }
+     return vec;
+ }
+
+ std::vector<double> getRandomMatrix(int size) {
+     assert(size > 0);
+     std::random_device rd;
+     std::mt19937 mersenne(rd());
+     std::vector<double> matrix(size, 1);
+     for (int i = 0; i < size; ++i) {
+         for (int j = 0; j < size; ++j) {
+             matrix[i * size + j] = matrix[j * size + i] = mersenne() * mersenne() % 7;
+         }
+     }
+     return matrix;
+ }
+
+ double multVV(std::vector<double> A, std::vector<double> B) {
+     assert(A.size() == B.size());
+     double result = 0;
+     for (size_t i = 0; i < A.size(); ++i) {
+         result += A[i] * B[i];
+     }
+     return result;
+ }
+
+ std::vector<double> multMV(std::vector<double> m, std::vector<double> v) {
+     assert(m.size() > 0 && v.size() > 0);
+     assert(m.size() % v.size() == 0);
+     std::vector<double> result(m.size() / v.size());
+     for (size_t i = 0; i < result.size(); ++i) {
+         for (size_t j = 0; j < v.size(); ++j) {
+             result[i] += m[i * v.size() + j] * v[j];
+         }
+     }
+     return result;
+ }
+
+ std::vector<double> gradientSeq(const std::vector<double>& matrix, const std::vector<double>& vector, int size) {
+     assert(size > 0);
+     int iters = 0;
+     double eps = 0.1, beta = 0.0, alpha = 0.0, check = 0.0;
+     std::vector<double> res(size, 1);
+     std::vector<double> Ah = multMV(matrix, res);
+     std::vector<double> discrepancyCurrent(size), discrepancyNext(size);
+     for (int i = 0; i < size; ++i) {
+         discrepancyCurrent[i] = vector[i] - Ah[i];
+     }
+     std::vector<double> h(discrepancyCurrent);
+     do {
+         iters++;
+         Ah = multMV(matrix, h);
+         alpha = multVV(discrepancyCurrent, discrepancyNext) / multVV(h, Ah);
+         for (int i = 0; i < size; ++i) {
+             res[i] += alpha * h[i];
+             discrepancyNext[i] = discrepancyCurrent[i] - alpha * Ah[i];
+         }
+         beta = multVV(discrepancyNext, discrepancyNext) / multVV(discrepancyCurrent, discrepancyCurrent);
+         check = sqrt(multVV(discrepancyNext, discrepancyNext));
+         for (int k = 0; k < size; ++k) {
+             h[k] = discrepancyNext[k] + beta * h[k];
+         }
+         std::vector<double> swap = discrepancyNext;
+         discrepancyNext = discrepancyCurrent;
+         discrepancyCurrent = swap;
+     } while ((check > eps) && (iters <= size));
+     return res;
+ }
+
+ \end{lstlisting}
+
+ \begin{lstlisting}
+ // Copyright 2021 Khismatulina Karina
+ #include <omp.h>
+ #include <vector>
+ #include <cassert>
+ #include <random>
+ #include <iostream>
+ #include "../../../modules/task_2/khismatulina_k_gradient/omp.h"
+
+ double MyAbs(double x) {
+     if (x < 0) return -x;
+     return x;
+ }
+
+ std::vector<double> getRandomVectorOMP(int size) {
+     if (size < 0) throw("size ouhgt to be > 0");
+     std::random_device rd;
+     std::mt19937 mersenne(rd());
+     std::vector<double> vec(size, 1);
+     for (int i = 0; i < size; ++i) {
+         vec[i] = mersenne() * mersenne() % 7;
+     }
+     return vec;
+ }
+
+ std::vector<double> getRandomMatrixOMP(int size) {
+     assert(size > 0);
+     std::random_device rd;
+     std::mt19937 mersenne(rd());
+     std::vector<double> matrix(size*size, 1);
+     for (int i = 0; i < size; ++i) {
+         for (int j = 0; j < size; ++j) {
+             matrix[i * size + j] = matrix[j * size + i] = mersenne() * mersenne() % 7;
+         }
+     }
+     return matrix;
+ }
+
+ double multVVOMP(std::vector<double> A, std::vector<double> B) {
+     assert(A.size() == B.size());
+     double result = 0;
+     int size_A = A.size();
+ #pragma omp parallel for reduction(+:result)
+     for (int i = 0; i < size_A; ++i) {
+         result += A[i] * B[i];
+     }
+     return result;
+ }
+
+ std::vector<double> multMVOMP(std::vector<double> m, std::vector<double> v) {
+     assert(m.size() > 0 && v.size() > 0);
+     assert(m.size() % v.size() == 0);
+     std::vector<double> result(m.size() / v.size());
+     int size_r = result.size();
+ #pragma omp parallel for
+     for (int i = 0; i < size_r; ++i) {
+         for (int j = 0; j < size_r; ++j) {
+             result[i] += m[i * v.size() + j] * v[j];
+         }
+     }
+     return result;
+ }
+
+ bool gradientParOMP(const std::vector<double>& matrix, const std::vector<double>& vector, int size, int proc) {
+     assert(size > 0);
+     int iters = 0;
+     double eps = 0.1, beta = 0.0, alpha = 0.0, check = 0.0;
+     int i, k = 0;
+     std::vector<double> res(size, 1);
+     std::vector<double> Ah = multMVOMP(matrix, res);
+     std::vector<double> discrepancyCurrent(size), discrepancyNext(size);
+ #pragma omp parallel for private(i)
+     for (i = 0; i < size; ++i) {
+         discrepancyCurrent[i] = vector[i] - Ah[i];
+     }
+     std::vector<double> h(discrepancyCurrent);
+     do {
+         iters++;
+         Ah = multMVOMP(matrix, h);
+         alpha = multVVOMP(discrepancyCurrent, discrepancyNext) / multVVOMP(h, Ah);
+ #pragma omp parallel for private(i)
+         for (i = 0; i < size; ++i) {
+             res[i] += alpha * h[i];
+             discrepancyNext[i] = discrepancyCurrent[i] - alpha * Ah[i];
+         }
+         beta = multVVOMP(discrepancyNext, discrepancyNext) / multVVOMP(discrepancyCurrent, discrepancyCurrent);
+         check = sqrt(multVVOMP(discrepancyNext, discrepancyNext));
+ #pragma omp parallel for private(k)
+         for (k = 0; k < size; ++k) {
+             h[k] = discrepancyNext[k] + beta * h[k];
+         }
+         std::vector<double> swap = discrepancyNext;
+         discrepancyNext = discrepancyCurrent;
+         discrepancyCurrent = swap;
+     } while ((check > eps) && (iters <= size));
+
+     std::vector<double> A_check(size);
+     int correct = 0;
+     int F = size / 10;
+     if (size / 10 == 0) {
+         F = 1;
+     }
+     double fail = 0.1 * F;
+     for (int i = 0; i < size; ++i) {
+         A_check[i] = 0;
+         for (int j = 0; j < size; ++j) {
+             A_check[i] += matrix[i * size + j] * res[j];
+         }
+         if ((MyAbs(A_check[i]) > MyAbs(vector[i]) && (MyAbs(A_check[i]) - MyAbs(vector[i]) > fail)) ||
+             ((MyAbs(A_check[i]) <= MyAbs(vector[i])) && (MyAbs(vector[i]) - MyAbs(A_check[i]) > fail))) {
+             correct = 1;
+             break;
+         }
+     }
+     return correct;
+ }
+
+ \end{lstlisting}
+
+ \begin{lstlisting}
+
+ \end{lstlisting}
+
+ \end{document}
