@@ -1,0 +1,635 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«"Построение выпуклой оболочки - проход Грэхема."»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-2 \\ Жафяров О. И.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Вычислительная геометрия занимается изучением разработки и исследования алгоритмов для решения геометрических проблем. Задача построения выпуклых оболочек, является одной из центральных задач вычислительной геометрии. Важность этой задачи происходит не только из-за огромного количества приложений (в распознавании образов, обработке изображений, базах данных, в задаче раскроя и компоновки материалов, математической статистике), но также и из-за полезности выпуклой оболочки как инструмента решения
+множества задач вычислительной геометрии.
+
+\par Эта задача позволяет разрешить целый ряд других, иногда с первого взгляда не связанных с ней вопросов: построение диаграмм Вороного, построение триангуляций и т.д. Построение выпуклой оболочки конечного множества точек на плоскости довольно широко исследовано и имеет множество приложений. Очень широко алгоритмы построения выпуклой оболочки используются в геонформатике и геоинформационных системах. 
+
+\par Задача построения выпуклой оболочки имеет давнюю историю. Она является одной из
+первых задач вычислительной геометрии, с которой начала зарождаться эта наука. В настоящее время известно достаточно большое число алгоритмов построения выпуклой оболочки, однако в данной лабораторной работе будет рассмотрено построение выпуклой оболочки с использованием алгоритма Грэхема.
+
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+Пусть на плоскости задано конечное множество точек A. Оболочкой этого множества называется любая замкнутая линия H без самопересечений такая, что все точки из A лежат внутри этой кривой. Если кривая H является выпуклой (например, любая касательная к этой кривой не пересекает ее больше ни в одной точке), то соответствующая оболочка также называется выпуклой. Наконец, минимальной выпуклой оболочкой (далее кратко МВО) называется выпуклая оболочка минимальной длины (минимального периметра).
+\par
+Главной особенностью МВО множества точек A является то, что эта оболочка представляет собой выпуклый многоугольник, вершинами которого являются некоторые точки из A. Поэтому задача поиска МВО в конечном итоге сводится к отбору и упорядочиванию нужных точек из A. Упорядочивание является необходимым по той причине, что выходом алгоритма должен быть многоугольник, т.е. последовательность вершин. Наложим дополнительно условие на порядок расположения вершин — направление обхода многоугольника должно быть положительным (положительным называется обход фигуры против часовой стрелки).
+\par
+В рамках лабораторной работы необходимо реализовать последовательную и параллельную реализации алгоритма построения выпуклой оболочки, проверить корректность работы алгоритмов, провести эксперименты для оценки времени. По полученным результатам сделать выводы.
+\par Для реализации параллельной версии необходимо использовать средства OpenMp, TBB и STD::THREAD. Для проверки корректности работы алгоритмов требуется использовать Google C++ Testing Framework.
+\newpage
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+Алгоритм Грэхема является трехшаговым. На первом шаге ищется любая точка в A, гарантированно входящая в МВО. Такой точкой будет, например, точка с наименьшей x-координатой (самая левая точка в A). Эту точку (будем называть ее стартовой) перемещаем в начало списка, вся дальнейшая работа будет производиться с оставшимися точками. Исходный массив точек A нами меняться не будет, для всех манипуляций с точками будем использовать другой массив.
+\par Второй шаг в алгоритме Грэхема — сортировка всех точек, по степени их левизны относительно стартовой точки. Для выпонения такого упорядочивания можно применять любой алгоритм сортировки, основанный на попарном сравнении элементов. В данной работе использована сортировка вставками. Если мы теперь соединим отсортированные точки в полученном порядке, то получим многоугольник, который, однако, не является выпуклым.
+\par Переходим к третьему шагу. Все, что осталось сделать, так это срезать углы. Для этого нужно пройтись по всем вершинам и удалить те из них, в которых выполняется правый поворот (угол в такой вершине оказывается больше развернутого). Заводим массив и помещаем в него первые две вершины (они гарантированно входят в МВО). Затем просматриваем все остальные вершины, и отслеживаем направление поворота в них с точки зрения последних двух вершин в массиве: если это направление отрицательно, то можно срезать угол удалением из массива последней вершины. Как только поворот оказывается положительным, срезание углов завершается, текущая вершина заносится в массив. В итоге в массиве оказывается искомая последовательность вершин, причем в нужной нам ориентации, определяющая МВО заданного множества точек A.
+\newpage
+
+% Схемы распараллеливания
+\section*{Схемы распараллеливания}
+\addcontentsline{toc}{section}{Схемы распараллеливания}
+Для распараллеливания алгоритма Грэхема необходимо, в-первую очередь, удостовериться в том, что возможно разделить множество точек А на равные подмассивы. В противном случае запускается последовательный алгоритм.
+\par OpenMP. Зная количество потоков, необходимо разделить множество точек на блоки, которые будем передавать вектору, доступному определенному потоку. Остаток от операции разделения точек присваивается основному потоку. Разделив данные, каждый поток передает свой вектор из точек в последовательную версию алгоритма Грэхема. После чего результат возвращается в виде вектора. Теперь потоки хранят часть обработанных точек. Необходимо собрать воедино. Для этого воспользуемся критической секцией и запишем результат в вектор основного потока. Заново отправим собранный вектор в последовательную версию и получим финальный результат.
+\par TBB. Реализация схожа с OpenMP, однако существует разница между ними. Мы по-прежнему разделяем данные на блоки, но теперь они обрабатываются не определенным потоком, а тем, кто успел забрать эти данные. Помимо этого множество точек разделяется не на количество потоков, а на определенный коэффициент. К тому же блоки содержат намного меньше точек по сравнению с блоками в OpenMP реализации.
+\par STD::THREAD. Идея реализации идентична OpenMP. В этом можно удостовериться, увидев практически одинаковое время работы OpenMP и STD::THREAD.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Алгоритм последовательного построения выпуклой оболочки:
+\begin{lstlisting}
+std::vector<point> GrahamPassSeq(const std::vector<point>& basis_vec);
+\end{lstlisting}
+\par В качестве входных параметров передается константная ссылка на вектор базовых точек. Результат данной операции возвращается в виде вектора из точек.
+\par Параллельная реализация при помощи OpenMP:
+\begin{lstlisting}
+std::vector<point> GrahamPassOmp(const std::vector<point>& basisVec);
+\end{lstlisting}
+\par В качестве входных параметров передается константная ссылка на вектор базовых точек. Результат данной операции возвращается в виде вектора из точек.
+\par Параллельная реализация при помощи TBB:
+\begin{lstlisting}
+std::vector<point> GrahamPassTbb(const std::vector<point>& basisVec, int grainsize);
+\end{lstlisting}
+\par В качестве входных параметров передается константная ссылка на вектор базовых точек и число точек, хранящееся в блоке. Результат данной операции возвращается в виде вектора из точек.
+\par Параллельная реализация при помощи STD::THREAD:
+\begin{lstlisting}
+std::vector<point> GrahamPassStd(const std::vector<point>& basis_vec);
+\end{lstlisting}
+\par В качестве входных параметров передается константная ссылка на вектор базовых точек и число точек, хранящиеся в блоке. Результат данной операции возвращается в виде вектора из точек.
+\par Для реализации STD::THREAD создана отдельная последовательная версия, которая не возвращает вектор, а перезаписывает данные внутри:
+\begin{lstlisting}
+void GrahamPassSeqForStd(const std::vector<point>& basis_vec, std::vector<point>* result_after);
+\end{lstlisting}
+
+\newpage
+\par Функция, которая определяет с какой стороны находится точка от двух других точек:
+\begin{lstlisting}
+double Rotation(point a, point b, point c);
+\end{lstlisting}
+\par  Генерация точек происходит в функции:
+\begin{lstlisting}
+std::vector<point> RandomVector(int size);
+\end{lstlisting}
+\par Сравнение двух векторов:
+\begin{lstlisting}
+bool CompareVectors(const std::vector<point>& vec1, const std::vector<point>& vec2);
+\end{lstlisting}
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью использования Google C++ Testing Framework. Набор представляет из себя тесты, которые проверяют корректность корректность вычислений, а также эффективность. Успешное прохождение всех тестов доказывает корректность работы программного комплекса.
+\par Вычислительные эксперименты для оценки эффективности параллельного построения выпуклой оболочки проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: AMD Ryzen 7 3800X 8-Core Processor, 3893 МГц;
+\item Оперативная память: 16332 МБ (DDR4), 3200 MHz;
+\item ОС: Microsoft Windows 10 Pro.
+\end{itemize}
+
+\par Для проведения экспериментов производилось построение выпуклой оболочки с 
+\verb|1 900 000| точками. 
+\par Результаты экспериментов представлены в Таблице 1.
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов}
+\centering
+\begin{tabular}{lllll}
+Реализация & Последовательно & Параллельно & Ускорение  \\
+OpenMP     & 2058.63            & 28.2608  & 72,84       \\
+TBB        & 2058.63            & 12.6559  & 163       \\
+STD        & 2058.63            & 27.7159  & 74,3       \\
+\end{tabular}
+\end{table}
+
+\par По данным, полученным в результате экспериментов, можно сделать вывод о том, что параллельный случай работает действительно быстрее, чем последовательный. Кроме того, можно сделать вывод, что огромный прирост связан с неоптимизированной версией последовательного алгоритма Грэхема.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате лабораторной работы были разработаны последовательная реализация построения выпуклой оболочки и параллельной с использованием последовательного алгоритма.
+\par Основной задачей данной лабораторной работы была реализация параллельной версии, которая должна была быть эффективнее последовательной. Эта задача была успешно достигнута, о чем говорят результаты экспериментов, проведенных в ходе работы. Они показывают, что параллельные варианты работают действительно быстрее, чем последовательный.
+\par Кроме того, были разработаны и доведены до успешного выполнения тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{redmine} Redminer: Материалы лекций [Электронный ресурс] // URL: \url{http://redmine.software.unn.ru/issues/2180}
+\bibitem{parallel} Parallel: Лаборатория Параллельных информационных технологий НИВЦ МГУ [Электронный ресурс] // URL: \url {https://parallel.ru/tech/tech_dev/openmp.html} (OpenMP)
+\bibitem{habr} Habr: Алгоритм, методы, исходники [Электронный ресурс] // URL: \url{https://habr.com/ru/post/144921/}
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В данном разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\begin{lstlisting}
+// graham_pass.h
+
+// Copyright 2021 Zhafyarov Oleg
+#ifndef MODULES_TASK_4_ZHAFYAROV_O_GRAHAM_PASS_STD_GRAHAM_PASS_H_
+#define MODULES_TASK_4_ZHAFYAROV_O_GRAHAM_PASS_STD_GRAHAM_PASS_H_
+
+// #include <tbb/tbb.h>
+#include <omp.h>
+#include <vector>
+#include <utility>
+
+struct point{
+  int x;
+  int y;
+};
+
+bool CompareVectors(const std::vector<point>& vec1,
+                    const std::vector<point>& vec2);
+                    
+std::vector<point> RandomVector(int size);
+double Rotation(point a, point b, point c);
+std::vector<point> GrahamPassSeq(const std::vector<point>& basisVec);
+std::vector<point> GrahamPassOmp(const std::vector<point>& basisVec);
+std::vector<point> GrahamPassTbb(
+    const std::vector<point>& basisVec, int grainsize);
+void GrahamPassSeqForStd(const std::vector<point>& basis_vec,
+                         std::vector<point>* result_after);
+std::vector<point> GrahamPassStd(const std::vector<point>& basis_vec);
+#endif  // MODULES_TASK_4_ZHAFYAROV_O_GRAHAM_PASS_STD_GRAHAM_PASS_H_
+\end{lstlisting}
+\begin{lstlisting}
+// graham_pass.cpp
+
+// Copyright 2021 Zhafyarov Oleg
+#include "../../../modules/task_4/zhafyarov_o_graham_pass_std/graham_pass.h"
+#include <time.h>
+#include <random>
+#include <vector>
+#include <iostream>
+#include "../../../3rdparty/unapproved/unapproved.h"
+
+bool CompareVectors(const std::vector<point> &vec1,
+                    const std::vector<point> &vec2) {
+  if (vec1.size() != vec2.size()) {
+    return false;
+  }
+
+  for (int i = 0; i < static_cast<int>(vec1.size()); i++) {
+    if (vec1[i].x != vec2[i].x || vec1[i].y != vec2[i].y) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+std::vector<point> RandomVector(int size) {
+  std::vector<point> vec_tmp(size);
+  std::mt19937 gen;
+  gen.seed(static_cast<unsigned int>(time(0)));
+  std::uniform_real_distribution<double> disX(1, 1919);
+  std::uniform_real_distribution<double> disY(1, 1019);
+  for (std::size_t i = 0; i < vec_tmp.size(); ++i) {
+    vec_tmp[i] = {static_cast<int>(disX(gen)), static_cast<int>(disY(gen))};
+  }
+  return vec_tmp;
+}
+
+double Rotation(point a, point b, point c) {
+  return((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x));
+}
+
+std::vector<point> GrahamPassSeq(const std::vector<point>& basis_vec) {
+  std::vector<size_t> result_index;
+
+  std::vector<int> vec_tmp;
+
+  int min = 0;
+
+  for (int i = 1; i < static_cast<int>(basis_vec.size()); i++) {
+    min = basis_vec.at(min).x > basis_vec.at(i).x ||
+          (basis_vec.at(min).x == basis_vec.at(i).x &&
+           basis_vec.at(min).y > basis_vec.at(i).y)
+          ? i
+          : min;
+  }
+
+  vec_tmp.push_back(min);
+
+  for (int i = 0; i < static_cast<int>(basis_vec.size()); i++) {
+    if (i == min) {
+      continue;
+    }
+    vec_tmp.push_back(i);
+  }
+
+  for (int i = 2; i < static_cast<int>(basis_vec.size()); i++) {
+    int j = i;
+    while (j > 1 && Rotation(basis_vec.at(min),
+                             basis_vec.at(vec_tmp.at(j - 1)),
+                             basis_vec.at(vec_tmp.at(j))) < 0) {
+      std::swap(vec_tmp.at(j), vec_tmp.at(j - 1));
+      j--;
+    }
+  }
+
+  result_index.push_back(vec_tmp.at(0));
+  result_index.push_back(vec_tmp.at(1));
+
+  for (int i = 2; i < static_cast<int>(basis_vec.size()); i++) {
+    while (Rotation(basis_vec.at(result_index.at(result_index.size() - 2)),
+                    basis_vec.at(result_index.at(result_index.size() - 1)),
+                    basis_vec.at(vec_tmp.at(i))) <= 0) {
+      if (result_index.size() <= 2) {
+        break;
+      }
+      result_index.pop_back();
+    }
+    result_index.push_back(vec_tmp.at(i));
+  }
+
+  std::vector<point> result_point(result_index.size());
+
+  for (int i = 0; i < static_cast<int>(result_point.size()); i++) {
+    result_point[i] = basis_vec[result_index[i]];
+  }
+
+  return result_point;
+}
+
+std::vector<point> GrahamPassOmp(const std::vector<point>& basis_vec) {
+  std::vector<point> result_point;
+  std::vector<size_t> result_index;
+  std::vector<point> result;
+  int block = static_cast<int>(basis_vec.size()) / omp_get_max_threads();
+  int remainder = static_cast<int>(basis_vec.size()) % omp_get_max_threads();
+  if (4 * omp_get_max_threads() >= static_cast<int>(basis_vec.size())) {
+    result_point = GrahamPassSeq(basis_vec);
+    return result_point;
+  }
+#pragma omp parallel
+  {
+    int id = omp_get_thread_num();
+    std::vector<point> result_thread;
+    std::vector<point> result_tmp_point;
+    if (id == 0) {
+      result_thread.reserve(block + remainder);
+      result_thread.insert(result_thread.begin(), basis_vec.begin(),
+                           basis_vec.begin() + block + remainder);
+    } else {
+      result_thread.reserve(basis_vec.size() / omp_get_num_threads());
+      result_thread.insert(result_thread.begin(),
+                           basis_vec.begin() + remainder + id * block,
+                           basis_vec.begin() + remainder +
+                           id * block + block);
+    }
+#pragma omp barrier
+    result_tmp_point = GrahamPassSeq(result_thread);
+#pragma omp critical
+    {
+      for (point result_from_tmp : result_tmp_point) {
+        result_point.push_back(result_from_tmp);
+      }
+    }
+  }
+  result = GrahamPassSeq(result_point);
+  return result;
+}
+
+std::vector<point> GrahamPassTbb(
+    const std::vector<point>& basis_vec, int grainsize) {
+  std::vector<point> result_point;
+  if (4 * grainsize >= static_cast<int>(basis_vec.size())) {
+    result_point = GrahamPassSeq(basis_vec);
+    return result_point;
+  }
+  int size = 0;
+  if (grainsize >= static_cast<int>(basis_vec.size())) {
+    grainsize = 5;
+  }
+  if (basis_vec.size() % grainsize > 0) {
+    size = basis_vec.size() / grainsize + 1;
+  } else {
+    size = basis_vec.size() / grainsize;
+  }
+  std::vector<std::vector<point>> vector_threads(size);
+  int block = static_cast<int>(basis_vec.size()) / size;
+  int remainder = static_cast<int>(basis_vec.size()) % size;
+  for (int i = 0; i < size; i++) {
+    if (i == 0) {
+      vector_threads[i].reserve(block + remainder);
+      vector_threads[i].insert(vector_threads[i].begin(), basis_vec.begin(),
+                               basis_vec.begin() + block + remainder);
+    } else {
+      vector_threads[i].reserve(block);
+      vector_threads[i].insert(
+          vector_threads[i].begin(), basis_vec.begin() + remainder + i * block,
+          basis_vec.begin() + remainder + i * block + block);
+    }
+  }
+  std::vector<std::vector<point>> result_after(size);
+  tbb::task_scheduler_init init;
+  tbb::parallel_for(tbb::blocked_range<int>(0, size),
+                   [&](tbb::blocked_range<int> r) {
+                     for (int i = r.begin(); i < r.end(); i++) {
+                       result_after[i] = GrahamPassSeq(vector_threads[i]);
+                     }
+                   });
+  init.terminate();
+  int count = 0;
+  for (int i = 0; i < static_cast<int>(result_after.size()); i++) {
+     count += result_after[i].size();
+  }
+  std::vector<point> result_for_seq(count);
+  int k = 0;
+  for (int i = 0; i < static_cast<int>(result_after.size()); i++) {
+    for (int j = 0; j < static_cast<int>(result_after[i].size()); j++) {
+      result_for_seq[k] = result_after[i][j];
+      k++;
+    }
+  }
+  std::vector<point> result;
+  result = GrahamPassSeq(result_for_seq);
+  return result;
+}
+
+void GrahamPassSeqForStd(const std::vector<point>& basis_vec,
+               std::vector<point>* result_after) {
+  std::vector<size_t> result_index;
+
+  std::vector<int> vec_tmp;
+
+  int min = 0;
+
+  for (int i = 1; i < static_cast<int>(basis_vec.size()); i++) {
+    min = basis_vec.at(min).x > basis_vec.at(i).x ||
+                  (basis_vec.at(min).x == basis_vec.at(i).x &&
+                   basis_vec.at(min).y > basis_vec.at(i).y)
+              ? i
+              : min;
+  }
+
+  vec_tmp.push_back(min);
+
+  for (int i = 0; i < static_cast<int>(basis_vec.size()); i++) {
+    if (i == min) {
+      continue;
+    }
+    vec_tmp.push_back(i);
+  }
+
+  for (int i = 2; i < static_cast<int>(basis_vec.size()); i++) {
+    int j = i;
+    while (j > 1 && Rotation(basis_vec.at(min), basis_vec.at(vec_tmp.at(j - 1)),
+                             basis_vec.at(vec_tmp.at(j))) < 0) {
+      std::swap(vec_tmp.at(j), vec_tmp.at(j - 1));
+      j--;
+    }
+  }
+
+  result_index.push_back(vec_tmp.at(0));
+  result_index.push_back(vec_tmp.at(1));
+
+  for (int i = 2; i < static_cast<int>(basis_vec.size()); i++) {
+    while (Rotation(basis_vec.at(result_index.at(result_index.size() - 2)),
+                    basis_vec.at(result_index.at(result_index.size() - 1)),
+                    basis_vec.at(vec_tmp.at(i))) <= 0) {
+      if (result_index.size() <= 2) {
+        break;
+      }
+      result_index.pop_back();
+    }
+    result_index.push_back(vec_tmp.at(i));
+  }
+
+  std::vector<point> result_point(result_index.size());
+
+  for (int i = 0; i < static_cast<int>(result_point.size()); i++) {
+    result_point[i] = basis_vec[result_index[i]];
+  }
+
+  *result_after = result_point;
+}
+
+std::vector<point> GrahamPassStd(const std::vector<point>& basis_vec) {
+  int threadNumber = static_cast<int>(std::thread::hardware_concurrency());
+  std::vector<std::thread> threads;
+
+  std::vector<point> result_point;
+
+  if (4 * threadNumber >=
+      static_cast<int>(basis_vec.size())) {
+    result_point = GrahamPassSeq(basis_vec);
+    return result_point;
+  }
+
+  std::vector<std::vector<point>> vector_threads(threadNumber);
+
+  int block =
+      static_cast<int>(basis_vec.size()) / std::thread::hardware_concurrency();
+  int remainder =
+      static_cast<int>(basis_vec.size()) % std::thread::hardware_concurrency();
+
+  std::vector<std::vector<point>> result_after(threadNumber);
+
+  for (int i = 0; i < threadNumber; i++) {
+    if (i == 0) {
+      vector_threads[i].reserve(block + remainder);
+      vector_threads[i].insert(vector_threads[i].begin(), basis_vec.begin(),
+                               basis_vec.begin() + block + remainder);
+    } else {
+      vector_threads[i].reserve(block);
+      vector_threads[i].insert(
+          vector_threads[i].begin(), basis_vec.begin() + remainder + i * block,
+          basis_vec.begin() + remainder + i * block + block);
+    }
+  }
+
+  for (int i = 0; i < threadNumber; i++) {
+    threads.push_back(std::thread(GrahamPassSeqForStd,
+                                  std::ref(vector_threads[i]),
+                                  &result_after[i]));
+  }
+
+  for (int i = 0; i < threadNumber; i++) {
+    threads[i].join();
+  }
+
+  int count = 0;
+  for (int i = 0; i < static_cast<int>(result_after.size()); i++) {
+    count += static_cast<int>(result_after[i].size());
+  }
+
+  std::vector<point> result_for_seq(count);
+
+  int k = 0;
+  for (int i = 0; i < static_cast<int>(result_after.size()); i++) {
+    for (int j = 0; j < static_cast<int>(result_after[i].size()); j++) {
+      result_for_seq[k] = result_after[i][j];
+      k++;
+    }
+  }
+
+  std::vector<point> result;
+
+  result = GrahamPassSeq(result_for_seq);
+
+  return result;
+}
+\end{lstlisting}
+\begin{lstlisting}
+// main.cpp
+
+// Copyright 2021 Zhafyarov Oleg
+#include <gtest/gtest.h>
+#include <vector>
+#include "./graham_pass.h"
+
+TEST(STD, x100_Points_Check) {
+  int size = 100;
+  std::vector<point> vec = RandomVector(size);
+  std::vector<point> result_std;
+  std::vector<point> result_seq;
+  result_std = GrahamPassStd(vec);
+  result_seq = GrahamPassSeq(vec);
+  ASSERT_EQ(CompareVectors(result_std, result_seq), true);
+}
+
+TEST(STD, x200_Points_Check) {
+  int size = 200;
+  std::vector<point> vec = RandomVector(size);
+  std::vector<point> result_std;
+  std::vector<point> result_seq;
+  result_std = GrahamPassStd(vec);
+  result_seq = GrahamPassSeq(vec);
+  ASSERT_EQ(CompareVectors(result_std, result_seq), true);
+}
+
+TEST(STD, Count_Check) {
+  int count_tmp;
+  std::vector<point> vec = { {1, 1}, {1, 4},
+                                           {4, 1}, {4, 4}, {2, 2}};
+  std::vector<point> result;
+  count_tmp = 4;
+  result = GrahamPassStd(vec);
+  ASSERT_EQ(static_cast<int>(result.size()), count_tmp);
+}
+
+TEST(STD, x300_Points_Check) {
+  int size = 300;
+  std::vector<point> vec = RandomVector(size);
+  std::vector<point> result_std;
+  std::vector<point> result_seq;
+  result_std = GrahamPassStd(vec);
+  result_seq = GrahamPassSeq(vec);
+  ASSERT_EQ(CompareVectors(result_std, result_seq), true);
+}
+
+TEST(STD, x500_Points_Check) {
+  int size = 500;
+  std::vector<point> vec = RandomVector(size);
+  std::vector<point> result_std;
+  std::vector<point> result_seq;
+  result_std = GrahamPassStd(vec);
+  result_seq = GrahamPassSeq(vec);
+  ASSERT_EQ(CompareVectors(result_std, result_seq), true);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\end{document}
