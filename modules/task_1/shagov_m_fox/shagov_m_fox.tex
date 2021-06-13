@@ -1,0 +1,756 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage{amsmath}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Блочное умножение матриц. Алгоритм Фокса»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-1 \\ Шагов М. А.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\}
+
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+В лабораторной рассматривается одна из основных задач матричных вычислений — умножение матриц. Приводится постановка задачи и дается последовательный алгоритм ее решения. Рассматривается один из наиболее популярных алгоритмов для решения данной задачи - алгоритм Фокса. Задача имеет очень широкое практическое применение в различных областях(глубокое обучение, машинное обучение, моделирование и обработка изображений). При всем этом задача имеет очень высокую алгоритмическую сложность $n^3$. Таким образом, ускорение выполнения алгоритмов умножения матриц явялется до сих пор актуальной проблемой. Одним из вариантов ускорения является распараллеливание данной задачи.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В данной работе необходимо реализовать блочный алгоритм Фокса.
+\par
+Для этого необходимо:
+\begin{itemize}
+    \item[-] реализовать последовательный алгоритм умножения матриц;
+    \item[-] разработать и реализовать блочный алгоритм Фокса с использованием технологий OpenMP, TBB и std::threads;
+    \item[-] проверить корректность работы алгоритмов с помощью тестов, созданных с использованием Google C++ Testing Framework;
+    \item[-] провести вычислительные эксперименты и сделать выводы.
+\end{itemize}
+\newpage
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+Даны две квадратные матрицы {\itshape A} и {\itshape B} размера {\itshape $n \times n$}, а количество блоков по горизонтали и вертикали являются одинаковым и равным {\itshape $q$} (т.е. размер всех блоков равен {\itshape $k \times k$}, {\itshape $k = \frac{n}{q} $}). При таком представлении данных операция матричного умножения матриц А и B в блочном виде может быть представлена в виде:
+$$
+\begin{pmatrix}
+A_{00}& \ldots & A_{0q-1}\\
+& \ldots\\
+A_{q-10}& \ldots & A_{q-1q-1}
+\end{pmatrix}
+*
+\begin{pmatrix}
+B_{00}& \ldots & B_{0q-1}\\
+& \ldots\\
+B_{q-10}& \ldots & B_{n-1q-1}
+\end{pmatrix}
+=
+\begin{pmatrix}
+C_{00}& \ldots & C_{0q-1}\\
+&\ldots\\
+C_{q-10}& \ldots & C_{q-1q-1}
+\end{pmatrix}
+$$
+
+где каждый блок $C_{ij}$ матрицы {\itshape $C$} определяется в соответствии с выражением
+\par$$
+    C_{ij} = \sum_{s=0}^{q-1} A_{is} * B_{sj},\qquad 0 \le i,j \le n \qquad
+    $$
+\par При блочном разбиении данных для определения базовых подзадач естественным представляется взять за основу вычисления, выполняемые над матричными блоками. Определим базовую подзадачу как процедуру вычисления всех элементов одного из блоков матрицы {\itshape $C$}. Для нумерации подзадач будем использовать индексы размещаемых в подзадачах блоков матрицы {\itshape $C$}, т.е. подзадача {\itshape $(i,j)$} отвечает за вычисление блока {\itshape $C_{ij}$} – тем самым, набор подзадач образует квадратную решетку, соответствующую структуре блочного представления матрицы {\itshape $C$}.
+\par В соответствии с алгоритмом Фокса в ходе вычислений на каждой базовой подзадаче {\itshape $(i,j)$} располагается четыре матричных блока:
+\begin{itemize}
+    \item[-] блок {\itshape $C_{ij}$} матрицы {\itshape $C$}, вычисляемый подзадачей;
+    \item[-] блок {\itshape $A_{ij}$} матрицы {\itshape $A$}, размещаемый в подзадаче перед началом вычислений;
+    \item[-] блоки {\itshape $A_{ij}^{'}$ , $B_{ij}^{'}$} матриц {\itshape $A$} и {\itshape $B$}, получаемые подзадачей в ходе выполнения вычислений
+\end{itemize}
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Для распараллеливания алгоритма Фокса необходимо разделить подзадачи между потоками. Таким образом, каждый поток просчитывает подматрицу результирующей матрицы.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Алгоритм блочного умножения матриц вызывается при помощи функции:
+\begin{lstlisting}
+Matrix parallelBlockMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t Size, int threads_count);
+\end{lstlisting}
+\par Входными параметрами функции является вектора значений, содержащих элементы типа double, представляющие собой перемножаемые матрицы, количество потоков, размер матрицы. Выходными данными является вектор, содержащий в себе результирующую матрицу.
+\par Алгоритм умножения матриц вызывается при помощи:
+\begin{lstlisting}
+Matrix sequentialMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t BlockSize);
+\end{lstlisting}
+\par Входные и выходные данные аналогичны последовательному варианту.
+\par Дополнительно необходимо было реализовать функцию сравнения матриц для корректной проверки.
+\begin{lstlisting}
+bool isEqualMatrix(const Matrix& A, const Matrix& B);
+\end{lstlisting}
+\par Входными параметрами функции является вектора значений элементов матриц, содержащих элементы типа double.
+\par Для удобства написания тестов была разработана функция рандомизации матриц.
+\begin{lstlisting}
+Matrix createRandomMatrix(size_t size);
+\end{lstlisting}
+\par Входным параметром функции является размер вектора. Выходным является сгенерированная матрица.
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью использования Google C++ Testing Framework.
+\par Набор представляет из себя тесты, проверяющие корректность вычислений (проверка на совпадение результатов работы параллельной программы и последовательной), а также эффективность (вычисление и сравнение времени работы последовательной и параллельной реализации).
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельного алгоритма Фокса проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel(R) Core(TM) i5-4210H CPU @ 2.90GHz   2.90 GHz;
+\item Оперативная память: 4096 МБ (DDR3);
+\item ОС: Майкрософт Windows 10 Pro 64-bit Build 19042.685.
+\end{itemize}
+
+\par В рамках эксперимента было вычислено время работы параллельного (алгоритм Фокса)
+и последовательно алгоритмов умножения квадратных матриц {\itshape $A$} и {\itshape $B$}. Размер матриц \verb|1000| и \verb|2000|.
+\par Результаты экспериментов представлены ниже.
+
+\begin{table}[!h]
+\caption{Результаты экспериментов для матриц размером 1000 OpenMP}
+\centering
+\begin{tabular}{lllll}
+Процессы & Последовательно & OpenMP   & Ускорение  \\
+4        & 7.22995         & 3.57095  & 2.024       \\
+9        & 7.14650         & 3.28241  & 2.17       \\
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты экспериментов для матриц размером 1000 TBB}
+\centering
+\begin{tabular}{lllll}
+Процессы & Последовательно & TBB      & Ускорение  \\
+4        & 8.57073         & 3.35743  & 2.55       \\
+9        & 7.62254         & 3.19052  & 2.39       \\
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты экспериментов для матриц размером 2000 OpenMP}
+\centering
+\begin{tabular}{lllll}
+Процессы & Последовательно & OpenMP   & Ускорение  \\
+4        & 127.357         & 53.7159  & 2.31       \\
+9        & 125.211         & 51.3449  & 2,44
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\caption{Результаты экспериментов для матриц размером 2000 TBB}
+\centering
+\begin{tabular}{lllll}
+Процессы & Последовательно & TBB       & Ускорение     \\
+4        & 133.932         & 61.6958   & 2.17          \\
+9        & 127.631         & 57.2824   & 2,22
+\end{tabular}
+\end{table}
+
+\par По данным экспериментов видно, что алгоритм Фокса работает намного быстрее, чем классический алгоритм умножения матриц. Наибольшая эффективность достигается при достаточно большом размере матриц. Для проявления полного эффекта от ускорения необходимо, чтобы чисто процессоров равнялось числу потоков.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения лабораторной работы был реализован последовательный и параллельный алгоритм Фокса.
+\par По данным экспериментов удалось сравнить время работы параллельного и последовательного алгоритма умножения матриц. Выявлено, что параллельный алгоритм Фокса показывает высокую эффективность на достаточно большом объеме данных.
+\par Для подтверждения корректности работы программы написаны тесты с использованием Google Testing Framework.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{hpccfox} Центр суперкомпьютерных технологий, официальный сайт. Нижегородский
+государственный университет им. Н.И. Лобачевского.  // URL \url {http://www.hpcc.unn.ru/?dir=1034} (дата обращения: 10.04.2021)
+\bibitem{intuit} Национальный Открытый Университет «ИНТУИТ». Академия: Интернет Университет Суперкомпьютерных Технологий. Курс: Теория и практика параллельных вычислений. Автор: Виктор Гергель. ISBN: 978-5-9556-0096-3. // URL: \url {https://www.intuit.ru/studies/courses/1156/190/info} (дата обращения: 10.04.2021)
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе находится листинг всего кода, написанного в рамках лабораторной работы.
+\begin{lstlisting}
+// Copyright 2021 Shagov Maksim
+#ifndef MODULES_TASK_2_SHAGOV_M_FOX_FOX_H_
+#define MODULES_TASK_2_SHAGOV_M_FOX_FOX_H_
+#include <omp.h>
+#include <vector>
+#include <iostream>
+#include <ctime>
+#include <random>
+#include <cmath>
+#include <limits>
+
+typedef  std::vector<double> Matrix;
+
+bool isEqual(double x, double y);
+bool isEqualMatrix(const Matrix& A, const Matrix& B);
+bool isSizeCorrect(size_t size, size_t t_count);
+
+Matrix createRandomMatrix(size_t size);
+Matrix sequentialMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t BlockSize);
+Matrix sequentialBlockMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t Size);
+Matrix parallelBlockMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t Size);
+#endif  // MODULES_TASK_2_SHAGOV_M_FOX_FOX_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Shagov Maksim
+#include "../../../modules/task_2/shagov_m_fox/fox.h"
+#include <omp.h>
+
+bool isEqual(double x, double y) {
+    return std::fabs(x - y) < 0.001;
+}
+
+bool isEqualMatrix(const Matrix& A, const Matrix& B) {
+    if ((A.size() <= 0) || (B.size() <= 0))
+        throw "Size of matrix must be > 0";
+    if (A.size() != B.size())
+        throw "Different size of matrix";
+    size_t size = A.size();
+    for (size_t i = 0; i < size; i++)
+        if (!isEqual(A[i], B[i]))
+            return false;
+    return true;
+}
+
+bool isSizeCorrect(size_t size, size_t t_count) {
+    size_t blocks_count = static_cast<size_t>(sqrt(t_count));
+    if (size % blocks_count != 0) {
+        return false;
+    }
+    if (blocks_count * blocks_count != t_count) {
+        return false;
+    }
+    return true;
+}
+
+Matrix createRandomMatrix(size_t size) {
+    if (size <= 0)
+        throw "Size of matrix must be > 0";
+    Matrix result(size, 0);
+    std::random_device rd;
+    std::mt19937 mersenne(rd());
+    std::uniform_real_distribution<> urd(-100.0, 100.0);
+    for (size_t i = 0; i < size; i++) {
+        result[i] = static_cast<double>(urd(mersenne));
+    }
+    return result;
+}
+
+Matrix sequentialMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t Size) {
+    if (Size <= 0)
+        throw "Block size of matrix must be > 0";
+    if ((A.size() <= 0) || (B.size() <= 0))
+        throw "Size of matrix must be > 0";
+    if (A.size() != B.size())
+        throw "Different size of matrix";
+    if ((A.size() != Size) || (B.size() != Size))
+        throw "Different param and size";
+    size_t BlockSize = static_cast<size_t>(sqrt(Size));
+    Matrix result(BlockSize * BlockSize, 0);
+    for (size_t i = 0; i < BlockSize; i++)
+        for (size_t j = 0; j < BlockSize; j++)
+            for (size_t k = 0; k < BlockSize; k++)
+                result[i * BlockSize  + j] += A[i * BlockSize + k] * B[k * BlockSize + j];
+    return result;
+}
+
+Matrix sequentialBlockMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t Size) {
+    if (Size <= 0)
+        throw "Block size of matrix must be > 0";
+    if ((A.size() <= 0) || (B.size() <= 0))
+        throw "Size of matrix must be > 0";
+    if (A.size() != B.size())
+        throw "Different size of matrix";
+    if ((A.size() != Size) || (B.size() != Size))
+        throw "Different param and size";
+    if (static_cast<size_t>(sqrt(Size)) * static_cast<size_t>(sqrt(Size)) != Size)
+        throw "Size not square";
+    size_t BlockSize = static_cast<size_t>(sqrt(Size));
+    size_t BlockCount = static_cast<size_t>(BlockSize/static_cast<size_t>(sqrt(4))) == 0
+                       ? 1 : static_cast<size_t>(BlockSize/static_cast<size_t>(sqrt(4)));
+    Matrix result(BlockSize * BlockSize, 0);
+    for (size_t i = 0; i < BlockSize; i += BlockCount)
+        for (size_t j = 0; j < BlockSize; j += BlockCount)
+            for (size_t k = 0; k < BlockSize; k += BlockCount)
+                for (size_t ii = i; ii < ((BlockCount + i) % BlockSize + BlockCount); ii++)
+                    for (size_t jj = j; jj < ((BlockCount + j) % BlockSize + BlockCount); jj++)
+                        for (size_t kk = k; kk < ((BlockCount + k) % BlockSize + BlockCount); kk++)
+                            result[ii * BlockSize  + jj] += A[ii * BlockSize + kk] * B[kk * BlockSize + jj];
+    return result;
+}
+
+Matrix parallelBlockMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t Size) {
+    if (Size <= 0)
+        throw "Block size of matrix must be > 0";
+    if ((A.size() <= 0) || (B.size() <= 0))
+        throw "Size of matrix must be > 0";
+    if (A.size() != B.size())
+        throw "Different size of matrix";
+    if ((A.size() != Size) || (B.size() != Size))
+        throw "Different param and size";
+    if (static_cast<size_t>(sqrt(Size)) * static_cast<size_t>(sqrt(Size)) != Size)
+        throw "Size not square";
+    Matrix result(Size, 0);
+    if (!isSizeCorrect(static_cast<size_t>(sqrt(Size)),  omp_get_num_threads()))
+        return result;
+    size_t stage;
+    size_t cols = static_cast<size_t>(sqrt(Size));
+    #pragma omp parallel private(stage) shared(A, B, result)
+    {
+        size_t threads_count = omp_get_num_threads();
+        size_t blocks_count = static_cast<size_t>(sqrt(threads_count));
+        size_t block_cols_size = cols / blocks_count;
+        size_t thread_num = omp_get_thread_num();
+        size_t i1 = thread_num / blocks_count, j1 = thread_num % blocks_count;
+        auto A1 = A.data();
+        auto B1 = B.data();
+        auto C1 = result.data();
+        for (stage = 0; stage < blocks_count; stage++) {
+            A1 = A.data() + (i1 * cols + ((i1 + stage) % blocks_count)) * block_cols_size;
+            B1 = B.data() + (((i1 + stage) % blocks_count) * cols + j1) * block_cols_size;
+            C1 = result.data() + (i1 * cols + j1) * block_cols_size;
+            for (size_t i = 0; i < block_cols_size; i++) {
+                for (size_t j = 0; j < block_cols_size; j++) {
+                    double tmp = 0.0;
+                    for (size_t k = 0; k < block_cols_size; k++) {
+                        tmp += *(A1 + i * cols + k) * *(B1 + k * cols + j);
+                    }
+                    *(C1 + i * cols + j) += tmp;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Shagov Maksim
+#include <gtest/gtest.h>
+#include <vector>
+#include "../../../modules/task_2/shagov_m_fox/fox.h"
+
+TEST(Shagov_Maksim_Omp, Test_Create_Random_Matrix) {
+    const int count = 10;
+    Matrix A = createRandomMatrix(count);
+    Matrix B(A);
+    ASSERT_EQ(A, B);
+}
+
+TEST(Shagov_Maksim_Omp, Test_Throw_Exeption_Dif_Size) {
+    Matrix A = {1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                0, 0, 0, 1};
+    Matrix B(1);
+    ASSERT_ANY_THROW(sequentialBlockMatrixMultiplication(A, B, 4 * 4));
+}
+
+TEST(Shagov_Maksim_Omp, Test_Throw_Exeption_Null_Block_Size) {
+    Matrix A;
+    Matrix B;
+    ASSERT_ANY_THROW(sequentialBlockMatrixMultiplication(A, B, 0));
+}
+
+TEST(Shagov_Maksim_Omp, Test_Throw_Exeption_Null_Matrix_Size) {
+    Matrix A;
+    Matrix B;
+    ASSERT_ANY_THROW(sequentialBlockMatrixMultiplication(A, B, 10));
+}
+
+TEST(Shagov_Maksim_Omp, Test_Throw_Exeption_No_Square_Matrix_Size) {
+    Matrix A(1, 0);
+    Matrix B(1, 0);
+    ASSERT_ANY_THROW(sequentialBlockMatrixMultiplication(A, B, 13));
+}
+
+TEST(Shagov_Maksim_Omp, Test_Identity_Matrix_Mult) {
+    Matrix A = {1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                0, 0, 0, 1};
+    Matrix B(A);
+    Matrix C = sequentialBlockMatrixMultiplication(A, B, 4 * 4);
+    ASSERT_EQ(A, C);
+}
+
+TEST(Shagov_Maksim_Omp, Test_Top_Matrix_Mult) {
+    Matrix A = {1, 2, 3, 4,
+                0, 2, 3, 4,
+                0, 0, 3, 4,
+                0, 0, 0, 4};
+    Matrix B(A);
+    Matrix C = sequentialBlockMatrixMultiplication(A, B, 4 * 4);
+    Matrix C_my_result = {1, 6, 18, 40,
+                          0, 4, 15, 36,
+                          0, 0, 9,  28,
+                          0, 0, 0,  16};
+    ASSERT_EQ(C_my_result, C);
+}
+
+TEST(Shagov_Maksim_Omp, Test_4_on_4_Some_Matrix_Mult) {
+    Matrix A = {1, 2, 3, 4,
+                1, 2, 3, 4,
+                1, 2, 3, 4,
+                1, 2, 3, 4};
+    Matrix B(A);
+    Matrix C = sequentialBlockMatrixMultiplication(A, B, 4 * 4);
+    Matrix C_block = sequentialBlockMatrixMultiplication(A, B, 4 * 4);
+    ASSERT_EQ(C, C_block);
+}
+
+TEST(Shagov_Maksim_Omp, Test_4_on_4_Reverse_Matrix_Mult) {
+    Matrix A = {1, 2, 3, 4,
+                1, 2, 3, 4,
+                1, 2, 3, 4,
+                1, 2, 3, 4};
+    Matrix B = {4, 3, 2, 1,
+                4, 3, 2, 1,
+                4, 3, 2, 1,
+                4, 3, 2, 1};
+    Matrix C = sequentialBlockMatrixMultiplication(A, B, 4 * 4);
+    Matrix C_my_result = {40, 30, 20, 10,
+                          40, 30, 20, 10,
+                          40, 30, 20, 10,
+                          40, 30, 20, 10};
+    ASSERT_EQ(C_my_result, C);
+}
+
+TEST(Shagov_Maksim_Omp, Test_4_on_4_Matrix_Mult) {
+    Matrix A = {4,    18,    7,   -2,
+                0,    12,    1.3,  -5.7,
+                0.01, 1.2,  -1.2, -4,
+                0.3,  0,     7,   -2.5};
+    Matrix B = {4.3,  -150,   14.14, 5.1,
+                1,   -1,      0,    -2,
+                2,    15.6,   6.15,  14.88,
+                88.14, 2.5,  -7.3,   5};
+    Matrix C = sequentialBlockMatrixMultiplication(A, B, 4 * 4);
+    Matrix C_my_result = {-127.08,  -513.8, 114.21,   78.56,
+                          -487.798, -5.97,  49.605,  -33.156,
+                          -353.717, -31.42, 21.9614, -40.205,
+                          -205.06,   57.95, 65.542,   93.19};
+    ASSERT_TRUE(isEqualMatrix(C_my_result, C));
+}
+
+TEST(Shagov_Maksim_Omp, Test_1_on_1_Some_Matrix_Mult) {
+    Matrix A = {1};
+    Matrix B(A);
+    Matrix C = sequentialBlockMatrixMultiplication(A, B, 1 * 1);
+    ASSERT_EQ(A, C);
+}
+
+TEST(Shagov_Maksim_Omp, Test_1_on_1_Dif_Matrix_Mult) {
+    Matrix A = {1};
+    Matrix B(A);
+    B[0] = 3;
+    Matrix C = sequentialBlockMatrixMultiplication(A, B, 1 * 1);
+    ASSERT_EQ(B, C);
+}
+
+TEST(Shagov_Maksim_Omp, Test_8_on_8_Some_Matrix_Mult) {
+    Matrix A = {1, 2, 3, 4, 5, 6, 7, 8,
+                1, 2, 3, 4, 5, 6, 7, 8,
+                1, 2, 3, 4, 5, 6, 7, 8,
+                1, 2, 3, 4, 5, 6, 7, 8,
+                1, 2, 3, 4, 5, 6, 7, 8,
+                1, 2, 3, 4, 5, 6, 7, 8,
+                1, 2, 3, 4, 5, 6, 7, 8,
+                1, 2, 3, 4, 5, 6, 7, 8};
+    Matrix B(A);
+    Matrix C = sequentialBlockMatrixMultiplication(A, B, 8 * 8);
+    Matrix C_my_result = {36, 72, 108, 144, 180, 216, 252, 288,
+                          36, 72, 108, 144, 180, 216, 252, 288,
+                          36, 72, 108, 144, 180, 216, 252, 288,
+                          36, 72, 108, 144, 180, 216, 252, 288,
+                          36, 72, 108, 144, 180, 216, 252, 288,
+                          36, 72, 108, 144, 180, 216, 252, 288,
+                          36, 72, 108, 144, 180, 216, 252, 288,
+                          36, 72, 108, 144, 180, 216, 252, 288};
+    ASSERT_EQ(C_my_result, C);
+}
+
+TEST(Shagov_Maksim_Omp, Test_8_on_8_Identity_on_Random_Matrix_Mult) {
+    Matrix A = {1, 0, 0, 0, 0, 0, 0, 0,
+                0, 1, 0, 0, 0, 0, 0, 0,
+                0, 0, 1, 0, 0, 0, 0, 0,
+                0, 0, 0, 1, 0, 0, 0, 0,
+                0, 0, 0, 0, 1, 0, 0, 0,
+                0, 0, 0, 0, 0, 1, 0, 0,
+                0, 0, 0, 0, 0, 0, 1, 0,
+                0, 0, 0, 0, 0, 0, 0, 1};
+    Matrix B = createRandomMatrix(8 * 8);
+    Matrix C = sequentialBlockMatrixMultiplication(A, B, 8 * 8);
+    ASSERT_EQ(B, C);
+}
+
+TEST(Shagov_Maksim_Omp, Test_4_on_4_Random_Matrix_Mult) {
+    size_t size = 4;
+    Matrix A = createRandomMatrix(size * size);
+    Matrix B = createRandomMatrix(size * size);
+    int t_count = 4;
+    omp_set_num_threads(t_count);
+    Matrix C = parallelBlockMatrixMultiplication(A, B, size * size);
+    t_count = 1;
+    omp_set_num_threads(t_count);
+    Matrix C_block = parallelBlockMatrixMultiplication(A, B, size * size);
+    ASSERT_TRUE(isEqualMatrix(C, C_block));
+}
+
+TEST(Shagov_Maksim_Omp, Test_8_on_8_Random_Matrix_Mult) {
+    size_t size = 8;
+    Matrix A = createRandomMatrix(size * size);
+    Matrix B = createRandomMatrix(size * size);
+    int t_count = 4;
+    omp_set_num_threads(t_count);
+    Matrix C = parallelBlockMatrixMultiplication(A, B, size * size);
+    t_count = 1;
+    omp_set_num_threads(t_count);
+    Matrix C_block = parallelBlockMatrixMultiplication(A, B, size * size);
+    ASSERT_TRUE(isEqualMatrix(C, C_block));
+}
+
+TEST(Shagov_Maksim_Omp, Test_50_on_50_Random_Matrix_Mult) {
+    size_t size = 50;
+    Matrix A = createRandomMatrix(size * size);
+    Matrix B = createRandomMatrix(size * size);
+    int t_count = 4;
+    omp_set_num_threads(t_count);
+    double t1 = omp_get_wtime();
+    Matrix C = parallelBlockMatrixMultiplication(A, B, size * size);
+    double t2 = omp_get_wtime();
+    std::cout << "Omp: " << t2 - t1 << std::endl;
+    t_count = 1;
+    omp_set_num_threads(t_count);
+    double t3 = omp_get_wtime();
+    Matrix C_block = parallelBlockMatrixMultiplication(A, B, size * size);
+    double t4 = omp_get_wtime();
+    std::cout << "Seq: " << t4 - t3 << std::endl;
+    std::cout << (t4 - t3) / (t2 - t1);
+    ASSERT_TRUE(isEqualMatrix(C, C_block));
+}
+\end{lstlisting}
+
+\begin{lstlisting}
+// Copyright 2021 Shagov Maksim
+#include "../../../modules/task_3/shagov_m_fox/fox.h"
+#include <tbb/tbb.h>
+
+bool isEqual(double x, double y) {
+    return std::fabs(x - y) < 0.001;
+}
+
+bool isEqualMatrix(const Matrix& A, const Matrix& B) {
+    if ((A.size() <= 0) || (B.size() <= 0))
+        throw "Size of matrix must be > 0";
+    if (A.size() != B.size())
+        throw "Different size of matrix";
+    size_t size = A.size();
+    for (size_t i = 0; i < size; i++)
+        if (!isEqual(A[i], B[i]))
+            return false;
+    return true;
+}
+
+bool isSizeCorrect(size_t size, size_t t_count) {
+    size_t blocks_count = static_cast<size_t>(sqrt(t_count));
+    if (size % blocks_count != 0) {
+        return false;
+    }
+    if (blocks_count * blocks_count != t_count) {
+        return false;
+    }
+    return true;
+}
+
+Matrix createRandomMatrix(size_t size) {
+    if (size <= 0)
+        throw "Size of matrix must be > 0";
+    Matrix result(size, 0);
+    std::random_device rd;
+    std::mt19937 mersenne(rd());
+    std::uniform_real_distribution<> urd(-100.0, 100.0);
+    for (size_t i = 0; i < size; i++) {
+        result[i] = static_cast<double>(urd(mersenne));
+    }
+    return result;
+}
+
+Matrix sequentialMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t Size) {
+    if (Size <= 0)
+        throw "Block size of matrix must be > 0";
+    if ((A.size() <= 0) || (B.size() <= 0))
+        throw "Size of matrix must be > 0";
+    if (A.size() != B.size())
+        throw "Different size of matrix";
+    if ((A.size() != Size) || (B.size() != Size))
+        throw "Different param and size";
+    size_t BlockSize = static_cast<size_t>(sqrt(Size));
+    Matrix result(BlockSize * BlockSize, 0);
+    for (size_t i = 0; i < BlockSize; i++)
+        for (size_t j = 0; j < BlockSize; j++)
+            for (size_t k = 0; k < BlockSize; k++)
+                result[i * BlockSize  + j] += A[i * BlockSize + k] * B[k * BlockSize + j];
+    return result;
+}
+
+Matrix sequentialBlockMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B, size_t Size) {
+    if (Size <= 0)
+        throw "Block size of matrix must be > 0";
+    if ((A.size() <= 0) || (B.size() <= 0))
+        throw "Size of matrix must be > 0";
+    if (A.size() != B.size())
+        throw "Different size of matrix";
+    if ((A.size() != Size) || (B.size() != Size))
+        throw "Different param and size";
+    if (static_cast<size_t>(sqrt(Size)) * static_cast<size_t>(sqrt(Size)) != Size)
+        throw "Size not square";
+    size_t BlockSize = static_cast<size_t>(sqrt(Size));
+    size_t BlockCount = static_cast<size_t>(BlockSize/static_cast<size_t>(sqrt(4))) == 0
+                       ? 1 : static_cast<size_t>(BlockSize/static_cast<size_t>(sqrt(4)));
+    Matrix result(BlockSize * BlockSize, 0);
+    for (size_t i = 0; i < BlockSize; i += BlockCount)
+        for (size_t j = 0; j < BlockSize; j += BlockCount)
+            for (size_t k = 0; k < BlockSize; k += BlockCount)
+                for (size_t ii = i; ii < ((BlockCount + i) % BlockSize + BlockCount); ii++)
+                    for (size_t jj = j; jj < ((BlockCount + j) % BlockSize + BlockCount); jj++)
+                        for (size_t kk = k; kk < ((BlockCount + k) % BlockSize + BlockCount); kk++)
+                            result[ii * BlockSize  + jj] += A[ii * BlockSize + kk] * B[kk * BlockSize + jj];
+    return result;
+}
+
+Matrix parallelBlockMatrixMultiplication(const std::vector<double>& A, const std::vector<double>& B,
+                                         size_t Size, int threads_count) {
+    if (Size <= 0)
+        throw "Block size of matrix must be > 0";
+    if ((A.size() <= 0) || (B.size() <= 0))
+        throw "Size of matrix must be > 0";
+    if (A.size() != B.size())
+        throw "Different size of matrix";
+    if ((A.size() != Size) || (B.size() != Size))
+        throw "Different param and size";
+    if (static_cast<size_t>(sqrt(Size)) * static_cast<size_t>(sqrt(Size)) != Size)
+        throw "Size not square";
+    Matrix result(Size, 0);
+    tbb::task_scheduler_init init(threads_count);
+    tbb::parallel_for(tbb::blocked_range<int>(0, threads_count, 1), [&A, &B, &result, &threads_count, &Size]
+    (tbb::blocked_range<int>& r) -> void{
+            size_t cols = static_cast<size_t>(sqrt(Size));
+            size_t blocks_count = static_cast<size_t>(sqrt(threads_count));
+            size_t block_cols_size = cols / blocks_count;
+            auto thread_num = r.begin();
+            size_t i1 = thread_num / blocks_count, j1 = thread_num % blocks_count;
+            auto A1 = A.data();
+            auto B1 = B.data();
+            auto C1 = result.data();
+            for (size_t stage = 0; stage < blocks_count; stage++) {
+                A1 = A.data() + (i1 * cols + ((i1 + stage) % blocks_count)) * block_cols_size;
+                B1 = B.data() + (((i1 + stage) % blocks_count) * cols + j1) * block_cols_size;
+                C1 = result.data() + (i1 * cols + j1) * block_cols_size;
+                for (size_t i = 0; i < block_cols_size; i++) {
+                    for (size_t j = 0; j < block_cols_size; j++) {
+                        double tmp = 0.0;
+                        for (size_t k = 0; k < block_cols_size; k++) {
+                            tmp += *(A1 + i * cols + k) * *(B1 + k * cols + j);
+                        }
+                        *(C1 + i * cols + j) += tmp;
+                    }
+                }
+            }
+        });
+    return result;
+}
+\end{lstlisting}
+
+\end{document}
