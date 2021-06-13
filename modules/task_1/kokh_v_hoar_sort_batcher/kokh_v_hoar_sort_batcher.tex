@@ -1,0 +1,163 @@
+\documentclass{report}
+
+\usepackage[english, russian]{babel}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage[T2A]{fontenc}
+\usepackage[14pt]{extsizes}
+\usepackage{verbatim}
+\usepackage{multirow}
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage[titles]{tocloft}
+\usepackage[hyphens]{url}
+
+
+\geometry{a4paper,top=2cm,bottom=2cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setcounter{tocdepth}{4}
+\setcounter{secnumdepth}{4}
+\sloppy
+
+\definecolor{darkgreen}{rgb}{0.0, 0.5, 0.0}
+\lstset{
+language=C++,
+basicstyle=\footnotesize,
+numbers=left,
+numberstyle=\tiny,
+numberfirstline=true,
+numbersep=5pt,
+keywordstyle=\color{blue}\bfseries,
+commentstyle=\color{darkgreen},
+stringstyle=\color{red},
+showspaces=false,
+showstringspaces=false,
+captionpos=t,
+breaklines=true,
+breakatwhitespace=false,
+extendedchars=true,
+frame=tb,
+title=\lstname,
+}
+
+\begin{document}
+\begin{titlepage}
+
+\begin{center}
+   
+Министерство науки и высшего образования Российской Федерации
+{Федеральное государственное автономное образовательное учреждение высшего образования} \\
+\textbf{"Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского" (ННГУ)} \\
+\textbf{Институт информационных технологий, математики и механики}
+
+\vspace{\fill}
+
+\textbf{\LargeОтчет по лабораторной работе \\}
+\textbf{\large\\ «Сортировка Хоара с четно-нечетным слиянием Бэтчера»}
+
+\vspace{\fill}
+
+\hfill\parbox{8cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ Студент группы 381808-2 \\ Кох Владислав Альбертович \\ \\ \\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ Доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.
+\hbadness=20000
+}
+
+\vspace{\fill}
+
+Нижний Новгород \\ 2021 г.
+\end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+\setlength{\cftsecindent}{0em}
+\setlength{\cftsubsecindent}{1.25em}
+\setlength{\cftsubsubsecindent}{2.5em}
+\setlength{\cftsubsubsecnumwidth}{1.25em}
+\tableofcontents
+
+
+\newpage
+\section*{Введение и постановка задачи}
+\addcontentsline{toc}{section}{Введение и постановка задачи}
+\par Быстрая сортировка, сортировка Хоара (англ. quicksort), часто называемая qsort это алгоритм сортировки, который был разработан английским информатиком Тони Хоаром. В ходе данной работы мы напишем последовательную реализацию этого алгоритма, а также распараллелим алгоритм с помощью Openmp и tbb на языке С++, а также сравним выйгрыш в скорости и сделаем соответствующие выводы.
+
+
+
+\newpage
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+
+\par Сортировка Хоара:
+\par Выбираем опорный элемент в массиве, далее мы распрределяем элементы массива так, чтобы элементы больше опорного или равные ему становиилсь после него, а те, что меньше до него. Дальше мы применяем рекурсию, опять выбираем опорный элемент, но уже в подмассивах: слева и справа от прошлого опорного элемента и т.д. Условие выхода из рекурсии - в массиве остается только 1 элемент или их не остается вовсе.
+
+
+\newpage
+\section*{Распараллеливание}
+\addcontentsline{toc}{section}{Распараллеливание}
+\par Распараллеливание сортировки заключается в разделении массива на несколько частей. На каждую часть будет приходится по одному потоку. Чтобы завершить сортировку, нужно обратно соединить части массива, которые сортировались по потокам. Через четно-нечетное слияние Батчера мы разделяем элементы на четные и нечетные для пары массивов. Это тоже выполняется через потоки: один для нечетных элементов, другой для четных. 
+
+
+\newpage
+\section*{Программная реализация}
+\addcontentsline{toc}{section}{Программная реализация}
+\par Openmp:
+\par Для реализации распараллеливания с помощью Openmp библиотеки мы использовали различные дериктивы. 
+\par \verb|#pragma omp parallel for| - через нее мы разделяем массив на потоки и проводим сортировку поотдельности. Через \verb|omp_set_num_threads(num)| задаем кол-во потоков для данной операции. 
+Далее мы аналогично проводим слияение через потоки путем дележки на четные и нечетные элементы. Каждый раз мы берем пару подмассивов, поэтому с каждым разом кол-во массивов и потоков уменьшается в 2 раза.
+\par Tbb:
+\par Для реализации распараллеливания с помощью tbb библиотеки мы  использовали tbb задачи или task. (tbb::task и task::execute)
+ Будем делить массив рекурсивно по кол-ву потоков. 
+\par Мы установим одну задачу для слияния массивов, будем лишь менять параметры, которые влияют на четность или нечетность(splitter).Далее мы выполняем параллельное слияние массивов через \verb|tbb::parallel_for| и опять рекурсивно повторяем алгоритм.
+
+
+\newpage
+\section*{Результаты и выводы}
+\addcontentsline{toc}{section}{Результаты и выводы}
+\par Число ядер: 8 ядер
+\par Тесты проводились на массивах размерности 100 000 000
+
+\begin{table}[!h]
+\caption{Замеры времен}
+\centering
+\begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+\multirow{2}{*}
+	{\begin{tabular}[c]{@{}c@{}}Кол-во\\ потоков\end{tabular}} & 
+\multirow{2}{*}
+	{\begin{tabular}[c]{@{}c@{}}Последовательный\\ алгоритм\end{tabular}} & 
+\multirow{2}{*}
+	{\begin{tabular}[c]{@{}c@{}}OpenMP\end{tabular}} & 
+\multirow{2}{*}
+	{\begin{tabular}[c]{@{}c@{}}TBB\end{tabular}} & 	
+
+	
+	\\ \hline
+2   & 5.24    & 3,012        	& 3,134         	
+\\ \hline
+4   & 5.24    & 2.103        	& 2.096          	
+\\ \hline
+8   & 5.24    & 2.208           & 2.254         
+\\ \hline
+\end{tabular}
+\end{table}
+\par В результате множества тестов можно сформировать вывод о том, что параллельная реализация с помощью tbb и openmp дает большое ускорение во времени. Особенно это показательно на больших размерностях массива. Видно, что при увеличении кол-ва потоков ускорение растет медленнее и медленнее. Это связано прежде всего с созданием большого кол-во потоков для слияния.
+
+
+
+\newpage
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+
+\par В ходе выполнения лабораторной работы попараллельного программирования была запрограммирована последовательная версия сортировки Хоара, с четно-нечетным слияниям Батчера. Мы написали последовательную реализацию и распараллелили задачу с помощью tbb и openmp. Кроме этого мы произвели оценку производительности параллельных алгоритмов и выяснили. что параллельная реализация в обоих случаях дает существенных выйгрыш во времени.
+
+\newpage
+\section*{Список литературы}
+\addcontentsline{toc}{section}{Список литературы}
+\begin{enumerate}
+\item Guide into OpenMP: Easy multithreading programming for C++. URL: 
+\end{enumerate}
+
+
+\end{document}
