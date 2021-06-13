@@ -1,0 +1,1106 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Линейная фильтрация изображений (вертикальное разбиение). Ядро Гаусса 3x3.»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-1 \\ Молоткова С. С.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Фильтр размытия по гауссу (широко известный “gaussian blur” в фотошопе) достаточно часто применяется сам по себе или как часть других алгоритмов обработки изображений, например для того, чтоб избавиться от шума или размытия изображения.
+Но чем больше объём данных, тем больше время их обработки. Поэтому для достижения наибольшей скорости обработки изображения необходимо разделить процесс фильтрации изображения между потоками. Для этого исходное изображение разбивается на подмассивы меньшего размера, потоки производят обработку над ними параллельно, а в конце сливаем результаты с каждого подмассива в один массив - результирующую матртцу.
+\par В данной  работе будет рассмотрим фильтрацию изображения "фильтром Гаусса" с ядром Гаусса 3х3. Как было сказано ранее, эта обработка будет распараллелена между процессами с помощью средств языка С++, что несколько раз сократит время её выполнения.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы необходимо реализовать последовательную и несколько параллельных реализации линейной фильтрации изображений с их вертикальным разбиением "фильтром Гаусса" с ядром Гаусса 3х3. 
+\par Для реализации параллельной версии необходимо использовать средства OpenMP, TBB, API std::thread. Корректность работы алгоритмов будет подтверждена Google C++ Testing Framework, также время выполнения тестов позволит сделать вывод об эффективности параллельных версий.
+\newpage
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+Первый шаг алгоритма фильтра Гаусса - создание ядра Гаусса размером 3х3. Согласно определению, для этого нужно знать 2 параметра: радиус и сигма. Чтобы ядро получилось нужного размера, радиус будет равен 3, а в качестве сигма можно задать любое число, и чем оно будет больше, тем сильнее будет размытие на выходном изображении. Используя эти 2 параметра, с помощью определённой формулы инициализируем ячейки ядра Гаусса.
+\par Дальнейшие шаги:
+\begin{itemize}
+\item Для каждого пикселя исходного изображения рассматривается область соседних пикселей. Размер этой области зависит от размера ядра Гаусса.
+\item Значение каждого пикселя из этой области умножается на значение из соответствующей ячейки в ядре Гаусса, и полученный результат от произведения прибавляется к заранее созданной переменной value. Так мы обходим все значения из области.
+\item По координатам пикселя исходного изображения, для которого рассматривалась область соседних пикселей, для нового изображения кладётся значение специально созданной переменной value.
+\end{itemize}
+\par Окошко 3х3 пикселя ("апертура") пробегает по всем пикселям изображения. И обойдя все значения по пикселям исходного изображения, получаем новые значения для тех же пикселей в новом изображении.
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Для распараллеливания алгоритма фильтра Гаусса необходимо разделить массив значений исходного изображения вертикально(то есть по столбцам) на подмассивы, которые будут выделены процессам. Для этого будет удобнее сначала транспонировать матрицу.
+\par Каждый процесс работает со своим подмассивом значений и выполняет для каждого элемента алгоритм, описанный ранее. Для возможности просмотра соседних значений для конкретного подмассива значений, каждому процессу также передаётся целое изображение.
+\par По завершении обработки, результаты объединяются в результирующий массив значений для нового изображения. Сложность алгоритма составляет O(hight * width * n * n).
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Создание матрицы заданного размера, заполненной значениями от 0 до 255:
+\begin{lstlisting}
+std::vector<double>  matrixCreation(int rows, int cols);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item количество строк.
+\item количество столбцов.
+\end{itemize}
+\par Транспонирование матрицы:
+\begin{lstlisting}
+std::vector<double> transpose(const std::vector<double>& matrix, int rows, int cols);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ссылка на вектор, в котором находятся значения пикселей исходного изображения.
+\item число строк изображения(станут столбцами).
+\item число столбцов изображения(станут строками).
+\end{itemize}
+\par Функция, которая формирует ядро Гаусса.
+\begin{lstlisting}
+std::vector<double> gaussKernel(int radius, int sigma);
+\end{lstlisting}
+\par В качестве входных данных передаются радиус и сигма.
+\par Алгоритм параллельной линейной фильтрации изображения фильтром Гаусса вызывается с помощью функции:
+\begin{lstlisting}
+std::vector<double> gaussFilter_omp/tbb/thr(const std::vector<double>& matrix, int rows, int cols, int radius, int sigma);
+\end{lstlisting}
+\par В качестве входных параметров передаются теже параметры, что и в последовательном методе.
+\par Последовательный метод реализован в:
+\begin{lstlisting}
+std::vector<double> gaussFilter(const std::vector<double>& matrix, int rows, int cols, int radius, int sigma);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ссылка на вектор- матрицу, в котором находятся значения пикселей исходного изображения.
+\item число строк.
+\item число столбцов.
+\item число строк в подмассиве.
+\item радиус.
+\item сигма.
+\end{itemize}
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе содержится набор тестов(5 штук), разработанных с помощью использования Google C++ Testing Framework.
+\par Данные тесты проверяют срабатывание исключений при неккоректном задании матрицы(с нулевой размерностью или с отриательным количеством столбцов/строк), корректность вычислений(то есть сравнение результата последовательного метода и результата параллельного метода, а также сравнение с заранее посчитанной матрицей вручную) и также эффективность выполнения последовательного и параллельного метода.
+\par Успешное прохождение всех тестов доказывает корректность работы всей программы.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельной и последовательной линейной фильтрации изображения фильтром Гаусса производились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор:Intel(R) Core(TM) i5-8500 CPU, 3000 GHz, ядер: 6;
+\item Оперативная память: 16,0 GB;
+\item ОС: Microsoft Windows 10 Enterprise.
+\end{itemize}
+
+\par Для сравнения скорости выполнения программы я выбрала матрицу 2000*2000 . 
+\par Результаты экспериментов представлены в Таблице 1.
+
+\begin{table}[!h]
+\caption{Результаты вычислительных экспериментов}
+\centering
+\begin{tabular}{p{4cm} p{4cm} p{4cm} p{4cm}}
+Реализация & Последовательно & Параллельно & Ускорение  \\
+openmp        & 0.0126          & 0.005     & 2.52       \\
+tbb        & 0.0126         & 0.032     & 2.59       \\
+threads        & 0.0126         & 0.0043     & 2.8         
+\end{tabular}
+\end{table}
+
+\par Параллельная реализация окаазлась быстрее, по сравнению с последовательной реализацией, особенно, это становится виднее с ростом данных. 
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате лабораторной работы были разработаны последовательная и несколько параллельных реализаций линейной фильтрации изображения фильтром Гаусса с ядром Гаусса 3х3.
+\par Основной целью данной лабораторной работы была реализация эффективной параллельной версии. Эта задача была успешно достигнута, что подтверждается результатами экспериментов, проведенных в ходе работы.
+\par Кроме того, были разработаныя тесты, созданные для данного программного проекта с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы и для демонстрации функционала.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Gergel}
+Гергель В. П. Теория и практика параллельных вычислений. – 2007. 
+\bibitem{Gergel}
+Гергель В. П., Стронгин Р. Г. Основы параллельных вычислений для многопроцессорных вычислительных систем. – 2003.
+\bibitem{Korneev}
+Корнеев В. Д. Параллельное программирование в MPI //Новосибирск: Изд-во СО РАН. – 2000.
+\bibitem{Algorithm}
+Фильтр Гаусса: URL: https://habr.com/ru/post/324070/
+\bibitem{Algorithm}
+URL: https://techcave.ru/posts/66-filtry-v-opencv-average-i-gaussianblur.html
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+Реализация OpenMP.
+\begin{lstlisting}
+// vert_gauss.h
+
+// Copyright 2021 Molotkova Svetlana
+#ifndef MODULES_TASK_2_MOLOTKOVA_S_OMP_VERT_GAUSS_H_
+#define MODULES_TASK_2_MOLOTKOVA_S_OMP_VERT_GAUSS_H_
+
+#include <vector>
+#include <random>
+#include <ctime>
+
+int clamp(int value, int max, int min);
+std::vector<double> matrixCreation(int rows, int cols);
+std::vector<double> transpose(const std::vector<double>& matrix, int rows, int cols);
+std::vector<double> gaussKernel(int radius, int sigma);
+std::vector<double> gaussFilter(const std::vector<double>& matrix, int rows, int cols, int radius, int sigma);
+std::vector<double> gaussFilter_omp(const std::vector<double>& matrix, int rows, int cols, int radius, int sigma);
+
+#endif  // MODULES_TASK_2_MOLOTKOVA_S_OMP_VERT_GAUSS_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// vert_gauss.cpp
+
+// Copyright 2021 Molotkova Svetlana
+#include <vector>
+#include <random>
+#include <ctime>
+#include <cmath>
+#include <stdexcept>
+#include <algorithm>
+#include "../../../modules/task_2/molotkova_s_omp/vert_gauss.h"
+
+int clamp(int n, int upper, int lower) {
+	return n <= lower ? lower : n >= upper ? upper : n;
+}
+
+std::vector<double> matrixCreation(int rows, int cols) {
+	if ((rows <= 0) || (cols <= 0))
+	throw std::invalid_argument("Matrix can't be created");
+	std::mt19937 gen;
+	gen.seed(static_cast<unsigned int>(time(0)));
+	std::vector<double> result(rows * cols);
+	for (int i = 0; i < rows * cols; i++)
+	result[i] = gen() % 256;
+	return result;
+}
+
+std::vector<double> transpose(const std::vector<double>& matrix, int rows, int cols) {
+	std::vector<double> result(rows * cols);
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
+			result[i + j * rows] = matrix[i * cols + j];
+		}
+	}
+	return result;
+}
+
+std::vector<double> gaussKernel(int radius, int sigma) {
+	const int size = 2 * radius + 1;
+	// coef of normalization of kernel
+	double norm = 0;
+	// creating gauss kernel
+	std::vector<double> kernel(size * size);
+	// calculating linear filter kernel
+	for (int i = -radius; i <= radius; i++) {
+		for (int j = -radius; j <= radius; j++) {
+			int idx = (i + radius) * size + j + radius;
+			kernel[idx] = exp(-(i * i + j * j) / (sigma * sigma));
+			norm += kernel[idx];
+		}
+	}
+	
+	// normalizing the kernel
+	for (int i = 0; i < size; i++)
+	for (int j = 0; j < size; j++)
+	kernel[i * size + j] /= norm;
+	return kernel;
+}
+
+std::vector<double> gaussFilter(const std::vector<double>& matrix, int rows, int cols,
+int radius, int sigma) {
+	std::vector<double> resultMatrix(rows * cols);
+	const unsigned int size = 2 * radius + 1;
+	std::vector<double> kernel = gaussKernel(radius, sigma);
+	for (int x = 0; x < rows; x++) {
+		for (int y = 0; y < cols; y++) {
+			double res = 0;
+			for (int i = -radius; i <= radius; i++) {
+				for (int j = -radius; j <= radius; j++) {
+					int idx = (i + radius) * size + j + radius;
+					int x_ = clamp(x + j, rows - 1, 0);
+					int y_ = clamp(y + i, cols - 1, 0);
+					double value = matrix[x_ * cols + y_];
+					res += value * kernel[idx];
+				}
+			}
+			res = clamp(res, 255, 0);
+			resultMatrix[x * cols + y] = res;
+		}
+	}
+	return resultMatrix;
+}
+
+std::vector<double> gaussFilter_omp(const std::vector<double>& matrix, int rows, int cols,
+int radius, int sigma) {
+	std::vector<double> resultMatrix(rows * cols);
+	const unsigned int size = 2 * radius + 1;
+	std::vector<double> kernel = gaussKernel(radius, sigma);
+	#pragma omp parallel
+	{
+		#pragma omp for collapse(2) schedule(static)
+		for (int x = 0; x < rows; x++) {
+			for (int y = 0; y < cols; y++) {
+				double res = 0;
+				for (int i = -radius; i <= radius; i++) {
+					for (int j = -radius; j <= radius; j++) {
+						int idx = (i + radius) * size + j + radius;
+						int x_ = clamp(x + j, rows - 1, 0);
+						int y_ = clamp(y + i, cols - 1, 0);
+						double value = matrix[x_ * cols + y_];
+						res += value * kernel[idx];
+					}
+				}
+				res = clamp(res, 255, 0);
+				resultMatrix[x * cols + y] = res;
+			}
+		}
+	}
+	return resultMatrix;
+}
+
+
+\end{lstlisting}
+\begin{lstlisting}
+// main.cpp
+// Copyright 2021 Molotkova Svetlana
+#include <gtest/gtest.h>
+#include <omp.h>
+#include <vector>
+#include <iostream>
+#include "./vert_gauss.h"
+
+TEST(Matrix_testing, invalid_argument1) {
+	int rows = 0;
+	int cols = 0;
+	ASSERT_ANY_THROW(matrixCreation(rows, cols));
+}
+
+TEST(Matrix_testing, invalid_argument2) {
+	int rows = -1;
+	int cols = 2;
+	ASSERT_ANY_THROW(matrixCreation(rows, cols));
+}
+
+TEST(Gauss_filter, 1300x1200_seq_1thr) {
+	// seq vs 1 thr
+	int rows = 1300;
+	int cols = 1200;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	double sequential, parallel;
+	double start, end;
+	start = omp_get_wtime();
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	sequential = end - start;
+	start = omp_get_wtime();
+	omp_set_num_threads(1);
+	auto matrix_thr = gaussFilter_omp(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	parallel = end - start;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+	std::cout << "Sequential: " << sequential << "  Parallel: " << parallel << std::endl;
+}
+
+TEST(Gauss_filter, 111x631_60thr) {
+	// time of 60 thr
+	int rows = 911;
+	int cols = 691;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	double sequential, parallel;
+	double start, end;
+	start = omp_get_wtime();
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	sequential = end - start;
+	start = omp_get_wtime();
+	omp_set_num_threads(60);
+	auto matrix_thr = gaussFilter_omp(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	parallel = end - start;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+	std::cout << "Sequential: " << sequential << "  Parallel(60): " << parallel << std::endl;
+}
+
+TEST(Gauss_filter, 111x631_13thr) {
+	// time of 13 thr
+	int rows = 911;
+	int cols = 691;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	double sequential, parallel;
+	double start, end;
+	start = omp_get_wtime();
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	sequential = end - start;
+	start = omp_get_wtime();
+	omp_set_num_threads(13);
+	auto matrix_thr = gaussFilter_omp(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	parallel = end - start;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+	std::cout << "Sequential: " << sequential << "  Parallel(13): " << parallel << std::endl;
+}
+
+TEST(Gauss_filter, 11x63_4thr) {
+	// time of 4 thr
+	int rows = 11;
+	int cols = 63;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	double sequential, parallel;
+	double start, end;
+	start = omp_get_wtime();
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	sequential = end - start;
+	start = omp_get_wtime();
+	omp_set_num_threads(4);
+	auto matrix_thr = gaussFilter_omp(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	parallel = end - start;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+	std::cout << "Sequential: " << sequential << "  Parallel: " << parallel << std::endl;
+}
+
+TEST(Gauss_filter, 11x63_seq_thr_small) {
+	// seq vs thrds
+	int rows = 140;
+	int cols = 140;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	double sequential, parallel;
+	double start, end;
+	start = omp_get_wtime();
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	sequential = end - start;
+	start = omp_get_wtime();
+	auto matrix_thr = gaussFilter_omp(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	parallel = end - start;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+	std::cout << "Sequential: " << sequential << "  Parallel: " << parallel << std::endl;
+}
+
+TEST(Gauss_filter, 11x63_seq_thr_big) {
+	// seq vs thrds
+	int rows = 1100;
+	int cols = 6300;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	double sequential, parallel;
+	double start, end;
+	start = omp_get_wtime();
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	sequential = end - start;
+	start = omp_get_wtime();
+	auto matrix_thr = gaussFilter_omp(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	parallel = end - start;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+	std::cout << "Sequential: " << sequential << "  Parallel: " << parallel << std::endl;
+}
+
+TEST(Gauss_filter, 11x63_seq_thr_big_more_thr) {
+	// seq vs thrds
+	int rows = 1100;
+	int cols = 6300;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	double sequential, parallel;
+	double start, end;
+	start = omp_get_wtime();
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	sequential = end - start;
+	omp_set_num_threads(15);
+	start = omp_get_wtime();
+	auto matrix_thr = gaussFilter_omp(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	parallel = end - start;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+	std::cout << "Sequential: " << sequential << "  Parallel: " << parallel << std::endl;
+}
+
+
+TEST(Gauss_filter, pre_calc) {
+	// seq vs 73 thr
+	int rows = 3;
+	int cols = 3;
+	std::vector<double> matrix(rows * cols);
+	matrix[0] = 15;
+	matrix[1] = 7;
+	matrix[2] = 211;
+	matrix[3]= 230;
+	matrix[4] = 228;
+	matrix[5] = 161;
+	matrix[6] = 231;
+	matrix[7]= 144;
+	matrix[8] = 188;
+	matrix = transpose(matrix, rows, cols);
+	std::swap(cols, rows);
+	std::vector<double> matrix_calc(rows * cols);
+	matrix_calc[0] = 84;
+	matrix_calc[1] = 147;
+	matrix_calc[2] = 211;
+	matrix_calc[3]= 120;
+	matrix_calc[4] = 157;
+	matrix_calc[5] = 193;
+	matrix_calc[6] = 156;
+	matrix_calc[7]= 166;
+	matrix_calc[8] = 176;
+	omp_set_num_threads(71);
+	double sequential, parallel;
+	double start, end;
+	start = omp_get_wtime();
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	sequential = end - start;
+	start = omp_get_wtime();
+	auto matrix_thr = gaussFilter_omp(matrix, rows, cols, 1, 5);
+	end = omp_get_wtime();
+	parallel = end - start;
+	ASSERT_EQ(matrix_calc, matrix_thr);
+	ASSERT_EQ(matrix_calc, matrix_seq);
+	ASSERT_EQ(matrix_seq, matrix_thr);
+	std::cout << "Sequential: " << sequential << "  Parallel: " << parallel << std::endl;
+}
+
+\end{lstlisting}
+Реализация TBB
+\begin{lstlisting}
+// Copyright 2021 Molotkova Svetlana
+#ifndef MODULES_TASK_3_MOLOTKOVA_S_TBB_VERT_GAUSS_H_
+#define MODULES_TASK_3_MOLOTKOVA_S_TBB_VERT_GAUSS_H_
+
+#include <tbb/parallel_for.h>
+#include <vector>
+#include <random>
+#include <ctime>
+
+int clamp(int value, int max, int min);
+std::vector<double> matrixCreation(int rows, int cols);
+std::vector<double> transpose(const std::vector<double>& matrix, int rows, int cols);
+std::vector<double> gaussKernel(int radius, int sigma);
+std::vector<double> gaussFilter(const std::vector<double>& matrix, int rows, int cols, int radius, int sigma);
+std::vector<double> gaussFilter_par(const std::vector<double>& matrix, int rows, int cols, int radius, int sigma);
+#endif  // MODULES_TASK_3_MOLOTKOVA_S_TBB_VERT_GAUSS_H_
+
+\end{lstlisting}
+
+\begin{lstlisting}
+// Copyright 2021 Molotkova Svetlana
+#include <vector>
+#include <random>
+#include <ctime>
+#include <cmath>
+#include <stdexcept>
+#include <algorithm>
+#include "../../../modules/task_3/molotkova_s_tbb/vert_gauss.h"
+
+int clamp(int n, int upper, int lower) {
+	return n <= lower ? lower : n >= upper ? upper : n;
+}
+
+std::vector<double> matrixCreation(int rows, int cols) {
+	if ((rows <= 0) || (cols <= 0))
+	throw std::invalid_argument("Matrix can't be created");
+	std::mt19937 gen;
+	gen.seed(static_cast<unsigned int>(time(0)));
+	std::vector<double> result(rows * cols);
+	for (int i = 0; i < rows * cols; i++)
+	result[i] = gen() % 256;
+	return result;
+}
+
+std::vector<double> transpose(const std::vector<double>& matrix, int rows, int cols) {
+	std::vector<double> result(rows * cols);
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
+			result[i + j * rows] = matrix[i * cols + j];
+		}
+	}
+	return result;
+}
+
+std::vector<double> gaussKernel(int radius, int sigma) {
+	const int size = 2 * radius + 1;
+	// coef of normalization of kernel
+	double norm = 0;
+	// creating gauss kernel
+	std::vector<double> kernel(size * size);
+	// calculating linear filter kernel
+	for (int i = -radius; i <= radius; i++) {
+		for (int j = -radius; j <= radius; j++) {
+			int idx = (i + radius) * size + j + radius;
+			kernel[idx] = exp(-(i * i + j * j) / (sigma * sigma));
+			norm += kernel[idx];
+		}
+	}
+	
+	// normalizing the kernel
+	for (int i = 0; i < size; i++)
+	for (int j = 0; j < size; j++)
+	kernel[i * size + j] /= norm;
+	return kernel;
+}
+
+std::vector<double> gaussFilter(const std::vector<double>& matrix, int rows, int cols,
+int radius, int sigma) {
+	std::vector<double> resultMatrix(rows * cols);
+	const unsigned int size = 2 * radius + 1;
+	std::vector<double> kernel = gaussKernel(radius, sigma);
+	for (int x = 0; x < rows; x++) {
+		for (int y = 0; y < cols; y++) {
+			double res = 0;
+			for (int i = -radius; i <= radius; i++) {
+				for (int j = -radius; j <= radius; j++) {
+					int idx = (i + radius) * size + j + radius;
+					int x_ = clamp(x + j, rows - 1, 0);
+					int y_ = clamp(y + i, cols - 1, 0);
+					double value = matrix[x_ * cols + y_];
+					res += value * kernel[idx];
+				}
+			}
+			res = clamp(res, 255, 0);
+			resultMatrix[x * cols + y] = res;
+		}
+	}
+	return resultMatrix;
+}
+
+std::vector<double> gaussFilter_par(const std::vector<double>& matrix, int rows, int cols,
+int radius, int sigma) {
+	std::vector<double> resultMatrix(rows * cols);
+	const unsigned int size = 2 * radius + 1;
+	std::vector<double> kernel = gaussKernel(radius, sigma);
+	tbb::parallel_for(0, rows, [&](int x) {
+		// tbb::parallel_for (0, cols, [&](int y) {
+			for (int y = 0; y < cols; y++) {
+				double res = 0;
+				for (int i = -radius; i <= radius; i++) {
+					for (int j = -radius; j <= radius; j++) {
+						int idx = (i + radius) * size + j + radius;
+						int x_ = clamp(x + j, rows - 1, 0);
+						int y_ = clamp(y + i, cols - 1, 0);
+						double value = matrix[x_ * cols + y_];
+						res += value * kernel[idx];
+					}
+				}
+				res = clamp(res, 255, 0);
+				resultMatrix[x * cols + y] = res;
+				// });
+		}
+	});
+	return resultMatrix;
+}
+
+	
+\end{lstlisting}
+
+\begin{lstlisting}
+// Copyright 2021 Molotkova Svetlana
+#include <gtest/gtest.h>
+#include <tbb/tick_count.h>
+#include <tbb/blocked_range.h>
+#include <limits.h>
+#include <iostream>
+#include <vector>
+
+#include "./vert_gauss.h"
+
+TEST(Matrix_testing, invalid_argument1) {
+	int rows = 0;
+	int cols = 0;
+	ASSERT_ANY_THROW(matrixCreation(rows, cols));
+}
+
+TEST(Matrix_testing, invalid_argument2) {
+	int rows = -1;
+	int cols = 2;
+	ASSERT_ANY_THROW(matrixCreation(rows, cols));
+}
+
+TEST(Gauss_filter, 1300x1200) {
+	int rows = 1300;
+	int cols = 1200;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	
+	std::vector<double> seg_begin = {0, 0};
+	std::vector<double> seg_end = {1, 1};
+	std::pair<tbb::tick_count, tbb::tick_count> time;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Sequential " << (time.second - time.first).seconds() << std::endl;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Parallel " << (time.second - time.first).seconds() << std::endl;
+	// 5
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+TEST(Gauss_filter, 2500x2500) {
+	int rows = 2500;
+	int cols = 2500;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	std::vector<double> seg_begin = {0, 0};
+	std::vector<double> seg_end = {1, 1};
+	std::pair<tbb::tick_count, tbb::tick_count> time;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Sequential " << (time.second - time.first).seconds() << std::endl;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Parallel " << (time.second - time.first).seconds() << std::endl;
+	// 2,5
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+TEST(Gauss_filter, 1500x1700) {
+	int rows = 1500;
+	int cols = 1700;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	std::swap(cols, rows);
+	std::vector<double> seg_begin = {0, 0};
+	std::vector<double> seg_end = {1, 1};
+	std::pair<tbb::tick_count, tbb::tick_count> time;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Sequential " << (time.second - time.first).seconds() << std::endl;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Parallel " << (time.second - time.first).seconds() << std::endl;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+TEST(Gauss_filter, 100x1500) {
+	int rows = 100;
+	int cols = 1500;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	std::swap(cols, rows);
+	std::vector<double> seg_begin = {0, 0};
+	std::vector<double> seg_end = {1, 1};
+	std::pair<tbb::tick_count, tbb::tick_count> time;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Sequential " << (time.second - time.first).seconds() << std::endl;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Parallel " << (time.second - time.first).seconds() << std::endl;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+TEST(Gauss_filter, 15000x10000) {
+	int rows = 1500;
+	int cols = 1000;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	std::swap(cols, rows);
+	std::vector<double> seg_begin = {0, 0};
+	std::vector<double> seg_end = {1, 1};
+	std::pair<tbb::tick_count, tbb::tick_count> time;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Sequential " << (time.second - time.first).seconds() << std::endl;
+	time.first = tbb::tick_count::now();
+	
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	
+	time.second = tbb::tick_count::now();
+	std::cout << "Parallel " << (time.second - time.first).seconds() << std::endl;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+	
+\end{lstlisting}
+Реализация с помощью API::threads
+\begin{lstlisting}
+// Copyright 2021 Molotkova Svetlana
+#ifndef MODULES_TASK_4_MOLOTKOVA_S_TR_VERT_GAUSS_H_
+#define MODULES_TASK_4_MOLOTKOVA_S_TR_VERT_GAUSS_H_
+
+#include <vector>
+#include <random>
+#include <ctime>
+
+int clamp(int value, int max, int min);
+std::vector<double> matrixCreation(int rows, int cols);
+std::vector<double> transpose(const std::vector<double>& matrix, int rows, int cols);
+std::vector<double> gaussKernel(int radius, int sigma);
+std::vector<double> gaussFilter(const std::vector<double>& matrix, int rows, int cols, int radius, int sigma);
+std::vector<double> gaussFilter_par(const std::vector<double>& matrix, int rows, int cols, int radius, int sigma);
+#endif  // MODULES_TASK_4_MOLOTKOVA_S_TR_VERT_GAUSS_H_
+\end{lstlisting}
+\begin{lstlisting}
+	// Copyright 2021 Molotkova Svetlana
+	#include <vector>
+	#include <random>
+	#include <ctime>
+	#include <cmath>
+	#include <stdexcept>
+	#include <algorithm>
+	#include <iostream>
+	#include "../../../modules/task_4/molotkova_s_tr/vert_gauss.h"
+	#include "../../../3rdparty/unapproved/unapproved.h"
+	
+	int clamp(int n, int upper, int lower) {
+		return n <= lower ? lower : n >= upper ? upper : n;
+	}
+	
+	std::vector<double> matrixCreation(int rows, int cols) {
+		if ((rows <= 0) || (cols <= 0))
+		throw std::invalid_argument("Matrix can't be created");
+		std::mt19937 gen;
+		gen.seed(static_cast<unsigned int>(time(0)));
+		std::vector<double> result(rows * cols);
+		for (int i = 0; i < rows * cols; i++)
+		result[i] = gen() % 256;
+		return result;
+	}
+	
+	std::vector<double> transpose(const std::vector<double>& matrix, int rows, int cols) {
+		std::vector<double> result(rows * cols);
+		for (int i = 0; i < rows; i++) {
+			for (int j = 0; j < cols; j++) {
+				result[i + j * rows] = matrix[i * cols + j];
+			}
+		}
+		return result;
+	}
+	
+	std::vector<double> gaussKernel(int radius, int sigma) {
+	
+		const int size = 2 * radius + 1;
+		// coef of normalization of kernel
+		double norm = 0;
+		// creating gauss kernel
+		std::vector<double> kernel(size * size);
+		// calculating linear filter kernel
+		for (int i = -radius; i <= radius; i++) {
+			for (int j = -radius; j <= radius; j++) {
+				int idx = (i + radius) * size + j + radius;
+				kernel[idx] = exp(-(i * i + j * j) / (sigma * sigma));
+				norm += kernel[idx];
+			}
+		}
+		
+		// normalizing the kernel
+		for (int i = 0; i < size; i++)
+		for (int j = 0; j < size; j++)
+		kernel[i * size + j] /= norm;
+		return kernel;
+	}
+	
+	std::vector<double> gaussFilter(const std::vector<double>& matrix, int rows, int cols,
+	int radius, int sigma) {
+		std::vector<double> resultMatrix(rows * cols);
+		const unsigned int size = 2 * radius + 1;
+		std::vector<double> kernel = gaussKernel(radius, sigma);
+		for (int x = 0; x < rows; x++) {
+			for (int y = 0; y < cols; y++) {
+				double res = 0;
+				for (int i = -radius; i <= radius; i++) {
+					for (int j = -radius; j <= radius; j++) {
+						int idx = (i + radius) * size + j + radius;
+						int x_ = clamp(x + j, rows - 1, 0);
+						int y_ = clamp(y + i, cols - 1, 0);
+						double value = matrix[x_ * cols + y_];
+						res += value * kernel[idx];
+					}
+				}
+				res = clamp(res, 255, 0);
+				resultMatrix[x * cols + y] = res;
+			}
+		}
+		return resultMatrix;
+	}
+	
+	std::vector<double> gaussFilter_par(const std::vector<double>& matrix, int rows, int cols,
+	int radius, int sigma) {
+		std::vector<double> resultMatrix(rows * cols);
+		const unsigned int size = 2 * radius + 1;
+		std::vector<double> kernel = gaussKernel(radius, sigma);
+		const int nthreads = std::thread::hardware_concurrency();
+		std::thread* threads = new std::thread[nthreads];
+		int offset = rows / nthreads;
+		int rem = rows % nthreads;
+		for (int i = 0; i < nthreads; i++) {
+			threads[i] = std::thread([offset, nthreads, rem, cols, radius, size, rows,
+			&kernel, &matrix, &resultMatrix](int thread) {
+				int begin = thread * offset;
+				int numrows;
+				if (thread == nthreads - 1) {
+					numrows = offset + rem;
+				} else {
+					numrows = offset;
+				}
+				for (int x = begin; x < begin + numrows; x++) {
+					for (int y = 0; y < cols; y++) {
+						double res = 0.0;
+						for (int k = -radius; k <= radius; k++) {
+							for (int j = -radius; j <= radius; j++) {
+								int idx = (k + radius) * size + j + radius;
+								int x_ = clamp(x + j, rows - 1, 0);
+								int y_ = clamp(y + k, cols - 1, 0);
+								double value = matrix[x_ * cols + y_];
+								res += value * kernel[idx];
+							}
+						}
+						res = clamp(res, 255, 0);
+						resultMatrix[x * cols + y] = res;
+					}
+				}
+			}, i);
+		}
+		for (int i = 0; i < nthreads; i++) {
+			threads[i].join();
+		}
+		
+		delete[] threads;
+		return resultMatrix;
+	}
+	
+	
+	
+\end{lstlisting}
+\begin{lstlisting}
+// Copyright 2021 Molotkova Svetlana
+#include <time.h>
+#include <gtest/gtest.h>
+#include <limits.h>
+#include <iostream>
+#include <vector>
+
+#include "./vert_gauss.h"
+
+TEST(Matrix_testing, invalid_argument1) {
+	int rows = 0;
+	int cols = 0;
+	ASSERT_ANY_THROW(matrixCreation(rows, cols));
+}
+
+TEST(Matrix_testing, invalid_argument2) {
+	int rows = -1;
+	int cols = 2;
+	ASSERT_ANY_THROW(matrixCreation(rows, cols));
+}
+
+TEST(Gauss_filter, 1300x1200) {
+	int rows = 9000;
+	int cols = 9000;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	clock_t start = clock();
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	clock_t end = clock();
+	double seconds = (double)(end - start) / CLOCKS_PER_SEC;
+	
+	clock_t start1 = clock();
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	clock_t end1 = clock();
+	double seconds1 = (double)(end1 - start1) / CLOCKS_PER_SEC;
+	std::cout << "Ses " << seconds << std::endl;
+	std::cout << "Parallel " << seconds1 << std::endl;
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+TEST(Gauss_filter, 2500x2500) {
+	int rows = 250;
+	int cols = 250;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+TEST(Gauss_filter, 1500x1700) {
+	int rows = 100;
+	int cols = 100;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	std::swap(cols, rows);
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+TEST(Gauss_filter, 100x1500) {
+	int rows = 10000;
+	int cols = 1005;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	std::swap(cols, rows);
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+TEST(Gauss_filter, 15000x10000) {
+	int rows = 150;
+	int cols = 100;
+	auto rand_matrix = matrixCreation(rows, cols);
+	auto matrix = transpose(rand_matrix, rows, cols);
+	std::swap(cols, rows);
+	std::swap(cols, rows);
+	auto matrix_seq = gaussFilter(matrix, rows, cols, 1, 5);
+	auto matrix_thr = gaussFilter_par(matrix, rows, cols, 1, 5);
+	ASSERT_EQ(matrix_seq, matrix_thr);
+}
+
+\end{lstlisting}
+\end{document}
