@@ -1,0 +1,1000 @@
+\documentclass{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[english, russian]{babel}
+\usepackage{amssymb, amsfonts, amsmath, color, enumerate, indentfirst, geometry, listings}
+\usepackage[pdftex]{graphicx}
+
+\geometry{a4paper, left=2cm, right=2cm, top=2cm, bottom=2cm}
+\definecolor{darkgreen}{rgb}{0.0, 0.5, 0.0}
+\lstset{
+	language=C++,
+	basicstyle=\footnotesize,
+	numbers=left,
+	numberstyle=\tiny,
+	numberfirstline=true,
+	numbersep=5pt,
+	keywordstyle=\color{blue}\bfseries,
+	commentstyle=\color{darkgreen},
+	stringstyle=\color{red},
+	showspaces=false,
+	showstringspaces=false,
+	captionpos=t,
+	breaklines=true,
+	breakatwhitespace=false,
+	extendedchars=true,
+	frame=tb,
+	title=\lstname,
+}
+
+\begin{document}
+
+\begin{titlepage}
+	\begin{center}
+		\textbf{Министерство науки и высшего образования Российской Федерации}
+	\end{center}
+
+	\begin{center}
+		\textbf{Федеральное государственное автономное образовательное учреждение высшего образования \\
+		Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского}
+	\end{center}
+
+	\begin{center}
+	\LargeИнститут информационных технологий, математики и механики
+	\end{center}
+
+	\vspace{4em}
+
+	\begin{center}
+		\textbf{\LARGEОтчет по лабораторной работе} \\
+	\end{center}
+
+	\begin{center}
+		\textbf{\LARGE«Умножение разреженных матриц. Элементы комплексного типа. Формат хранения матрицы - столбцовый (CCS).»} \\
+	\end{center}
+
+	\vspace{10em}
+
+	\hfill\parbox{6cm}{
+		\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381808-1 \\ Злобин Г.М. \\
+		\\
+		\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, к.т.н., \\ Сысоев А. В.
+	}
+
+	\vspace{\fill}
+
+	\begin{center}
+		Нижний Новгород \\ 2021 г.
+	\end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+\par Разреженные матрицы возникают естественным образом при постановке и решении оптимизационных задач, при численном решении дифференциальных уравнений, в теории графов и в других случаях. Разреженной называют матрицу, имеющую малый процент ненулевых элементов. Что позволяет использовать другие, зачастую более сложные, структуры хранения и методы обработки. Важно определить какая структура хранения будет более эффективна в рамках используемых алгоритмов и конкретной архитектуры. Эффективные методы хранения и обработки разреженных матриц вызывают интерес у широкого круга исследователей.
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В ходе данной лабораторной работы требуется:
+\begin{enumerate}
+\item Реализовать последовательное умножение разреженных матриц. Элементы комплексного типа. Формат хранения матрицы – столбцовый (CCS).
+\item Реализовать параллельное умножение разреженных матриц с испоьзованием технологии OpenMP. Элементы комплексного типа. Формат хранения матрицы – столбцовый (CCS).
+\item Реализовать параллельное умножение разреженных матриц с испоьзованием технологии TBB. Элементы комплексного типа. Формат хранения матрицы – столбцовый (CCS).
+\item Провести сравнение времени работы алгоритмов.
+\item Проанализировать полученные результаты и сделать вывод.
+\end{enumerate}
+\newpage
+
+\section*{Описание алгоритма}
+\addcontentsline{toc}{section}{Описание алгоритма}
+\par В лабораторной работе будет использоваться формат хранения - столбцовый (CCS). общем случае матрица называется разреженной, если  процент ее ненулевых элементов мал. Введём обозначения: m - число строк, n - число столбцов матрицы, nz - количество ненулевых элементов.
+\par Краткое описание формата хранения:
+\begin{itemize}
+	\item В хранится в виде трех массивов:
+	\begin{itemize}
+		\item массив values хранит ненулевые значения элементов по столбцам, с первого по последний;
+		\item массив rows номеров строк для каждого элемента массива values;
+		\item массив collumnsIndexes индексов начала каждого столбца из массива rows;
+	\end{itemize}
+	\item Количество элементов массива collumnsIndexes = n + 1.
+	\item i-ый элемент массива collumnsIndexes указывает на начало i-го столбца.
+	\item Элементы столбца i в массиве values находятся по индексам от collumnsIndexes[i] до collumnsIndexes[i + 1] – 1 включительно. Т.о. обрабатывается случай пустых столбцов, а также добавляется «лишний» элемент в массив collumnsIndexes – устраняется особенность при доступе к элементам последнего столбца. collumnsIndexes[n] = nz.
+\end{itemize}
+\par Для выполнения умножени матриц требуется вычислять скалярные произведения строки одной матрицы и столбца другой матрицы. При вычислении скалярных произведений в столбцовом формате неудобно выделять строку, поэтому удобно будет провести транспонирование матрицы. Тогда для матриц в столбцовом формате A и B их умножение выполняется следующим образом:
+\begin{itemize}
+	\item Применить транспонирование к матрице A и получить $A^{T}$;
+	\item Последовательное перемножить столбцы матриц $A^{T}$ и B;
+\end{itemize}
+\par Алгоритм транспонирования:
+\begin{itemize}
+	\item Сформировать N одномерных векторов для хранения целых чисел, а также N векторов для хранения комплексных чисел;
+	\item В цикле просмотреть все столбцы исходной матрицы, для каждого столбца – все элементы. Пусть текущий элемент находится в строке i, столбце j, его значение равно v. Тогда добавим числа j и v в i-ые вектора для хранения целых и комплексных чисел (соответственно). Тем самым в векторах мы сформируем строки транспонированной матрицы;
+	\item Последовательно скопируем данные из векторов в CCS-структуру транспонированной матрицы (rows и values), попутно формируя массив collumnsIndexes;
+\end{itemize}
+\newpage
+
+\section*{Описание схемы распараллеливания}
+\addcontentsline{toc}{section}{Описание схемы распараллеливания}
+\par Идея распараллеливания алгоритма умножения разреженных матриц в столбцовом формате достаточно очевидна. В алгоритме умножения во внешнем цикле мы перебираем столбцы матрицы $A^{T}$ и далее работаем с ними независимо. Поэтому столбцы из внешнего цикла можно распределить между потоками.
+\par Но необходимо записовать результаты с каждого потока в итоговую матрицу последовательно. Чтобы решить эту проблему нужно продублировать для каждого потока rows и values, а в конце объединить, массив collumnsIndexes обрабатывается бесконфликтно.
+\newpage
+
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Матрица хранимая в формате CCS представлена с помощью класса MatrixCCS.
+\par Поля класса MatrixCCS:
+\begin{itemize}
+	\item int \_nCollumns — число столбцов в матрице;
+	\item int \_nRows — число строк в матрице;
+	\item int \_nNotZero — число ненулевых элементов в матрице;
+	\item std::vector<int> \_collumnsIndexes — массив индексов начала столбцов в массиве rows;
+	\item std::vector<int> \_rows — массив индексов строк для элементов из values;
+	\item std::vector<std::complex<int>> \_values — массив значений ненулевых элементов в матрице.
+\end{itemize}
+\par Методы класса MatrixCCS в каждой реализации:
+\begin{itemize}
+	\item GetNumCollumns — без аргументов, возвращает значение \_nCollumns;
+	\item GetNumRows — без аргументов, возвращает значение \_nRows;
+	\item GetNumNotZero — без аргументов, возвращает значение \_nNotZero;
+	\item FillRandom — принимает аргументы: seed - параметер для генератора случайных чисел, min - минимальное генерируемое значение, max - максимальное генерируемое значение, не возвращает значение, заполняет матрицу рандомными значениями с помощью генератора случайных чисел;
+	\item Transpose — без аргументов, возвращает транспонированную матрицу MatrixCCS;
+\end{itemize}
+
+\subsection*{Последовательная реализация}
+\addcontentsline{toc}{subsection}{Последовательная реализация}
+\par В последовательной реализации добавлена функция SeqMultiplication. Аргументы: A - матрица MatrixCCS, B - матрица MatrixCCS. Возвращает матрицу MatrixCCS полученную в результате умножения матрицы A на B. В данной версии параллелизм отсутствует.
+
+\subsection*{OpenMP реализация}
+\addcontentsline{toc}{subsection}{OpenMP реализация}
+\par В OpenMP реализации добавлена функция OMPMultiplication. Аргументы: A - матрица MatrixCCS, B - матрица MatrixCCS. Возвращает матрицу MatrixCCS полученную в результате умножения матрицы A на B. В данной версии распараллеливание происходит с помощью директивы \#pragma omp parallel. До параллельной секции для каждого столбца создаётся вектор rows и values для записи результатов работы потока работающего над данным столбцом. В начале параллельной секции создаётся локальная переменная tempRows для алгоритма умножения. С помощью директивы \#pragma omp for распараллеливается внешний цикл в алгоритме умножения по столбцам матрицы $A^{T}$. После параллельной секции основной поток формирует из всех векторов rows и values итоговую матрицу и заполняет collunmsIndexes этой матрицы.
+
+\subsection*{TBB реализация}
+\addcontentsline{toc}{subsection}{TBB реализация}
+\par В TBB реализации добавлена функция TBBMultiplication. Аргументы: A - матрица MatrixCCS, B - матрица MatrixCCS. Возвращает матрицу MatrixCCS полученную в результате умножения матрицы A на B. В данной версии распараллеливание происходит с помощью функции tbb\:\:parallel\_for и функтора который выполняет вычисления для соответсвующего blocked\_range. До функции tbb\:\:parallel\_for для каждого столбца создаётся вектор rows и values для записи результатов работы над соответсвующим столбцом и передаються в конструктор функтора. В начале параллельной секции создаётся локальная переменная tempRows для алгоритма умножения. После функции tbb\:\:parallel\_for основной поток формирует из всех векторов rows и values итоговую матрицу и заполняет collunmsIndexes этой матрицы.
+\newpage
+
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+\par Эксперименты состоят в замере времени выполнения умножения двух разреженных матриц. Замер производиться для матриц размером 4000x4000, которые случайно заполняются ненулевыми элементами. Результаты экспериментов:
+\begin{table}[htbp]
+	\centering
+	\begin{tabular}{|c|c|c|c|} \hline
+		Реализация & Последовательная & OpenMP & TBB\\ \hline
+		Число потоков & \multicolumn{3}{|c|}{время [мс]} \\ \hline
+		1 & 7786 & 7777 & 7766 \\ \hline
+		2 & - & 3149 & 3279 \\ \hline
+		4 & - & 1769 & 1736 \\ \hline
+		6 & - & 1389 & 1343 \\ \hline
+		8 & - & 1362 & 1316 \\ \hline
+		12 & - & 1109 & 1109 \\ \hline
+	\end{tabular}
+	\caption{Время выполнения от числа потоков (nz = 1000000)}
+\end{table}
+
+\begin{table}[htbp]
+	\centering
+	\begin{tabular}{|c|c|c|c|} \hline
+		Реализация & Последовательная & OpenMP & TBB\\ \hline
+		Число ненулевых элементов & время [мс] & \multicolumn{2}{|c|}{ускорение} \\ \hline
+		1000 & 34 & 3,778 & 3,778 \\ \hline
+		10000 & 145 & 2,843 & 6,042 \\ \hline
+		100000 & 483 & 3,412 & 3,828 \\ \hline
+		400000 & 2171 & 2,901 & 3,31 \\ \hline
+		800000 & 5052 & 4,395 & 4,517 \\ \hline
+		1000000 & 6858 & 4,897 & 4,946 \\ \hline
+	\end{tabular}
+	\caption{Коэффициент ускорения относительно последовательной версии}
+\end{table}
+\newpage
+
+\section*{Описание подтверждения корректности}
+\addcontentsline{toc}{section}{Описание подтверждения корректности}
+\par Для подтверждения корректности используются unit тесты написанные на основе GoogleTest. Тестируемые ситуации:
+\begin{itemize}
+	\item создание матрицы;
+	\item транспанирование матрицы;
+	\item транспанирование вектора;
+	\item умножение элемента на элемент;
+	\item умножение матрицы на вектор;
+	\item умножение вектор на матрицы;
+	\item умножение матрицы на нулевую матрицу;
+	\item умножение матрицы на единичную матрицу;
+	\item умножение не соответсвующих матриц;
+	\item умножение матриц;
+\end{itemize}
+\par Тесты успешно прошли.
+\newpage
+
+\section*{Выводы из результатов}
+\addcontentsline{toc}{section}{Выводы из результатов}
+\par Из результатов экспериментов сделаны следующие выводы:
+\begin{itemize}
+	\item Реализованные алгоритмы умножения матриц в столбцовом формате корректны. Т.к. тесты успешно пройдены;
+	\item TBB реализация эффективнее OMP реализации. В OMP реализации использовалось распределение работы между потоками по умолчанию т.е. статическое, а в TBB используется динамическое. Т.к. матрица разреженная, то работа не равномерно распределена между потоками, поэтому статическое расписание менее эффективно по сравнению с динамическим;
+	\item При увеличении плотности матриц ускорение, по сравнению с последовательной версией, увеличивается. Т.к. увеличивается доля вычислений на один поток и влияние накладных расходов на итоговое ускорение уменьшается.
+	\item Даже при малой плотности больших матриц TBB и OMP реализации эффективней последовательной. Т.к. алгоритм распаралелен относительно числа столбцов в матрице, поэтому даже при малой плотности матрицы алгоритм проходит по всем столбцам.
+\end{itemize}
+\newpage
+
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+\par В рамках данной работы были реализованы последовательная, OMP и TBB версии алгоритма умножения разреженных матриц в столбцовом формате. Были проведеные и проанализированые эксперименты для оценки эффективности реализаций. Экспериметы показали что TBB реализация наиболее эффективная среди рассмотренных.
+\newpage
+
+\section*{Литература}
+\addcontentsline{toc}{section}{Литература}
+\begin{enumerate}
+	\item Корняков К.В., Мееров И.Б., Сиднев А.А., Сысоев А.В., Шишков А.В.
+	Инструменты параллельного программирования в системах с общей
+	памятью. – Учебное пособие / Под ред. проф. В.П. Гергеля. – Н. Новгород: Изд-во Нижегородского госуниверситета, 2010. – 201 с.
+	\item Джордж А., Лю Дж. Численное решение больших разреженных систем уравнений. – М.: Мир, 1984.
+\end{enumerate}
+\newpage
+
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+В этом разделе приведён код, используемый при проведение экспериментов. \\
+Лисининг OMP реализация matrix\_ccs\_mult.h
+\begin{lstlisting}
+// Copyright 2021 Zlobin George
+#ifndef MODULES_TASK_2_ZLOBIN_G_SPARSE_MATRIX_CCS_MULT_COMPLEX_OMP_MATRIX_CCS_MULT_H_
+#define MODULES_TASK_2_ZLOBIN_G_SPARSE_MATRIX_CCS_MULT_COMPLEX_OMP_MATRIX_CCS_MULT_H_
+
+#include <vector>
+#include <complex>
+
+class MatrixCCS {
+ public:
+    MatrixCCS(int nCollumns, int nRows, int nNotZero);
+    MatrixCCS(int nCollumns, int nRows, std::vector<std::complex<int>> matrix);
+    MatrixCCS(int nCollumns, int nRows,
+              std::vector<int> collumnsIndexes,
+              std::vector<int> rows,
+              std::vector<std::complex<int>> values);
+
+    void FillRandom(unsigned seed = 132, int min = -1000, int max = 1000);
+    MatrixCCS Transpose() const;
+
+    int GetNumCollumns() { return _nCollumns; }
+    int GetNumRows() { return _nRows; }
+    int GetNumNotZero() { return _nNotZero; }
+
+    //  void Print();
+ private:
+    int _nCollumns;
+    int _nRows;
+    int _nNotZero;
+
+    std::vector<int> _collumnsIndexes;
+    std::vector<int> _rows;
+    std::vector<std::complex<int>> _values;
+
+    friend MatrixCCS SeqMultiplication(const MatrixCCS& A, const MatrixCCS& B);
+    friend MatrixCCS OMPMultiplication(const MatrixCCS& A, const MatrixCCS& B);
+    friend bool operator==(const MatrixCCS& A, const MatrixCCS& B);
+};
+
+MatrixCCS SeqMultiplication(const MatrixCCS& A, const MatrixCCS& B);
+MatrixCCS OMPMultiplication(const MatrixCCS& A, const MatrixCCS& B);
+bool operator==(const MatrixCCS& A, const MatrixCCS& B);
+
+#endif  // MODULES_TASK_2_ZLOBIN_G_SPARSE_MATRIX_CCS_MULT_COMPLEX_OMP_MATRIX_CCS_MULT_H_
+
+\end{lstlisting}
+
+Лисининг OMP реализация matrix\_ccs\_mult.cpp
+\begin{lstlisting}
+// Copyright 2021 Zlobin George
+#include "../../../modules/task_2/zlobin_g_sparse_matrix_ccs_mult_complex_omp/matrix_ccs_mult.h"
+#include <omp.h>
+#include <random>
+#include <algorithm>
+
+#include <iostream>
+
+MatrixCCS::MatrixCCS(int nCollumns, int nRows, int nNotZero) {
+    if (nCollumns <= 0 || nRows <= 0) {
+        throw "Incorrect matrix size";
+    } else if (nNotZero < 0 || nNotZero > nCollumns * nRows) {
+        throw "Incorrect number of not zero elements";
+    }
+
+    _nCollumns = nCollumns;
+    _nRows = nRows;
+    _nNotZero = nNotZero;
+
+    _collumnsIndexes.reserve(_nCollumns + 1);
+    _rows.reserve(_nRows);
+    _values.reserve(_nNotZero);
+}
+
+MatrixCCS::MatrixCCS(int nCollumns, int nRows,
+                     std::vector<std::complex<int>> matrix) {
+    if (nCollumns <= 0 || nRows <= 0) {
+        throw "Incorrect matrix size";
+    } else if (static_cast<int>(matrix.size()) != nCollumns * nRows) {
+        throw "Size of matrix doesn't match given parameters";
+    }
+
+    _nCollumns = nCollumns;
+    _nRows = nRows;
+
+    _collumnsIndexes.reserve(_nCollumns + 1);
+    _rows.reserve(_nRows);
+
+    _collumnsIndexes.push_back(0);
+    for (int j = 0; j < _nCollumns; j++) {
+        for (int i = 0; i < _nRows; i++) {
+            if (matrix[i * _nCollumns + j] != std::complex<int>(0, 0)) {
+                _values.push_back(matrix[i * _nCollumns + j]);
+                _rows.push_back(i);
+            }
+        }
+        _collumnsIndexes.push_back(static_cast<int>(_values.size()));
+    }
+
+    _nNotZero = _collumnsIndexes[_nCollumns];
+}
+
+MatrixCCS::MatrixCCS(int nCollumns, int nRows,
+                     std::vector<int> collumnsIndexes,
+                     std::vector<int> rows,
+                     std::vector<std::complex<int>> values) {
+    if (nCollumns <= 0 || nRows <= 0) {
+        throw "Incorrect matrix size";
+    } else if (static_cast<int>(values.size()) > nCollumns * nRows) {
+        throw "More elements when possible";
+    } else if (static_cast<int>(collumnsIndexes.size()) != nCollumns + 1) {
+        throw "Incorrect collumns indexes";
+    } else if (std::find_if(rows.begin(), rows.end(),
+               [&nRows](int i) { return i >= nRows; }) != rows.end()) {
+        throw "Incorrect rows";
+    }
+
+    _nCollumns = nCollumns;
+    _nRows = nRows;
+    _nNotZero = static_cast<int>(values.size());
+    _collumnsIndexes = collumnsIndexes;
+    _rows = rows;
+    _values = values;
+}
+
+MatrixCCS MatrixCCS::Transpose() const {
+    MatrixCCS transposed{_nRows, _nCollumns, _nNotZero};
+
+    transposed._collumnsIndexes.resize(_nRows + 1);
+    for (int i = 0; i < _nNotZero; i++) {
+        transposed._collumnsIndexes[_rows[i] + 1]++;
+    }
+
+    int tmp, sum = 0;
+    for (int i = 1; i <= _nRows; i++) {
+        tmp = transposed._collumnsIndexes[i];
+        transposed._collumnsIndexes[i] = sum;
+        sum += tmp;
+    }
+
+    transposed._rows.resize(_nNotZero);
+    transposed._values.resize(_nNotZero);
+
+    int j1, j2;
+    int row, column, place;
+    std::complex<int> value;
+    for (int i = 0; i < _nCollumns; i++) {
+        j1 = _collumnsIndexes[i];
+        j2 = _collumnsIndexes[i + 1];
+        row = i;
+        for (int j = j1; j < j2; j++) {
+            value = _values[j];
+            column = _rows[j];
+            place = transposed._collumnsIndexes[column + 1];
+            transposed._rows[place] = row;
+            transposed._values[place] = value;
+            transposed._collumnsIndexes[column + 1]++;
+        }
+    }
+
+    return transposed;
+}
+
+MatrixCCS SeqMultiplication(const MatrixCCS& A, const MatrixCCS& B) {
+    if (A._nCollumns != B._nRows) {
+        throw "Can't multiply matrix which not corresponding";
+    }
+
+    MatrixCCS AT = A.Transpose();
+
+    std::vector<int>* rows = new std::vector<int>[B._nCollumns];
+    std::vector<std::complex<int>>* values = new std::vector<std::complex<int>>[B._nCollumns];
+
+    std::vector<int> collumnsIndexes(B._nCollumns + 1, 0);
+
+    std::vector<int> tempRows(B._nRows);
+    for (int i = 0; i < B._nCollumns; i++) {
+        // Clear tempRows
+        tempRows = std::vector<int>(B._nRows, -1);
+
+        // Fill tempRows with rows indexes
+        int ks = B._collumnsIndexes[i];
+        int kf = B._collumnsIndexes[i + 1];
+        for (int k = ks; k < kf; k++) {
+            int row = B._rows[k];
+            tempRows[row] = k;
+        }
+
+        // Multiply on every collumn of AT
+        for (int j = 0; j < AT._nCollumns; j++) {
+            std::complex<int> value{0, 0};
+
+            int ls = AT._collumnsIndexes[j];
+            int lf = AT._collumnsIndexes[j + 1];
+            for (int l = ls; l < lf; l++) {
+                int rowAT = AT._rows[l];
+                int rowB = tempRows[rowAT];
+                if (rowB != -1) {
+                    value += B._values[rowB] * AT._values[l];
+                }
+            }
+
+            if (value != std::complex<int>(0, 0)) {
+                values[i].push_back(value);
+                rows[i].push_back(j);
+                collumnsIndexes[i]++;
+            }
+        }
+    }
+
+    int nNotZero = 0;
+    for (int i = 0; i < B._nCollumns; i++) {
+        int tmp = collumnsIndexes[i];
+        collumnsIndexes[i] = nNotZero;
+        nNotZero += tmp;
+    }
+    collumnsIndexes[B._nCollumns] = nNotZero;
+
+    MatrixCCS product{B._nCollumns, A._nRows, nNotZero};
+    product._collumnsIndexes = collumnsIndexes;
+    for (int i = 0; i < B._nCollumns; i++) {
+        product._rows.insert(product._rows.end(), rows[i].begin(), rows[i].end());
+        product._values.insert(product._values.end(), values[i].begin(), values[i].end());
+    }
+
+    delete[] rows;
+    delete[] values;
+
+    return product;
+}
+
+MatrixCCS OMPMultiplication(const MatrixCCS& A, const MatrixCCS& B) {
+    if (A._nCollumns != B._nRows) {
+        throw "Can't multiply matrix which not corresponding";
+    }
+
+    MatrixCCS AT = A.Transpose();
+
+    std::vector<int>* rows = new std::vector<int>[B._nCollumns];
+    std::vector<std::complex<int>>* values = new std::vector<std::complex<int>>[B._nCollumns];
+
+    std::vector<int> collumnsIndexes(B._nCollumns + 1, 0);
+
+#pragma omp parallel
+    {
+        std::vector<int> tempRows(B._nRows);
+    #pragma omp for
+        for (int i = 0; i < B._nCollumns; i++) {
+            // Clear tempRows
+            tempRows = std::vector<int>(B._nRows, -1);
+
+            // Fill tempRows with rows indexes
+            int ks = B._collumnsIndexes[i];
+            int kf = B._collumnsIndexes[i + 1];
+            for (int k = ks; k < kf; k++) {
+                int row = B._rows[k];
+                tempRows[row] = k;
+            }
+
+            // Multiply on every collumn of AT
+            for (int j = 0; j < AT._nCollumns; j++) {
+                std::complex<int> value{0, 0};
+
+                int ls = AT._collumnsIndexes[j];
+                int lf = AT._collumnsIndexes[j + 1];
+                for (int l = ls; l < lf; l++) {
+                    int rowAT = AT._rows[l];
+                    int rowB = tempRows[rowAT];
+                    if (rowB != -1) {
+                        value += B._values[rowB] * AT._values[l];
+                    }
+                }
+
+                if (value != std::complex<int>(0, 0)) {
+                    values[i].push_back(value);
+                    rows[i].push_back(j);
+                    collumnsIndexes[i]++;
+                }
+            }
+        }
+    }
+
+    int nNotZero = 0;
+    for (int i = 0; i < B._nCollumns; i++) {
+        int tmp = collumnsIndexes[i];
+        collumnsIndexes[i] = nNotZero;
+        nNotZero += tmp;
+    }
+    collumnsIndexes[B._nCollumns] = nNotZero;
+
+    MatrixCCS product{B._nCollumns, A._nRows, nNotZero};
+    product._collumnsIndexes = collumnsIndexes;
+    for (int i = 0; i < B._nCollumns; i++) {
+        product._rows.insert(product._rows.end(), rows[i].begin(), rows[i].end());
+        product._values.insert(product._values.end(), values[i].begin(), values[i].end());
+    }
+
+    delete[] rows;
+    delete[] values;
+
+    return product;
+}
+
+void MatrixCCS::FillRandom(unsigned seed, int min, int max) {
+    _collumnsIndexes.clear();
+    _rows.clear();
+    _values.clear();
+
+    std::mt19937 random;
+    random.seed(seed);
+
+    std::complex<int> value;
+    const double probBarrier = 1.0 * _nNotZero / (_nCollumns * _nRows);
+
+    std::uniform_real_distribution<> probDistrib(0.0, 1.0);
+    std::uniform_int_distribution<int> valueDistrib(min, max);
+
+    _collumnsIndexes.push_back(0);
+    for (int collumn = 0; collumn < _nCollumns; collumn++) {
+        for (int row = 0; row < _nRows; row++) {
+            if (static_cast<int>(_values.size()) == _nNotZero) {
+                break;
+            } else if (_nNotZero - static_cast<int>(_values.size()) + collumn * _nRows + row ==
+                       _nCollumns * _nRows ||
+                       (static_cast<int>(_values.size()) < _nNotZero &&
+                        probDistrib(random) < probBarrier)) {
+                do {
+                    value = std::complex<int>(valueDistrib(random), valueDistrib(random));
+                } while (value == std::complex<int>(0, 0));
+                _values.push_back(value);
+                _rows.push_back(row);
+            }
+        }
+        _collumnsIndexes.push_back(static_cast<int>(_values.size()));
+        if (static_cast<int>(_values.size()) == _nNotZero) {
+            while (static_cast<int>(_collumnsIndexes.size()) < _nCollumns + 1) {
+                _collumnsIndexes.push_back(0);
+            }
+            break;
+        }
+    }
+}
+
+// void MatrixCCS::Print() {
+//     for (int i = 0; i < _nCollumns; i++) {
+//         for (int k = _collumnsIndexes[i];
+//                 k < _collumnsIndexes[i + 1]; k++) {
+//             std::cout << "Column " << i << "\tRow " << _rows[k] <<
+//                 "\tValueR" << _values[k].real() << "\tValueI" << _values[k].imag() << "\n";
+//         }
+//     }
+// }
+
+bool operator==(const MatrixCCS& A, const MatrixCCS& B) {
+    return A._nCollumns == B._nCollumns &&
+           A._nRows == B._nRows &&
+           A._nNotZero == B._nNotZero &&
+           A._collumnsIndexes == B._collumnsIndexes &&
+           A._rows == B._rows &&
+           A._values == B._values;
+}
+
+\end{lstlisting}
+
+Лисининг TBB реализация matrix\_ccs\_mult.h
+\begin{lstlisting}
+// Copyright 2021 Zlobin George
+#ifndef MODULES_TASK_3_ZLOBIN_G_SPARSE_MATRIX_CCS_MULT_COMPLEX_TBB_MATRIX_CCS_MULT_H_
+#define MODULES_TASK_3_ZLOBIN_G_SPARSE_MATRIX_CCS_MULT_COMPLEX_TBB_MATRIX_CCS_MULT_H_
+
+#include <tbb/tbb.h>
+#include <vector>
+#include <complex>
+
+class MatrixCCS {
+ public:
+    MatrixCCS(int nCollumns, int nRows, int nNotZero);
+    MatrixCCS(int nCollumns, int nRows, std::vector<std::complex<int>> matrix);
+    MatrixCCS(int nCollumns, int nRows,
+              std::vector<int> collumnsIndexes,
+              std::vector<int> rows,
+              std::vector<std::complex<int>> values);
+
+    void FillRandom(unsigned seed = 132, int min = -1000, int max = 1000);
+    MatrixCCS Transpose() const;
+
+    int GetNumCollumns() { return _nCollumns; }
+    int GetNumRows() { return _nRows; }
+    int GetNumNotZero() { return _nNotZero; }
+
+    //  void Print();
+ private:
+    int _nCollumns;
+    int _nRows;
+    int _nNotZero;
+
+    std::vector<int> _collumnsIndexes;
+    std::vector<int> _rows;
+    std::vector<std::complex<int>> _values;
+
+    friend MatrixCCS SeqMultiplication(const MatrixCCS& A, const MatrixCCS& B);
+    friend MatrixCCS TBBMultiplication(const MatrixCCS& A, const MatrixCCS& B);
+    friend bool operator==(const MatrixCCS& A, const MatrixCCS& B);
+
+    friend class TBBMatrixMultiplicator;
+};
+
+class TBBMatrixMultiplicator {
+ public:
+    const MatrixCCS& AT;
+    const MatrixCCS& B;
+
+    std::vector<int>* const rows;
+    std::vector<std::complex<int>>* const values;
+    std::vector<int>* const collumnsIndexes;
+
+    void operator()(const tbb::blocked_range<int> &range) const;
+
+    TBBMatrixMultiplicator(const MatrixCCS& _AT,
+                       const MatrixCCS& _B,
+                       std::vector<int>* _rows,
+                       std::vector<std::complex<int>>* _values,
+                       std::vector<int>* _collumnsIndexes) :
+    AT(_AT),
+    B(_B),
+    rows(_rows),
+    values(_values),
+    collumnsIndexes(_collumnsIndexes) {}
+};
+
+MatrixCCS SeqMultiplication(const MatrixCCS& A, const MatrixCCS& B);
+MatrixCCS TBBMultiplication(const MatrixCCS& A, const MatrixCCS& B);
+bool operator==(const MatrixCCS& A, const MatrixCCS& B);
+
+#endif  // MODULES_TASK_3_ZLOBIN_G_SPARSE_MATRIX_CCS_MULT_COMPLEX_TBB_MATRIX_CCS_MULT_H_
+
+\end{lstlisting}
+
+Лисининг TBB реализация matrix\_ccs\_mult.cpp
+\begin{lstlisting}
+// Copyright 2021 Zlobin George
+#include "../../../modules/task_3/zlobin_g_sparse_matrix_ccs_mult_complex_tbb/matrix_ccs_mult.h"
+#include <random>
+#include <algorithm>
+
+#include <iostream>
+
+MatrixCCS::MatrixCCS(int nCollumns, int nRows, int nNotZero) {
+    if (nCollumns <= 0 || nRows <= 0) {
+        throw "Incorrect matrix size";
+    } else if (nNotZero < 0 || nNotZero > nCollumns * nRows) {
+        throw "Incorrect number of not zero elements";
+    }
+
+    _nCollumns = nCollumns;
+    _nRows = nRows;
+    _nNotZero = nNotZero;
+
+    _collumnsIndexes.reserve(_nCollumns + 1);
+    _rows.reserve(_nRows);
+    _values.reserve(_nNotZero);
+}
+
+MatrixCCS::MatrixCCS(int nCollumns, int nRows,
+                     std::vector<std::complex<int>> matrix) {
+    if (nCollumns <= 0 || nRows <= 0) {
+        throw "Incorrect matrix size";
+    } else if (static_cast<int>(matrix.size()) != nCollumns * nRows) {
+        throw "Size of matrix doesn't match given parameters";
+    }
+
+    _nCollumns = nCollumns;
+    _nRows = nRows;
+
+    _collumnsIndexes.reserve(_nCollumns + 1);
+    _rows.reserve(_nRows);
+
+    _collumnsIndexes.push_back(0);
+    for (int j = 0; j < _nCollumns; j++) {
+        for (int i = 0; i < _nRows; i++) {
+            if (matrix[i * _nCollumns + j] != std::complex<int>(0, 0)) {
+                _values.push_back(matrix[i * _nCollumns + j]);
+                _rows.push_back(i);
+            }
+        }
+        _collumnsIndexes.push_back(static_cast<int>(_values.size()));
+    }
+
+    _nNotZero = _collumnsIndexes[_nCollumns];
+}
+
+MatrixCCS::MatrixCCS(int nCollumns, int nRows,
+                     std::vector<int> collumnsIndexes,
+                     std::vector<int> rows,
+                     std::vector<std::complex<int>> values) {
+    if (nCollumns <= 0 || nRows <= 0) {
+        throw "Incorrect matrix size";
+    } else if (static_cast<int>(values.size()) > nCollumns * nRows) {
+        throw "More elements when possible";
+    } else if (static_cast<int>(collumnsIndexes.size()) != nCollumns + 1) {
+        throw "Incorrect collumns indexes";
+    } else if (std::find_if(rows.begin(), rows.end(),
+               [&nRows](int i) { return i >= nRows; }) != rows.end()) {
+        throw "Incorrect rows";
+    }
+
+    _nCollumns = nCollumns;
+    _nRows = nRows;
+    _nNotZero = static_cast<int>(values.size());
+    _collumnsIndexes = collumnsIndexes;
+    _rows = rows;
+    _values = values;
+}
+
+MatrixCCS MatrixCCS::Transpose() const {
+    MatrixCCS transposed{_nRows, _nCollumns, _nNotZero};
+
+    transposed._collumnsIndexes.resize(_nRows + 1);
+    for (int i = 0; i < _nNotZero; i++) {
+        transposed._collumnsIndexes[_rows[i] + 1]++;
+    }
+
+    int tmp, sum = 0;
+    for (int i = 1; i <= _nRows; i++) {
+        tmp = transposed._collumnsIndexes[i];
+        transposed._collumnsIndexes[i] = sum;
+        sum += tmp;
+    }
+
+    transposed._rows.resize(_nNotZero);
+    transposed._values.resize(_nNotZero);
+
+    int j1, j2;
+    int row, column, place;
+    std::complex<int> value;
+    for (int i = 0; i < _nCollumns; i++) {
+        j1 = _collumnsIndexes[i];
+        j2 = _collumnsIndexes[i + 1];
+        row = i;
+        for (int j = j1; j < j2; j++) {
+            value = _values[j];
+            column = _rows[j];
+            place = transposed._collumnsIndexes[column + 1];
+            transposed._rows[place] = row;
+            transposed._values[place] = value;
+            transposed._collumnsIndexes[column + 1]++;
+        }
+    }
+
+    return transposed;
+}
+
+MatrixCCS SeqMultiplication(const MatrixCCS& A, const MatrixCCS& B) {
+    if (A._nCollumns != B._nRows) {
+        throw "Can't multiply matrix which not corresponding";
+    }
+
+    MatrixCCS AT = A.Transpose();
+
+    std::vector<int>* rows = new std::vector<int>[B._nCollumns];
+    std::vector<std::complex<int>>* values = new std::vector<std::complex<int>>[B._nCollumns];
+
+    std::vector<int> collumnsIndexes(B._nCollumns + 1, 0);
+
+    std::vector<int> tempRows(B._nRows);
+    for (int i = 0; i < B._nCollumns; i++) {
+        // Clear tempRows
+        tempRows = std::vector<int>(B._nRows, -1);
+
+        // Fill tempRows with rows indexes
+        int ks = B._collumnsIndexes[i];
+        int kf = B._collumnsIndexes[i + 1];
+        for (int k = ks; k < kf; k++) {
+            int row = B._rows[k];
+            tempRows[row] = k;
+        }
+
+        // Multiply on every collumn of AT
+        for (int j = 0; j < AT._nCollumns; j++) {
+            std::complex<int> value{0, 0};
+
+            int ls = AT._collumnsIndexes[j];
+            int lf = AT._collumnsIndexes[j + 1];
+            for (int l = ls; l < lf; l++) {
+                int rowAT = AT._rows[l];
+                int rowB = tempRows[rowAT];
+                if (rowB != -1) {
+                    value += B._values[rowB] * AT._values[l];
+                }
+            }
+
+            if (value != std::complex<int>(0, 0)) {
+                values[i].push_back(value);
+                rows[i].push_back(j);
+                collumnsIndexes[i]++;
+            }
+        }
+    }
+
+    int nNotZero = 0;
+    for (int i = 0; i < B._nCollumns; i++) {
+        int tmp = collumnsIndexes[i];
+        collumnsIndexes[i] = nNotZero;
+        nNotZero += tmp;
+    }
+    collumnsIndexes[B._nCollumns] = nNotZero;
+
+    MatrixCCS product{B._nCollumns, A._nRows, nNotZero};
+    product._collumnsIndexes = collumnsIndexes;
+    for (int i = 0; i < B._nCollumns; i++) {
+        product._rows.insert(product._rows.end(), rows[i].begin(), rows[i].end());
+        product._values.insert(product._values.end(), values[i].begin(), values[i].end());
+    }
+
+    delete[] rows;
+    delete[] values;
+
+    return product;
+}
+
+MatrixCCS TBBMultiplication(const MatrixCCS& A, const MatrixCCS& B) {
+    if (A._nCollumns != B._nRows) {
+        throw "Can't multiply matrix which not corresponding";
+    }
+
+    MatrixCCS AT = A.Transpose();
+
+    std::vector<int>* rows = new std::vector<int>[B._nCollumns];
+    std::vector<std::complex<int>>* values = new std::vector<std::complex<int>>[B._nCollumns];
+
+    std::vector<int> collumnsIndexes(B._nCollumns + 1, 0);
+
+    TBBMatrixMultiplicator functor(AT, B,
+                          rows,
+                          values,
+                          &collumnsIndexes);
+    tbb::task_scheduler_init init;
+    tbb::parallel_for(tbb::blocked_range<int>(0, B._nCollumns, 100), functor);
+    init.terminate();
+
+    int nNotZero = 0;
+    for (int i = 0; i < B._nCollumns; i++) {
+        int tmp = collumnsIndexes[i];
+        collumnsIndexes[i] = nNotZero;
+        nNotZero += tmp;
+    }
+    collumnsIndexes[B._nCollumns] = nNotZero;
+
+    MatrixCCS product{B._nCollumns, A._nRows, nNotZero};
+    product._collumnsIndexes = collumnsIndexes;
+    for (int i = 0; i < B._nCollumns; i++) {
+        product._rows.insert(product._rows.end(), rows[i].begin(), rows[i].end());
+        product._values.insert(product._values.end(), values[i].begin(), values[i].end());
+    }
+
+    delete[] rows;
+    delete[] values;
+
+    return product;
+}
+
+void TBBMatrixMultiplicator::operator()(const tbb::blocked_range<int> &range) const {
+    for (int i = range.begin(); i < range.end(); i++) {
+        // Clear tempRows
+        std::vector<int> tempRows = std::vector<int>(B._nRows, -1);
+
+        // Fill tempRows with rows indexes
+        int ks = B._collumnsIndexes[i];
+        int kf = B._collumnsIndexes[i + 1];
+        for (int k = ks; k < kf; k++) {
+            int row = B._rows[k];
+            tempRows[row] = k;
+        }
+
+        // Multiply on every collumn of AT
+        for (int j = 0; j < AT._nCollumns; j++) {
+            std::complex<int> value{0, 0};
+
+            int ls = AT._collumnsIndexes[j];
+            int lf = AT._collumnsIndexes[j + 1];
+            for (int l = ls; l < lf; l++) {
+                int rowAT = AT._rows[l];
+                int rowB = tempRows[rowAT];
+                if (rowB != -1) {
+                    value += B._values[rowB] * AT._values[l];
+                }
+            }
+
+            if (value != std::complex<int>(0, 0)) {
+                values[i].push_back(value);
+                rows[i].push_back(j);
+                (*collumnsIndexes)[i]++;
+            }
+        }
+    }
+}
+
+void MatrixCCS::FillRandom(unsigned seed, int min, int max) {
+    _collumnsIndexes.clear();
+    _rows.clear();
+    _values.clear();
+
+    std::mt19937 random;
+    random.seed(seed);
+
+    std::complex<int> value;
+    const double probBarrier = 1.0 * _nNotZero / (_nCollumns * _nRows);
+
+    std::uniform_real_distribution<> probDistrib(0.0, 1.0);
+    std::uniform_int_distribution<int> valueDistrib(min, max);
+
+    _collumnsIndexes.push_back(0);
+    for (int collumn = 0; collumn < _nCollumns; collumn++) {
+        for (int row = 0; row < _nRows; row++) {
+            if (static_cast<int>(_values.size()) == _nNotZero) {
+                break;
+            } else if (_nNotZero - static_cast<int>(_values.size()) + collumn * _nRows + row ==
+                       _nCollumns * _nRows ||
+                       (static_cast<int>(_values.size()) < _nNotZero &&
+                        probDistrib(random) < probBarrier)) {
+                do {
+                    value = std::complex<int>(valueDistrib(random), valueDistrib(random));
+                } while (value == std::complex<int>(0, 0));
+                _values.push_back(value);
+                _rows.push_back(row);
+            }
+        }
+        _collumnsIndexes.push_back(static_cast<int>(_values.size()));
+        if (static_cast<int>(_values.size()) == _nNotZero) {
+            while (static_cast<int>(_collumnsIndexes.size()) < _nCollumns + 1) {
+                _collumnsIndexes.push_back(0);
+            }
+            break;
+        }
+    }
+}
+
+// void MatrixCCS::Print() {
+//     for (int i = 0; i < _nCollumns; i++) {
+//         for (int k = _collumnsIndexes[i];
+//                 k < _collumnsIndexes[i + 1]; k++) {
+//             std::cout << "Column " << i << "\tRow " << _rows[k] <<
+//                 "\tValueR" << _values[k].real() << "\tValueI" << _values[k].imag() << "\n";
+//         }
+//     }
+// }
+
+bool operator==(const MatrixCCS& A, const MatrixCCS& B) {
+    return A._nCollumns == B._nCollumns &&
+           A._nRows == B._nRows &&
+           A._nNotZero == B._nNotZero &&
+           A._collumnsIndexes == B._collumnsIndexes &&
+           A._rows == B._rows &&
+           A._values == B._values;
+}
+
+\end{lstlisting}
+\end{document}
