@@ -1,0 +1,840 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Умножение разреженных матриц. Элементы комплексного типа. Формат хранения матрицы – столбцовый (CCS).»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнила:} \\ студентка группы 381806-2 \\ Киселева А.С.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Термин « матрица » имеет много значений. Например, в математике матрицей называется система элементов, имеющая вид прямоугольной таблицы, в программировании матрица – это двумерный массив, в электронике – набор проводников, которые можно замкнуть в точках их пересечений.Матрицы широко применяются в математике для компактной записи систем линейных алгебраических или дифференциальных уравнений. В этом случае, количество строк матрицы соответствует числу уравнений, а количество столбцов — количеству неизвестных. 
+Обычно матрицы хранятся в двумерных массивах, но данный способ неособо удобен в случае разреженных матриц (матрицы, в которых большая часть элементов нули). В данном случае выгоднее хранить матрицу в CCS (столбцовый) или CRS (строчный).
+\par В данной лабораторной работе будет рассмотрен столбцовый формат хранения (CCS) разреженной матрицы и операция умножения таких матриц. Также будут  рассмотрены два способа распараллеливания для уменьшения скорости вычислений.
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В лабораторной работе необходимо реализовать последовательную и паралелльные версии умножения разреженных матриц с элементами комплексного типа в формате хранения CCS.
+\par Для реализации параллельных версий необходимо использовать средства OpenMP и TBB, а для проверки работы алгоритмов требуется использовать Google C++ Testing Framework.
+\newpage
+
+% Метод решения
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+В данной лабораторной работе используются разреженные матрицы с комплексными элементами. Для удобства используется typedef std::vector<std::complex<int>> ComplexMatr. Но сначала создаются матрицы, хранящиеся в одномерных векторах, с заданным числом ненулевых элементов (n). Далее они перезаписываются в CCS матрицы.
+\par Алгоритм создания CCS матрицы.
+\begin{itemize}
+\item Создаются 2 вектора размером равным количеству ненулевых элементов (n) : Values,Rows. И один вектор размером n+1 : ColumnIndexes.
+\item Записываем значения всех ненулевых элементов в Values. Порядок записи: столбец за столбцом.
+\item Записываем номер строки в которой находится каждый ненулевой элемент в Value.
+\item Элементы  столбца i в векторе Values находятся  по  индексам  от ColumnIndexes[i] до ColumnIndexes[i+ 1] –1 включительно. При этом количество ненулевых элементов в i столбце равен ColumnIndexes[i+1] - ColumnIndexes[i].
+\end{itemize}
+\par Алгоритм умножения CCS матриц.
+\begin{itemize}
+\item Проверка условия возможности умножения матриц : количество столбцов левой = количество строк правой.
+\item Нахождение ненулевого элемента в обоих матрицах. Проводится проверка векторов ColumnIndexes: ColumnIndexes[i+1] - ColumnIndexes[i] не равен нулю. Если равен нулю, то ненулевых элементов нет, тогда в результирующую матрицу записывается 0.
+\item Если на данной позиции в векторах Rows совпадают значения, то производится сложение элементов из соответсвующих позиций Values.
+\end{itemize}
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\par В данной задаче берется цикл по строкам левой матрицы и внутренний по столбцам правой матрицы. Для распараллеливания целесообразнее распараллелить внешний цикл, то есть мы независимо рассматриваем строки левой матрицы. Данный способ более удобен, так как при умножении складываются элементы определенной строки левой матрицы.
+\par Для OpenMР данный цикл выглядит следующим образом:
+\begin{lstlisting}
+std::complex<int> tmp1(std::complex<int>(0, 0));
+#pragma omp parallel
+        {
+#pragma omp for private(tmp1) schedule(static)
+            for (int i = 0; i < ma; i++) {
+                for (int j = 0; j < mb; j++)
+ \end{lstlisting}
+ \par Для TBB:
+\begin{lstlisting}
+tbb::parallel_for(tbb::blocked_range<int>(0, ma, ma/100),
+            [&](const tbb::blocked_range<int>& r) {
+                std::complex<int> tmp1(std::complex<int>(0, 0));
+                for (int i = r.begin(); i < r.end(); i++) {
+                    for (int j = 0; j < mb; j++) {
+ \end{lstlisting}
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Матрица подается в виде одномерного вектора, в котором элементы хранятся столбец за столбцом. Для удобства и эффективности сначала нужно правую матрицу транспонировать, то есть строки сделать столбцами, а столбцы строками.
+\par Функция для создания обычной матрицы :
+\begin{lstlisting}
+ComplexMatr rand(int n, int m, int nz);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item n-количество строк,
+\item m-количество столбцов,
+\item nz-количество ненулевых элементов.
+\end{itemize}
+\par Функция транспонирования :
+\begin{lstlisting}
+ComplexMatr transp(ComplexMatr a, int n, int m);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ComplexMatr a - матрица,
+\item n-количество строк,
+\item m-количество столбцов.
+\end{itemize}
+\par Функция создания вектора Values :
+\begin{lstlisting}
+ComplexMatr value(ComplexMatr matr, int n, int m);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ComplexMatr matr - матрица,
+\item n-количество строк,
+\item m-количество столбцов,
+\end{itemize}
+\par Функция создания вектора Rows:
+\begin{lstlisting}
+std::vector<int> rows(ComplexMatr matr, int n, int m);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ComplexMatr matr - матрица,
+\item n-количество строк,
+\item m-количество столбцов.
+\end{itemize}
+\par Функция создания вектора ColumnIndexes:
+\begin{lstlisting}
+std::vector<int> index(ComplexMatr matr, int n, int m);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ComplexMatr matr - матрица,
+\item n-количество строк,
+\item m-количество столбцов.
+\end{itemize}
+\par Функция последовательного умножения разреженных матриц:
+\begin{lstlisting}
+ComplexMatr umn_posled(ComplexMatr valA, ComplexMatr valB,
+    std::vector<int> rowsA, std::vector<int> rowsB,
+    std::vector<int> indexA, std::vector<int> indexB,
+    int na, int ma, int nb, int mb);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ComplexMatr valA - вектор Values левой матрицы,
+\item ComplexMatr valB - вектор Values правой матрицы,
+\item std::vector<int> rowsA - вектор Rows левой матрицы,
+\item std::vector<int> rowsB - вектор Rows правой матрицы,
+\item std::vector<int> indexA - вектор ColumnIndexes левой матрицы,
+\item std::vector<int> indexB - вектор ColumnIndexes правой матрицы,
+\item na-количество строк левой матрицы,
+\item ma-количество столбцов левой матрицы,
+\item nb-количество строк правой матрицы,
+\item mb-количество столбцов правой матрицы.
+\end{itemize}
+\par Функция параллельного умножения разреженных матриц (OpenMP):
+\begin{lstlisting}
+ComplexMatr umn_parallel(ComplexMatr valA, ComplexMatr valB,
+    std::vector<int> rowsA, std::vector<int> rowsB, std::vector<int> indexA,
+    std::vector<int> indexB, int na, int ma, int nb, int mb);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ComplexMatr valA - вектор Values левой матрицы,
+\item ComplexMatr valB - вектор Values правой матрицы,
+\item std::vector<int> rowsA - вектор Rows левой матрицы,
+\item std::vector<int> rowsB - вектор Rows правой матрицы,
+\item std::vector<int> indexA - вектор ColumnIndexes левой матрицы,
+\item std::vector<int> indexB - вектор ColumnIndexes правой матрицы,
+\item na-количество строк левой матрицы,
+\item ma-количество столбцов левой матрицы,
+\item nb-количество строк правой матрицы,
+\item mb-количество столбцов правой матрицы.
+\end{itemize}
+\par Функция параллельного умножения разреженных матриц (TBB):
+\begin{lstlisting}
+ComplexMatr umn_parallel_tbb(ComplexMatr valA, ComplexMatr valB,
+    std::vector<int> rowsA, std::vector<int> rowsB, std::vector<int> indexA,
+    std::vector<int> indexB, int na, int ma, int nb, int mb);
+\end{lstlisting}
+\par В качестве входных параметров передаются:
+\begin{itemize}
+\item ComplexMatr valA - вектор Values левой матрицы,
+\item ComplexMatr valB - вектор Values правой матрицы,
+\item std::vector<int> rowsA - вектор Rows левой матрицы,
+\item std::vector<int> rowsB - вектор Rows правой матрицы,
+\item std::vector<int> indexA - вектор ColumnIndexes левой матрицы,
+\item std::vector<int> indexB - вектор ColumnIndexes правой матрицы,
+\item na-количество строк левой матрицы,
+\item ma-количество столбцов левой матрицы,
+\item nb-количество строк правой матрицы,
+\item mb-количество столбцов правой матрицы.
+\end{itemize}
+\newpage
+
+% Тестирование
+\section*{Тестирование}
+\addcontentsline{toc}{section}{Тестирование}
+Для подтверждения работоспособности и эффективности в программе представлен набор тестов, разработанных с помощью использования Google C++ Testing Framework.
+\par Данные тесты проверяют правильность выполнения всех функций, а также эффективность выполнения последовательного и параллельных методов.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Тестирования проводились на компьютере обладающим, следующими характеристиками:
+
+\begin{itemize}
+\item Процессор: Intel® Core™ i7-9750H CPU @ 2.60GHz × 12.
+\item Оперативная память: 8 ГБ DDR4;
+\item ОС: Microsoft Windows 10 Домашняя для одного языка.
+\end{itemize}
+
+\par Проведем тест для матриц 25000x10000 и 10000x25000, в которых 110 и 80 ненулевых элементов соответственно. Количество используемых потоков определяется автоматически.
+\par Результаты :
+
+\begin{table}[!h]
+\caption{Результаты теста}
+\centering
+\begin{tabular}{p{2cm} p{5cm} p{4cm} p{4cm}}
+Номер & Последовательно & OpenMP     & TBB  \\
+1     &   8.0011       &  3.552471   &   2.684977   \\
+2      &  7.92055       &  3.68566   &   3.264525   \\
+3      &   9.07078       &   3.95639   &   3.80332  \\
+Среднее     &   8.33081      &   3.731507   &  3.05145  \\
+\end{tabular}
+\end{table}
+\begin{table}[!h]
+\caption{Результаты теста}
+\centering
+\begin{tabular}{p{2cm} p{5cm} p{4cm} p{4cm}}
+ Номер & Ускорение OpenMP & Ускорение TBB \\
+1        & 2.26 & 2.98 \\
+2        &  2.15 & 2.43 \\
+3         &  2.3 & 2.39\\
+Среднее   &  2.23 & 2.73 \\
+\end{tabular}
+\end{table}
+
+\par Исходя из полученных данных, можно сделать вывод, что эффективность программы зависит от выбранного способа распараллеливания и от размера матриц.Реализации OpenMP и TBB показывают практически одинаковые результаты.Но TBB незначительлно медленнее. Также стоит заметить, что вычисления умножения матриц в обычном представлении заняло бы значительно больше времени. 
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В данной лабораторной работе были реализованы последовательная и параллельные версии умножения разреженных матриц со столбцовой формой хранения (CCS). Также важно, что параллельная реализация является более эффективной, чем последовательная. Чтобы сделать выполнение параллельных программы еще эффективнее можно добавить еще потоков, которые будут выполняться одновременно.
+
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Gergel}
+Гергель В. П. Теория и практика параллельных вычислений. – 2007. 
+\bibitem{Reinders}
+Reinders, James (2007, July). Intel Threading Building Blocks: Outfitting C++ for Multi-core Processor Parallelism
+\bibitem{Voss}
+Voss, M., Asenjo, R, Reinders, J. (2019) «Pro TBB. C++ Parallel Programming with Threading Building Blocks»
+\bibitem{Kunle}
+Kunle Olukotun. Chip Multiprocessor Architecture - Techniques to Improve Throughput and Latency. — Morgan and Claypool Publishers, 2007.
+\bibitem{Mario}
+Mario Nemirovsky, Dean M. Tullsen. Multithreading Architecture. — Morgan and Claypool Publishers, 2013.
+\bibitem{Reginald}
+Reginald P. Tewarson. Sparse Matrices. — Academic Press, 1973.
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\begin{lstlisting}
+// umnrazr.h
+
+// Copyright 2021 Kiseleva Anastasia
+#ifndef MODULES_TASK_3_KISELEVA_RAZR_UMN_TBB_UMNRAZR_H_
+#define MODULES_TASK_3_KISELEVA_RAZR_UMN_TBB_UMNRAZR_H_
+
+#include <omp.h>
+#include <iostream>
+#include <cstdlib>
+#include <vector>
+#include <random>
+#include <algorithm>
+#include <complex>
+#include "tbb/blocked_range.h"
+#include "tbb/parallel_for.h"
+#include "tbb/tick_count.h"
+
+#define SIZE_ERROR -2
+
+typedef std::vector<std::complex<int>> ComplexMatr;
+
+ComplexMatr rand(int n, int m, int nz);
+ComplexMatr transp(ComplexMatr a, int n, int m);
+ComplexMatr value(ComplexMatr matr, int n, int m);
+std::vector<int> rows(ComplexMatr matr, int n, int m);
+std::vector<int> index(ComplexMatr matr, int n, int m);
+ComplexMatr umn_posled(ComplexMatr valA, ComplexMatr valB,
+    std::vector<int> rowsA, std::vector<int> rowsB,
+    std::vector<int> indexA, std::vector<int> indexB,
+    int na, int ma, int nb, int mb);
+ComplexMatr umn_parallel(ComplexMatr valA, ComplexMatr valB,
+    std::vector<int> rowsA, std::vector<int> rowsB, std::vector<int> indexA,
+    std::vector<int> indexB, int na, int ma, int nb, int mb);
+ComplexMatr umn_parallel_tbb(ComplexMatr valA, ComplexMatr valB,
+    std::vector<int> rowsA, std::vector<int> rowsB, std::vector<int> indexA,
+    std::vector<int> indexB, int na, int ma, int nb, int mb);
+
+#endif  // MODULES_TASK_3_KISELEVA_RAZR_UMN_TBB_UMNRAZR_H_
+
+
+\end{lstlisting}
+\begin{lstlisting}
+// umnrazr.cpp
+
+// Copyright 2021 Kiseleva Anastasia
+#include "../../../modules/task_3/kiseleva_razr_umn_tbb/umnrazr.h"
+
+ComplexMatr rand(int n, int m, int nz) {
+    ComplexMatr matr;
+    std::vector<int> tmp;
+    std::vector<int> num;
+    for (int i = 0; i < n * m; i++) {
+        tmp.push_back(i);
+    }
+    std::random_device rd;
+    std::mt19937 g(rd());
+    shuffle(tmp.begin(), tmp.end(), g);
+    for (int i = 0; i < nz; i++) {
+        num.push_back(tmp[i]);
+    }
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    for (int i = 0; i < n * m; i++) {
+        int s = 0;
+        for (int j = 0; j < nz; j++) {
+            if (i == num[j]) {
+                s = 1;
+            }
+        }
+        if (s == 0) {
+            matr.push_back(std::complex<int>(0, 0));
+        } else {
+            matr.push_back(std::complex<int>(gen(), gen()));
+        }
+    }
+    return matr;
+}
+
+ComplexMatr transp(ComplexMatr a, int n, int m) {
+    ComplexMatr res;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < m; j++) {
+            res.push_back(a[i + j * n]);
+        }
+    }
+    return res;
+}
+
+ComplexMatr value(ComplexMatr matr, int n, int m) {
+    ComplexMatr val;
+    for (int i = 0; i < n * m; i++) {
+        if (matr[i] != std::complex<int>(0, 0)) {
+            val.push_back(matr[i]);
+        }
+    }
+    return val;
+}
+
+std::vector<int> rows(ComplexMatr matr, int n, int m) {
+    std::vector<int> row;
+    std::vector<int> num;
+    int p = 0;
+    for (int j = 0; j < n * m; j++) {
+        if (p < n) {
+            num.push_back(p);
+            p++;
+        } else {
+            p = 0;
+            num.push_back(p);
+            p++;
+        }
+    }
+    for (int i = 0; i < n * m; i++) {
+        if (matr[i] != std::complex<int>(0, 0)) {
+            row.push_back(num[i]);
+        }
+    }
+    return row;
+}
+
+std::vector<int> index(ComplexMatr matr, int n, int m) {
+    std::vector<int> ind;
+    std::vector<int> tmp;
+    ind.push_back(0);
+    int p = 0;
+    int k = 1;
+    for (int i = 0; i < n * m; i++) {
+        if (i % n == 0) {
+            p = 0;
+        }
+        if (matr[i] != std::complex<int>(0, 0)) {
+            p++;
+        }
+        if (i != 0) {
+            if (i % (n * k - 1) == 0) {
+                ind.push_back(p);
+                k++;
+            }
+        }
+    }
+    tmp = ind;
+    int s = 1;
+    for (int i = 1; i < m; i++) {
+        for (int j = s + 1; j < m + 1; j++) {
+            ind[j] += tmp[s];
+        }
+        s++;
+    }
+    return ind;
+}
+
+ComplexMatr umn_posled(ComplexMatr valA, ComplexMatr valB,
+    std::vector<int> rowsA, std::vector<int> rowsB, std::vector<int> indexA,
+    std::vector<int> indexB, int na, int ma, int nb, int mb) {
+    ComplexMatr C;
+    if (ma == nb) {
+        int tmp;
+        tmp = na;
+        na = ma;
+        ma = tmp;
+        std::complex<int> tmp1(std::complex<int>(0, 0));
+        for (int i = 0; i < ma; i++) {
+            for (int j = 0; j < mb; j++) {
+                if ((indexA[i + 1] - indexA[i] == 0) ||
+                    (indexB[j + 1] - indexB[j] == 0)) {
+                    C.push_back(std::complex<int>(0, 0));
+                } else {
+                    for (int y = indexA[i]; y < indexA[i + 1]; y++) {
+                        for (int x = indexB[j]; x < indexB[j + 1]; x++) {
+                            if (rowsA[y] == rowsB[x]) {
+                                tmp1 += valA[y] * valB[x];
+                            }
+                        }
+                    }
+                    C.push_back(tmp1);
+                    tmp1 = std::complex<int>(0, 0);
+                }
+            }
+        }
+    } else {
+        throw SIZE_ERROR;
+    }
+    return C;
+}
+
+ComplexMatr umn_parallel(ComplexMatr valA, ComplexMatr valB,
+    std::vector<int> rowsA, std::vector<int> rowsB, std::vector<int> indexA,
+    std::vector<int> indexB, int na, int ma, int nb, int mb) {
+    ComplexMatr C(na * mb);
+    if (ma == nb) {
+        int tmp;
+        tmp = na;
+        na = ma;
+        ma = tmp;
+        std::complex<int> tmp1(std::complex<int>(0, 0));
+#pragma omp parallel
+        {
+#pragma omp for private(tmp1) schedule(static)
+            for (int i = 0; i < ma; i++) {
+                for (int j = 0; j < mb; j++) {
+                    if ((indexA[i + 1] - indexA[i] == 0) ||
+                        (indexB[j + 1] - indexB[j] == 0)) {
+                        C[i * mb + j] = std::complex<int>(0, 0);
+                    } else {
+                        for (int y = indexA[i]; y < indexA[i + 1]; y++) {
+                            for (int x = indexB[j]; x < indexB[j + 1]; x++) {
+                                if (rowsA[y] == rowsB[x]) {
+                                    tmp1 += valA[y] * valB[x];
+                                }
+                            }
+                        }
+                        C[i * mb + j] = tmp1;
+                        tmp1 = std::complex<int>(0, 0);
+                    }
+                }
+            }
+        }
+    } else {
+        throw SIZE_ERROR;
+    }
+    return C;
+}
+
+ComplexMatr umn_parallel_tbb(ComplexMatr valA, ComplexMatr valB,
+    std::vector<int> rowsA, std::vector<int> rowsB, std::vector<int> indexA,
+    std::vector<int> indexB, int na, int ma, int nb, int mb) {
+    ComplexMatr C(na * mb);
+    if (ma == nb) {
+        int tmp;
+        tmp = na;
+        na = ma;
+        ma = tmp;
+        tbb::parallel_for(tbb::blocked_range<int>(0, ma, ma/100),
+            [&](const tbb::blocked_range<int>& r) {
+                std::complex<int> tmp1(std::complex<int>(0, 0));
+                for (int i = r.begin(); i < r.end(); i++) {
+                    for (int j = 0; j < mb; j++) {
+                        if ((indexA[i + 1] - indexA[i] == 0) ||
+                            (indexB[j + 1] - indexB[j] == 0)) {
+                            C[i * mb + j] = std::complex<int>(0, 0);
+                        } else {
+                            for (int y = indexA[i]; y < indexA[i + 1]; y++) {
+                                for (int x = indexB[j]; x < indexB[j + 1];
+                                    x++) {
+                                    if (rowsA[y] == rowsB[x]) {
+                                        tmp1 += valA[y] * valB[x];
+                                    }
+                                }
+                            }
+                            C[i * mb + j] = tmp1;
+                            tmp1 = std::complex<int>(0, 0);
+                        }
+                    }
+                }
+            });
+    } else {
+        throw SIZE_ERROR;
+    }
+    return C;
+}
+
+
+\end{lstlisting}
+\begin{lstlisting}
+// main.cpp
+
+// Copyright 2021 Kiseleva Anastasia
+#include <gtest/gtest.h>
+#include <omp.h>
+#include <vector>
+#include <complex>
+#include "./umnrazr.h"
+
+TEST(CCR_UMN, razm1020x100_100_10000) {
+    int na = 1020;
+    int ma = 100;
+    int nb = 100;
+    int mb = 100;
+    int nza = 4;
+    int nzb = 8;
+    ComplexMatr a = rand(na, ma, nza);
+    ComplexMatr b = rand(nb, mb, nzb);
+    a = transp(a, na, ma);
+    int tmp;
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    ComplexMatr valA = value(a, na, ma);
+    ComplexMatr valB = value(b, nb, mb);
+    std::vector<int> rowsA = rows(a, na, ma);
+    std::vector<int> rowsB = rows(b, nb, mb);
+    std::vector<int> indexA = index(a, na, ma);
+    std::vector<int> indexB = index(b, nb, mb);
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    tbb::tick_count start_time1, finish_time1, start_time, finish_time;
+    start_time = tbb::tick_count::now();
+    ComplexMatr CCR = umn_posled(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time = tbb::tick_count::now();
+    start_time1 = tbb::tick_count::now();
+    ComplexMatr umn = umn_parallel_tbb(valA, valB, rowsA,
+       rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time1 = tbb::tick_count::now();
+    for (int i = 0; i < na * mb; i++) {
+        ASSERT_EQ(CCR[i], umn[i]);
+    }
+    printf("\tPosled  = %f\n", (finish_time - start_time).seconds());
+    printf("\tParalel  = %f\n", (finish_time1 - start_time1).seconds());
+}
+
+TEST(CCR_UMN, razm100x100_100x100_4_8) {
+    int na = 100;
+    int ma = 100;
+    int nb = 100;
+    int mb = 100;
+    int nza = 4;
+    int nzb = 8;
+    ComplexMatr a = rand(na, ma, nza);
+    ComplexMatr b = rand(nb, mb, nzb);
+    a = transp(a, na, ma);
+    int tmp;
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    ComplexMatr valA = value(a, na, ma);
+    ComplexMatr valB = value(b, nb, mb);
+    std::vector<int> rowsA = rows(a, na, ma);
+    std::vector<int> rowsB = rows(b, nb, mb);
+    std::vector<int> indexA = index(a, na, ma);
+    std::vector<int> indexB = index(b, nb, mb);
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    tbb::tick_count start_time1, finish_time1, start_time, finish_time;
+    start_time = tbb::tick_count::now();
+    ComplexMatr CCR = umn_posled(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time = tbb::tick_count::now();
+    start_time1 = tbb::tick_count::now();
+    ComplexMatr umn = umn_parallel_tbb(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time1 = tbb::tick_count::now();
+    for (int i = 0; i < na * mb; i++) {
+        ASSERT_EQ(CCR[i], umn[i]);
+    }
+    printf("\tPosled  = %f\n", (finish_time - start_time).seconds());
+    printf("\tParalel  = %f\n", (finish_time1 - start_time1).seconds());
+}
+
+TEST(CCR_UMN, razm113x85_85x21_7_1) {
+    int na = 113;
+    int ma = 85;
+    int nb = 85;
+    int mb = 21;
+    int nza = 7;
+    int nzb = 1;
+    ComplexMatr a = rand(na, ma, nza);
+    ComplexMatr b = rand(nb, mb, nzb);
+    a = transp(a, na, ma);
+    int tmp;
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    ComplexMatr valA = value(a, na, ma);
+    ComplexMatr valB = value(b, nb, mb);
+    std::vector<int> rowsA = rows(a, na, ma);
+    std::vector<int> rowsB = rows(b, nb, mb);
+    std::vector<int> indexA = index(a, na, ma);
+    std::vector<int> indexB = index(b, nb, mb);
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    tbb::tick_count start_time1, finish_time1, start_time, finish_time;
+    start_time = tbb::tick_count::now();
+    ComplexMatr CCR = umn_posled(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time = tbb::tick_count::now();
+    start_time1 = tbb::tick_count::now();
+    ComplexMatr umn = umn_parallel_tbb(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time1 = tbb::tick_count::now();
+    for (int i = 0; i < na * mb; i++) {
+        ASSERT_EQ(CCR[i], umn[i]);
+    }
+    printf("\tPosled  = %f\n", (finish_time - start_time).seconds());
+    printf("\tParalel  = %f\n", (finish_time1 - start_time1).seconds());
+}
+
+TEST(CCR_UMN, razm25000x10000_10000x25000_110_80) {
+    int na = 25000;
+    int ma = 10000;
+    int nb = 10000;
+    int mb = 25000;
+    int nza = 110;
+    int nzb = 80;
+    ComplexMatr a = rand(na, ma, nza);
+    ComplexMatr b = rand(nb, mb, nzb);
+    a = transp(a, na, ma);
+    int tmp;
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    ComplexMatr valA = value(a, na, ma);
+    ComplexMatr valB = value(b, nb, mb);
+    std::vector<int> rowsA = rows(a, na, ma);
+    std::vector<int> rowsB = rows(b, nb, mb);
+    std::vector<int> indexA = index(a, na, ma);
+    std::vector<int> indexB = index(b, nb, mb);
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    tbb::tick_count start_time1, finish_time1, start_time, finish_time;
+    start_time = tbb::tick_count::now();
+    ComplexMatr CCR = umn_posled(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time = tbb::tick_count::now();
+    start_time1 = tbb::tick_count::now();
+    ComplexMatr umn = umn_parallel_tbb(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time1 = tbb::tick_count::now();
+    for (int i = 0; i < na * mb; i++) {
+        ASSERT_EQ(CCR[i], umn[i]);
+    }
+    printf("\tPosled  = %f\n", (finish_time - start_time).seconds());
+    printf("\tParalel  = %f\n", (finish_time1 - start_time1).seconds());
+}
+
+TEST(CCR_UMN, razm10000x10000_10000x10000_10_8) {
+    int na = 10000;
+    int ma = 10000;
+    int nb = 10000;
+    int mb = 10000;
+    int nza = 10;
+    int nzb = 8;
+    ComplexMatr a = rand(na, ma, nza);
+    ComplexMatr b = rand(nb, mb, nzb);
+    a = transp(a, na, ma);
+    int tmp;
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    ComplexMatr valA = value(a, na, ma);
+    ComplexMatr valB = value(b, nb, mb);
+    std::vector<int> rowsA = rows(a, na, ma);
+    std::vector<int> rowsB = rows(b, nb, mb);
+    std::vector<int> indexA = index(a, na, ma);
+    std::vector<int> indexB = index(b, nb, mb);
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    tbb::tick_count start_time1, finish_time1, start_time, finish_time;
+    start_time = tbb::tick_count::now();
+    ComplexMatr CCR = umn_posled(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time = tbb::tick_count::now();
+    start_time1 = tbb::tick_count::now();
+    ComplexMatr umn = umn_parallel_tbb(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time1 = tbb::tick_count::now();
+    for (int i = 0; i < na * mb; i++) {
+        ASSERT_EQ(CCR[i], umn[i]);
+    }
+    printf("\tPosled  = %f\n", (finish_time - start_time).seconds());
+    printf("\tParalel  = %f\n", (finish_time1 - start_time1).seconds());
+}
+
+TEST(CCR_UMN, razm1000x500_500x200_10_0) {
+    int na = 1000;
+    int ma = 500;
+    int nb = 500;
+    int mb = 200;
+    int nza = 10;
+    int nzb = 0;
+    ComplexMatr a = rand(na, ma, nza);
+    ComplexMatr b = rand(nb, mb, nzb);
+    a = transp(a, na, ma);
+    int tmp;
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    ComplexMatr valA = value(a, na, ma);
+    ComplexMatr valB = value(b, nb, mb);
+    std::vector<int> rowsA = rows(a, na, ma);
+    std::vector<int> rowsB = rows(b, nb, mb);
+    std::vector<int> indexA = index(a, na, ma);
+    std::vector<int> indexB = index(b, nb, mb);
+    tmp = na;
+    na = ma;
+    ma = tmp;
+    tbb::tick_count start_time1, finish_time1, start_time, finish_time;
+    start_time = tbb::tick_count::now();
+    ComplexMatr CCR = umn_posled(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time = tbb::tick_count::now();
+    start_time1 = tbb::tick_count::now();
+    ComplexMatr umn = umn_parallel_tbb(valA, valB, rowsA,
+        rowsB, indexA, indexB, na, ma, nb, mb);
+    finish_time1 = tbb::tick_count::now();
+    for (int i = 0; i < na * mb; i++) {
+        ASSERT_EQ(CCR[i], umn[i]);
+    }
+    printf("\tPosled  = %f\n", (finish_time - start_time).seconds());
+    printf("\tParalel  = %f\n", (finish_time1 - start_time1).seconds());
+}
+
+
+\end{lstlisting}
+\end{document}
