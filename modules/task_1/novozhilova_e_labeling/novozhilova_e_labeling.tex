@@ -1,0 +1,1960 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=2cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+basicstyle=\footnotesize,
+keywordstyle=\color{blue}\ttfamily,
+stringstyle=\color{red}\ttfamily,
+commentstyle=\color{green}\ttfamily,
+morecomment=[l][\color{magenta}]{\#},
+tabsize=4,
+breaklines=true,
+breakatwhitespace=true,
+title=\lstname,
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Маркировка компонент на бинарном изображении»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнила:} \\ студентка группы 381806-2 \\ Новожилова Е.М.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А.В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+\parМаркировка компонент на изображении - алгоритм-приложение теории графов, основанное на такой обработке изображения, что каждая связная компонента отмечается уникальной меткой. При внедрении данного алгоритма в систему распознования образов он может оказаться весьма полезным. 
+\parНесмотря на то, что в основном таким образом обрабатываются цветные изображения, существуют упрощённые алгоритмы маркировки и для бинарных чёрно-белых изображений, которые и будут рассмотрены в рамках этой работы.
+
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+\parНеобходимо реализовать алгоритм маркировки связных компонент бинарного изображения и представить одну последовательную и две параллельные его версии. В качестве технологий распараллеливания будут рассмотрены стандарт OpenMP и  библиотека шаблонов C++ Intel Threading Building Blocks (TBB). Для тестирования реализаций будет использована библиотека для модульного тестирования Google testing framework (gtest).
+\par Также необходимо сравнить и проанализировать эффективность всех трех версий. 
+
+\newpage
+
+\section*{Теоретическая часть}
+\addcontentsline{toc}{section}{Теоретическая часть}
+Положим, входное изображение будет кодироваться следующим образом: 0 - цвет фона (белый), 1 - цвет объектов (чёрный).
+\subsection{Виды связности}
+Связанная область – набор пикселей на изображении, в котором любые две пикселя соединены друг с другом через последовательность соседей.
+Существуют 2 вида связности.
+\begin{enumerate}
+    \item \textbf{4-cвязность.}
+    \par Cоседями пикселя считаются пиксели, имеющие с выбранным пикселем одну общую сторону.
+    \item \textbf{8-cвязность.}
+    \par Cоседями пикселя считаются пиксели, имеющие с выбранным пикселем общую сторону или общий угол.
+\end{enumerate}
+\par В качестве реализуемого вида связности выберем 4-связность как наиболее общую.
+\subsection{Существующие алгоритмы реализации}
+\parВ компьютерном зрении в основном используются 2 варианта реализации маркировки бинарного изображения:
+\begin{enumerate}
+    \item рекурсивный алгоритм;
+    \item циклический (итеративный) алгоритм.
+\end{enumerate}
+\parРассмотрим каждый и выберем один для реализации в рамках лабораторной работы.
+\subparagraph {Рекурсивный алгоритм.}
+\par Реализуется функция, в качестве параметров которой выступают входное изображение, массив меток, который в результате будет представлен графически, координаты текущего обрабатываемого пикселя и его текущая метка. Она рекурсивно вызывается в своём теле с параметрами пикселей-соседей текущего пикселя. Если текущий пиксель - непромаркированный пиксель объекта, ему присваивается новая метка.
+\par Как и любой другой рекурсивный алгоритм, этот алгоритм занимает значительный объём памяти во время своего выполнения, при этом не являясь самым быстрым вариантом реализации.
+\subparagraph {Циклический (итеративный) алгоритм.}
+\par Реализуется сравнение метки текущего пикселя с метками пикселей-соседей слева и сверху. Положим, текущий пиксель не помечен и является пикселем объекта. Тогда, если соседей сверху и слева нет, ему присваивается новая метка. Если  есть сосед либо слева, либо сверху, то его метка, очевидно, уже обработанная на предыдущих итерациях, присваивается и текущему пикселю. Если есть соседи и сверху, и слева, то всем трём пиксеям присваивается минимальная из двух меток соседей. Однако одного такого обхода изображения мало: для этого алгоритма нужно выполнить проверку совпадения меток соседних пикселей, и в случае, если они не совпадают, повторить алгоритм.
+\par Наиболее оптимальным как по занимаемому объёму памяти, так и по времени выполнения был выбран циклический (итеративный) алгоритм.
+\newpage
+
+\section*{Практическая часть}
+\addcontentsline{toc}{section}{Практическая часть}
+\subsection{Реализация последовательной программы}
+На вход подаётся бинарное изображение, пиксели фона у которого кодируются нулём, а пиксели черных объектов - единицей. Доступ к пикселям осуществляется через метод 
+\begin{lstlisting}
+at<Vec3b>(i, j),
+\end{lstlisting}
+где i, j - координаты пикселей.
+\par Создаётся массив меток того же размера, что и изображение, создаётся переменная метки, инициализированная нулём. Далее реализуется циклический (итеративный) алгоритм маркировки, описанный выше. В результате имеем заполненный массив меток, где каждая связная компонента отмечена своим уникальным числом (своей меткой), в реализации с графическим выводом результата - своим уникальным цветом. 
+
+\subsection{Схема распараллеливания по стандарту OpenMP}
+Распараллеливание по стандарту OpenMP подразумевает под собой распараллеливание циклов программы. Переменная метки, фигурирующая в распараллеливаемых циклах, объявляется как shared. Проблема гонки за её значением решается с помощью директивы 
+\begin{lstlisting}
+#pragma omp critical,
+\end{lstlisting}
+в которую занесено инкрементирование shared метки и присваивание её текущему элементу массива меток. Данную часть кода может выполнять только один поток в произвольный момент времени.
+\par Также было необходимо распараллелить двойные циклы так, чтобы 2 соседние строки и 2 соседних столбца матрицы меток не менялись одновременно, так как это бы привело к неправильному результату, учитывая, что с меткой текущего пикселя сравниваются метки из соседних строк и столбцов. Цикл из последовательной версии был разнесён на два: в одном обрабатывались нечётные строки, а в другом - чётные. 
+\begin{lstlisting}
+#pragma omp parallel shared(label)
+    { // defining chunk in accordance to the number of threads
+    ...
+    ...
+    #pragma omp for schedule(static, chunk)
+    for (int i = 0; i < rows; i += 2) {
+        for (int j = 0; j < cols; j++) {
+        ...
+        ...
+        }
+    }
+    #pragma omp for schedule(static, chunk)
+        for (int i = 1; i < rows; i += 2) {
+            for (int j = 0; j < cols; j++) { 
+            ...
+            ...
+            }
+        }
+}
+\end{lstlisting}
+Нетрудно заметить, что такое решение обеспечивает верный результат и отсутствие гонки за данными.
+\par Обратный обход реализован с правого нижнего конца матрицы, за определение числа повторов отвечает shared rep, значение которой станет true, если не будет выполняться условие правильной маркировки: все соседи имеют одну и ту же метку.
+\begin{lstlisting}
+while (rep) {
+        #pragma omp parallel
+        {
+            #pragma omp for schedule(static, chunk)
+            for (int i = rows - 1; i >= 0; i -= 2) {
+                for (int j = cols - 1; j >= 0; j--) {
+                ...
+                ...
+                }
+            }
+        }
+        ...// condition for repeat
+    }
+\end{lstlisting}
+\subsection{Схема распараллеливания с помощью библиотеки шаблонов TBB}
+В ходе работы над данной реализацией так же было продумано решение, гарантирующее отсутствие гонки за данными. Переменную метки изменяет в произвольной момент времени только поток, захвативший
+\begin{lstlisting}
+spin_mutex,
+\end{lstlisting}
+т. е. мьютекс, выполняющий активное ожидание. Поток, пытающийся захватить уже захваченный мьютекс, продолжает это делать, пока мьютекс не освободится, и только тогда переменной метки можно будет присвоить новое значение.
+\begin{lstlisting}
+{   ...
+    tbb::spin_mutex mtx;
+    tbb::spin_mutex::scoped_lock lock;
+    lock.acquire(mtx);
+    label++;
+    lab[i][j] = label;
+    lock.release();
+    ...
+}
+\end{lstlisting}
+\par Обход реализован также по нечётным и чётным строкам матрицы по отдельности, только теперь это возможно благодаря оператору if, не дающему в цикле для чётных строк обрабатываться нечётным и наоборот. Функтор был реализован с помощью лямбда-выражений.
+\begin{lstlisting}
+tbb::parallel_for(tbb::blocked_range<int>(0, rows, rows/4), [&](const tbb::blocked_range<int>& Range) {
+        for (int i = Range.begin(); i < Range.end(); i++) {
+            for (int j = 0; j < cols; j++) { 
+                if ((i % 2 == 0)||(i == 0)) {
+                ...
+                ...
+                }
+            }
+        }
+    });
+tbb::parallel_for(tbb::blocked_range<int>(1, rows, (rows-1)/4), [&](const tbb::blocked_range<int>& Range) {
+        for (int i = Range.begin(); i < Range.end(); i++) {
+            for (int j = 0; j < cols; j++) {
+                if(i % 2 != 0) {
+                ...
+                ...
+                }
+            }
+        }
+    });
+\end{lstlisting}
+Grainsize был выбран так, что распараллеливание происходит максимально эффективно.
+
+\subsection{Дополнительные функции для тестирования реализаций}
+Была релизована функция генерации случайной матрицы
+\begin{lstlisting}
+std::vector<std::vector<int>> myrand(int rows, int cols, int bl_pix_quant),
+\end{lstlisting}
+параметры которой - число строк, столбцов и число генерируемых чёрных пикселей.
+\par Для параллельных версий алгоритма были реализованы функции, проверяющие результаты на верность. Учитывая, что потоки работают практически независимо друг от друга и могут отмечать области произвольно, полного совпадения массивов меток последовательной версии и параллельных версий никогда не произойдёт.
+\par Функция
+\begin{lstlisting}
+int check_for_par(std::vector<std::vector<int>> lab, int rows, int cols)
+\end{lstlisting}
+считает число связных компонент, получившихся в результате работы параллельной версии программы, и проверяет совпадение соседних меток. 
+\par Функция 
+\begin{lstlisting}
+int check_for_seq(std::vector<std::vector<int>> lab, int rows, int cols)
+\end{lstlisting}
+считает число связных компонент, получившихся в результате работы параллельной версии программы (считаем последовательную версию верной ввиду тестирования на заранее известных, не полученных рандомно, матрицах).
+Если число связных компонент равно и метки всех соседей совпадают, то параллельная версия реализована правильно.
+\newpage
+
+\section*{Тестирование и результаты экспериментов}
+\addcontentsline{toc}{section}{Тестирование и результаты экспериментов}
+Все тесты были пройдены. Программы реализованны верно.
+\par Характеристики ПК, на котором проводилось тестирование:
+\begin{enumerate}
+    \item Процессор: Intel(R) Core(TM) i5-7300HQ CPU @ 2.50GHz   2.50 GHz
+    \item Оперативная память 6 GB
+    \item Операционная система Microsoft Windows 10 Home Rus x64
+\end{enumerate}
+\par Тесты с разными размерами изображения показывают разную эффективность. Для опререлённости выберем матрицу 500х535.
+Пусть число потоков равно 4.
+\begin{table}[!h]
+\centering
+\begin{tabular}{| r | r | r |}
+\hline
+Версия & Время (с) & Ускорение \\[5pt]
+\hline
+SEQ & 0.3294 & -     \\
+OMP & 0.0903668 & 3.6451 \\
+TBB & 0.148415 & 3.4175 \\
+\hline
+\end{tabular}
+\end{table}
+\par Для данной задачи эффективность распараллеливания алгоритма очевидна.
+
+\newpage
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе лабораторной работы был изучен алгоритм маркировки бинарного изображения, была реализована последовательная версия, а также 2 паралелльные. Результаты последовательной версии были проверены на известных матрицах, а результаты паралелльных версий были сравнены с результатами последовательной версии, что гарантирует правильность выполнения лабораторной работы.
+\par Алгоритм маркировки бинарного изображения - задача, эффективность которой очевидно возрастает при распараллеливании. Путём эксперимента было найдено примерное ускорение работы алгоритма в случае использования OpenMP и TBB.
+
+\newpage
+	\begin{thebibliography}{1}
+		\addcontentsline{toc}{section}{Список литературы}
+		\bibitem{1} "https://www.mallenom.ru/company/publications/321/"
+		\bibitem{2} "https://en.wikipedia.org/wiki/Connected-componentlabeling"
+		\bibitem{3} Intel(R) Threading Building Blocks Reference Manual
+		\bibitem{4} Гергель В. П. - Теория и практика параллельных вычислений
+	\end{thebibliography}
+	
+\newpage
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\subsection{Последовательная версия}
+\begin{lstlisting}
+// labeling.h
+
+
+// Copyright 2021 Novozhilova Ekaterina
+#ifndef MODULES_TASK_1_NOVOZHILOVA_E_LABELING_LABELING_H_
+#define MODULES_TASK_1_NOVOZHILOVA_E_LABELING_LABELING_H_
+
+#include <vector>
+
+std::vector<std::vector<int>> Labeling(std::vector<std::vector<int>> arr, int rows, int cols);
+
+#endif  // MODULES_TASK_1_NOVOZHILOVA_E_LABELING_LABELING_H_
+
+
+
+
+// labeling.cpp
+
+
+// Copyright 2021 Novozhilova Ekaterina
+#include <algorithm>
+#include "../../../modules/task_1/novozhilova_e_labeling/labeling.h"
+
+std::vector<std::vector<int>> Labeling(std::vector<std::vector<int>> arr,
+int rows, int cols) {
+    std::vector<std::vector<int>> lab;
+    lab.resize(rows);
+    for (int i = 0; i < rows; i++) {
+        lab[i].resize(cols);
+    }
+    int label = 0;
+    if (arr[0][0] == 1) {
+        label = 1;
+        if ((arr[1][0] == 1) && (arr[0][1] == 1)) {
+            lab[0][0] = lab[1][0] = lab[0][1] = 1;
+        } else if ((arr[1][0] == 1) || (arr[0][1] == 1)) {
+            if (arr[1][0] != 1) {
+                lab[0][0] = lab[0][1] = 1;
+            } else {
+                lab[0][0] = lab[1][0] = 1;
+            }
+        } else if ((arr[1][0] == 0) || (arr[0][1] == 0)) {
+            lab[0][0] = 1;
+        }
+    }
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            if (arr[i][j] != 0) {
+                if (i == 0) {
+                    if (j != 0) {
+                        if (lab[i][j - 1] != 0) {
+                            lab[i][j] = lab[i][j - 1];
+                        } else {
+                            label++;
+                            lab[i][j] = label;
+                        }
+                    }
+                } else if (j == 0) {
+                    if (i != 0) {
+                        if (lab[i - 1][j] != 0) {
+                            lab[i][j] = lab[i - 1][j];
+                        } else {
+                            label++;
+                            lab[i][j] = label;
+                        }
+                    }
+                } else if ((lab[i][j - 1] == 0) && (lab[i - 1][j] == 0)) {
+                    label++;
+                    lab[i][j] = label;
+                } else if ((lab[i][j - 1] != 0) ^ (lab[i - 1][j] != 0)) {
+                    if (lab[i][j - 1] != 0) {
+                        lab[i][j] = lab[i][j - 1];
+                    } else {
+                        lab[i][j] = lab[i - 1][j];
+                    }
+                } else if ((lab[i][j - 1] != 0) && (lab[i - 1][j] != 0)) {
+                    if (lab[i][j - 1] == lab[i - 1][j]) {
+                        lab[i][j] = lab[i][j - 1];
+                    } else {
+                        int minim = std::min(lab[i][j - 1], lab[i - 1][j]);
+                        lab[i][j] = lab[i - 1][j] = lab[i][j - 1] = minim;
+                    }
+                }
+            }
+        }
+    }
+    bool rep = true;
+    while (rep) {
+        for (int i = rows - 1; i >= 0; i--) {
+            for (int j = cols - 1; j >= 0; j--) {
+                if (arr[i][j] != 0) {
+                if ((i == 0) && (j != 0)) {
+                if (lab[i][j] != lab[i][j - 1]) {
+                if (lab[i][j - 1] != 0) {
+                int minim = std::min(lab[i][j], lab[i][j - 1]);
+                lab[i][j] = lab[i][j - 1] = minim;
+                }
+                }
+                } else if ((i != 0) && (j == 0)) {
+                if (lab[i][j] != lab[i - 1][j]) {
+                if (lab[i - 1][j] != 0) {
+                int minim = std::min(lab[i][j], lab[i - 1][j]);
+                lab[i][j] = lab[i - 1][j] = minim;
+                }
+                }
+                } else if ((i != 0) && (j != 0)) {
+                if ((arr[i - 1][j] == 1) && (arr[i][j - 1] == 1)) {
+                int min1 = std::min(lab[i][j - 1], lab[i - 1][j]);
+                int min2 = std::min(min1, lab[i][j]);
+                lab[i][j] = lab[i][j - 1] = lab[i - 1][j] = min2;
+                } else if ((arr[i][j - 1] != 0) ^ (arr[i - 1][j] != 0)) {
+                if (arr[i][j - 1] != 0) {
+                int minim = std::min(lab[i][j - 1], lab[i][j]);
+                lab[i][j - 1] = lab[i][j] = minim;
+                } else if (arr[i - 1][j] != 0) {
+                int minim = std::min(lab[i - 1][j], lab[i][j]);
+                lab[i - 1][j] = lab[i][j] = minim;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        rep = false;
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                if (arr[i][j] != 0) {
+                    if (j != 0) {
+                        if (lab[i][j] != lab[i][j - 1]) {
+                            if (lab[i][j - 1] != 0) {
+                                rep = true;
+                            }
+                        }
+                    }
+                    if (i != 0) {
+                        if (lab[i][j] != lab[i - 1][j]) {
+                            if (lab[i - 1][j] != 0) {
+                                rep = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return lab;
+}
+
+
+
+
+// main.cpp
+
+
+// Copyright 2021 Novozhilova Ekaterina
+#include <gtest/gtest.h>
+#include "./labeling.h"
+
+TEST(Sequential, Test_10x10) {
+    std::vector<std::vector<int>> arr = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                        {1, 0, 1, 1, 0, 0, 0, 0, 1, 0},
+                                        {1, 0, 0, 1, 0, 1, 1, 0, 0, 0},
+                                        {0, 0, 0, 0, 0, 1, 1, 0, 0, 0},
+                                        {0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
+                                        {0, 0, 0, 1, 0, 1, 0, 0, 0, 0},
+                                        {0, 0, 1, 1, 1, 1, 1, 0, 0, 0},
+                                        {0, 0, 0, 1, 1, 1, 0, 0, 1, 1},
+                                        {1, 0, 0, 0, 1, 0, 0, 0, 1, 1},
+                                        {0, 0, 0, 0, 0, 0, 0, 0, 1, 1}};
+    std::vector<std::vector<int>> expected = {{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                             {1, 0, 2, 2, 0, 0, 0, 0, 3, 0},
+                                             {1, 0, 0, 2, 0, 4, 4, 0, 0, 0},
+                                             {0, 0, 0, 0, 0, 4, 4, 0, 0, 0},
+                                             {0, 0, 0, 0, 0, 0, 4, 0, 0, 0},
+                                             {0, 0, 0, 5, 0, 5, 0, 0, 0, 0},
+                                             {0, 0, 5, 5, 5, 5, 5, 0, 0, 0},
+                                             {0, 0, 0, 5, 5, 5, 0, 0, 6, 6},
+                                             {7, 0, 0, 0, 5, 0, 0, 0, 6, 6},
+                                             {0, 0, 0, 0, 0, 0, 0, 0, 6, 6}};
+    std::vector<std::vector<int>> res;
+    res = Labeling(arr, 10, 10);
+    ASSERT_EQ(expected, res);
+}
+TEST(Sequential, Test_15x15) {
+    std::vector<std::vector<int>> arr = {{1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+                                     {0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1},
+                                     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0},
+                                     {0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0},
+                                     {0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                     {0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                     {0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                     {0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0},
+                                     {0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0},
+                                     {1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                     {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                     {1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0},
+                                     {1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0},
+                                     {1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                     {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
+    std::vector<std::vector<int>> expected = {{1, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3},
+                                              {0, 0, 2, 0, 0, 0, 4, 4, 4, 4, 4, 0, 0, 0, 3},
+                                              {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0},
+                                              {0, 0, 5, 0, 0, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0},
+                                              {0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                              {0, 0, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                              {0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                              {0, 0, 0, 5, 0, 5, 0, 6, 6, 0, 0, 0, 0, 0, 0},
+                                              {0, 0, 0, 5, 5, 5, 0, 6, 6, 0, 0, 0, 0, 0, 0},
+                                              {7, 0, 5, 5, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                              {7, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                              {7, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0},
+                                              {7, 0, 0, 0, 0, 0, 5, 5, 0, 0, 0, 0, 0, 0, 0},
+                                              {7, 7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+                                              {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
+    std::vector<std::vector<int>> res;
+    res = Labeling(arr, 15, 15);
+    ASSERT_EQ(expected, res);
+}
+TEST(Sequential, Test_5x5) {
+    std::vector<std::vector<int>> arr = {{0, 0, 1, 1, 1},
+                                        {0, 0, 0, 0, 1},
+                                        {1, 1, 0, 0, 0},
+                                        {0, 0, 0, 0, 0},
+                                        {0, 0, 1, 0, 0}};
+    std::vector<std::vector<int>> expected = {{0, 0, 1, 1, 1},
+                                             {0, 0, 0, 0, 1},
+                                             {2, 2, 0, 0, 0},
+                                             {0, 0, 0, 0, 0},
+                                             {0, 0, 3, 0, 0}};
+    std::vector<std::vector<int>> res;
+    res = Labeling(arr, 5, 5);
+    ASSERT_EQ(expected, res);
+}
+TEST(Sequential, Test_Empty) {
+    std::vector<std::vector<int>> arr = {{0, 0, 0, 0, 0},
+                                        {0, 0, 0, 0, 0},
+                                        {0, 0, 0, 0, 0},
+                                        {0, 0, 0, 0, 0},
+                                        {0, 0, 0, 0, 0}};
+    std::vector<std::vector<int>> expected = {{0, 0, 0, 0, 0},
+                                             {0, 0, 0, 0, 0},
+                                             {0, 0, 0, 0, 0},
+                                             {0, 0, 0, 0, 0},
+                                             {0, 0, 0, 0, 0}};
+    std::vector<std::vector<int>> res;
+    res = Labeling(arr, 5, 5);
+    ASSERT_EQ(expected, res);
+}
+TEST(Sequential, Test_Full) {
+    std::vector<std::vector<int>> arr = {{1, 1, 1, 1, 1},
+                                        {1, 1, 1, 1, 1},
+                                        {1, 1, 1, 1, 1},
+                                        {1, 1, 1, 1, 1},
+                                        {1, 1, 1, 1, 1}};
+    std::vector<std::vector<int>> expected = {{1, 1, 1, 1, 1},
+                                             {1, 1, 1, 1, 1},
+                                             {1, 1, 1, 1, 1},
+                                             {1, 1, 1, 1, 1},
+                                             {1, 1, 1, 1, 1}};
+    std::vector<std::vector<int>> res;
+    res = Labeling(arr, 5, 5);
+    ASSERT_EQ(expected, res);
+}
+\end{lstlisting}
+
+\subsection{OpenMP версия}
+
+\begin{lstlisting}
+// labeling.h
+
+
+// Copyright 2021 Novozhilova Ekaterina
+#ifndef MODULES_TASK_2_NOVOZHILOVA_E_LABELING_LABELING_H_
+#define MODULES_TASK_2_NOVOZHILOVA_E_LABELING_LABELING_H_
+
+#include <vector>
+#include <algorithm>
+#include <cmath>
+
+int check_for_par(std::vector<std::vector<int>> lab, int rows, int cols);
+int check_for_seq(std::vector<std::vector<int>> lab, int rows, int cols);
+std::vector<std::vector<int>> myrand(int n, int m, int nz);
+std::vector<std::vector<int>> SeqLabeling(std::vector<std::vector<int>> arr,
+int rows, int cols);
+std::vector<std::vector<int>> ParLabeling(std::vector<std::vector<int>> arr,
+int rows, int cols);
+
+#endif  // MODULES_TASK_2_NOVOZHILOVA_E_LABELING_LABELING_H_
+
+
+
+
+// labeling.cpp
+
+
+//  Copyright 2021 Novozhilova Ekaterina
+
+#include <omp.h>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <iostream>
+#include <cmath>
+#include "../../../modules/task_2/novozhilova_e_labeling/labeling.h"
+
+int check_for_par(std::vector<std::vector<int>> lab, int rows, int cols) {
+    bool equality = true;
+    for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+        if (lab[i][j] != 0) {
+            if (j != 0) {
+                if (lab[i][j] != lab[i][j - 1]) {
+                    if (lab[i][j - 1] != 0) {
+                        equality = false;
+                    }
+                }
+            }
+            if (i != 0) {
+                if (lab[i][j] != lab[i - 1][j]) {
+                    if (lab[i - 1][j] != 0) {
+                        equality = false;
+                    }
+                }
+            }
+        }
+    }
+    }
+    if (equality) {
+        std::vector<int> nums;
+        for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            if (lab[i][j] != 0) {
+                if (nums.empty()) {
+                    nums.push_back(lab[i][j]);
+                } else {
+                    bool clicker = true;
+                    for (size_t k = 0; k < nums.size(); k++) {
+                        if (lab[i][j] == nums[k]) {
+                            clicker = false;
+                        }
+                    }
+                    if (clicker) {
+                        nums.push_back(lab[i][j]);
+                    }
+                }
+            }
+        }
+        }
+        return nums.size();
+    } else {
+        return 0;
+    }
+}
+
+int check_for_seq(std::vector<std::vector<int>> lab, int rows, int cols) {
+    std::vector<int> nums;
+    for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+        if (lab[i][j] != 0) {
+            if (nums.empty()) {
+                nums.push_back(lab[i][j]);
+            } else {
+                bool clicker = true;
+                for (size_t k = 0; k < nums.size(); k++) {
+                    if (lab[i][j] == nums[k]) {
+                        clicker = false;
+                    }
+                }
+                if (clicker) {
+                    nums.push_back(lab[i][j]);
+                }
+            }
+        }
+    }
+    }
+    return nums.size();
+}
+
+std::vector<std::vector<int>> myrand(int rows, int cols, int bl_pix_quant) {
+    std::vector<int> vec;
+    std::vector<std::vector<int>> pic;
+    pic.resize(rows);
+    for (int i = 0; i < rows; i++) {
+        pic[i].resize(cols);
+    }
+    std::vector<int> tmp;
+    std::vector<int> num;
+    for (int i = 0; i < rows * cols; i++) {
+        tmp.push_back(i);
+    }
+    std::random_device rd;
+    std::mt19937 g(rd());
+    shuffle(tmp.begin(), tmp.end(), g);
+    for (int i = 0; i < bl_pix_quant; i++) {
+        num.push_back(tmp[i]);
+    }
+    for (int i = 0; i < rows * cols; i++) {
+        int pix = 0;
+        for (int j = 0; j < bl_pix_quant; j++) {
+            if (i == num[j]) {
+                pix = 1;
+            }
+        }
+        if (pix == 0) {
+            vec.push_back(0);
+        } else {
+            vec.push_back(1);
+        }
+    }
+    int k = 0;
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            pic[i][j] = vec[k];
+            k++;
+        }
+    }
+    return pic;
+}
+
+std::vector<std::vector<int>> SeqLabeling(std::vector<std::vector<int>> arr,
+int rows, int cols) {
+    std::vector<std::vector<int>> lab;
+    lab.resize(rows);
+    for (int i = 0; i < rows; i++) {
+        lab[i].resize(cols);
+    }
+    int label = 0;
+    if (arr[0][0] == 1) {
+        label = 1;
+        if ((arr[1][0] == 1) && (arr[0][1] == 1)) {
+            lab[0][0] = lab[1][0] = lab[0][1] = 1;
+        } else if ((arr[1][0] == 1) || (arr[0][1] == 1)) {
+            if (arr[1][0] != 1) {
+                lab[0][0] = lab[0][1] = 1;
+            } else {
+                lab[0][0] = lab[1][0] = 1;
+            }
+        } else if ((arr[1][0] == 0) || (arr[0][1] == 0)) {
+            lab[0][0] = 1;
+        }
+    }
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            if (arr[i][j] != 0) {
+                if (i == 0) {
+                    if (j != 0) {
+                        if (lab[i][j - 1] != 0) {
+                            lab[i][j] = lab[i][j - 1];
+                        } else {
+                            label++;
+                            lab[i][j] = label;
+                        }
+                    }
+                } else if (j == 0) {
+                    if (i != 0) {
+                        if (lab[i - 1][j] != 0) {
+                            lab[i][j] = lab[i - 1][j];
+                        } else {
+                            label++;
+                            lab[i][j] = label;
+                        }
+                    }
+                } else if ((lab[i][j - 1] == 0) && (lab[i - 1][j] == 0)) {
+                    label++;
+                    lab[i][j] = label;
+                } else if ((lab[i][j - 1] != 0) ^ (lab[i - 1][j] != 0)) {
+                    if (lab[i][j - 1] != 0) {
+                        lab[i][j] = lab[i][j - 1];
+                    } else {
+                        lab[i][j] = lab[i - 1][j];
+                    }
+                } else if ((lab[i][j - 1] != 0) && (lab[i - 1][j] != 0)) {
+                    if (lab[i][j - 1] == lab[i - 1][j]) {
+                        lab[i][j] = lab[i][j - 1];
+                    } else {
+                        int minim = std::min(lab[i][j - 1], lab[i - 1][j]);
+                        lab[i][j] = lab[i - 1][j] = lab[i][j - 1] = minim;
+                    }
+                }
+            }
+        }
+    }
+    bool rep = true;
+    while (rep) {
+        for (int i = rows - 1; i >= 0; i--) {
+            for (int j = cols - 1; j >= 0; j--) {
+                if (arr[i][j] != 0) {
+                if ((i == 0) && (j != 0)) {
+                if (lab[i][j] != lab[i][j - 1]) {
+                if (lab[i][j - 1] != 0) {
+                int minim = std::min(lab[i][j], lab[i][j - 1]);
+                lab[i][j] = lab[i][j - 1] = minim;
+                }
+                }
+                } else if ((i != 0) && (j == 0)) {
+                if (lab[i][j] != lab[i - 1][j]) {
+                if (lab[i - 1][j] != 0) {
+                int minim = std::min(lab[i][j], lab[i - 1][j]);
+                lab[i][j] = lab[i - 1][j] = minim;
+                }
+                }
+                } else if ((i != 0) && (j != 0)) {
+                if ((arr[i - 1][j] == 1) && (arr[i][j - 1] == 1)) {
+                int min1 = std::min(lab[i][j - 1], lab[i - 1][j]);
+                int min2 = std::min(min1, lab[i][j]);
+                lab[i][j] = lab[i][j - 1] = lab[i - 1][j] = min2;
+                } else if ((arr[i][j - 1] != 0) ^ (arr[i - 1][j] != 0)) {
+                if (arr[i][j - 1] != 0) {
+                int minim = std::min(lab[i][j - 1], lab[i][j]);
+                lab[i][j - 1] = lab[i][j] = minim;
+                } else if (arr[i - 1][j] != 0) {
+                int minim = std::min(lab[i - 1][j], lab[i][j]);
+                lab[i - 1][j] = lab[i][j] = minim;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        rep = false;
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                if (arr[i][j] != 0) {
+                    if (j != 0) {
+                        if (lab[i][j] != lab[i][j - 1]) {
+                            if (lab[i][j - 1] != 0) {
+                                rep = true;
+                            }
+                        }
+                    }
+                    if (i != 0) {
+                        if (lab[i][j] != lab[i - 1][j]) {
+                            if (lab[i - 1][j] != 0) {
+                                rep = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return lab;
+}
+
+std::vector<std::vector<int>> ParLabeling(std::vector<std::vector<int>> arr,
+int rows, int cols) {
+    std::vector<std::vector<int>> lab;
+    lab.resize(rows);
+    for (int i = 0; i < rows; i++) {
+        lab[i].resize(cols);
+    }
+    int label = 0;
+    if (arr[0][0] == 1) {
+        label = 1;
+        if ((arr[1][0] == 1) && (arr[0][1] == 1)) {
+            lab[0][0] = lab[1][0] = lab[0][1] = 1;
+        } else if ((arr[1][0] == 1) ^ (arr[0][1] == 1)) {
+            if (arr[1][0] != 1) {
+                lab[0][0] = lab[0][1] = 1;
+            } else {
+                lab[0][0] = lab[1][0] = 1;
+            }
+        } else if ((arr[1][0] == 0) || (arr[0][1] == 0)) {
+            lab[0][0] = 1;
+        }
+    }
+
+    int thrnum = 0;
+    int chunk1 = 0;
+    #pragma omp parallel shared(label)
+    {
+            thrnum = omp_get_num_threads();
+            double k = 0.0;
+            k = rows / 2.0;
+            if (k > thrnum) {
+                double tmp1 = k / thrnum;
+                chunk1 = ceil(tmp1);
+            } else {
+                chunk1 = 1;
+            }
+    #pragma omp for schedule(static, chunk1)
+    for (int i = 0; i < rows; i += 2) {
+        for (int j = 0; j < cols; j++) {
+            if (arr[i][j] != 0) {
+                if (i == 0) {
+                    if (j != 0) {
+                        if (lab[i][j - 1] != 0) {
+                            lab[i][j] = lab[i][j - 1];
+                        } else {
+                            #pragma omp critical
+                            {
+                                label++;
+                                lab[i][j] = label;
+                            }
+                        }
+                    }
+                } else if (j == 0) {
+                    if (i != 0) {
+                        if (lab[i - 1][j] != 0) {
+                            lab[i][j] = lab[i - 1][j];
+                        } else {
+                            #pragma omp critical
+                            {
+                                label++;
+                                lab[i][j] = label;
+                            }
+                        }
+                    }
+                } else if ((lab[i][j - 1] == 0) && (lab[i - 1][j] == 0)) {
+                    #pragma omp critical
+                    {
+                        label++;
+                        lab[i][j] = label;
+                    }
+                } else if ((lab[i][j - 1] != 0) ^ (lab[i - 1][j] != 0)) {
+                    if (lab[i][j - 1] != 0) {
+                        lab[i][j] = lab[i][j - 1];
+                    } else {
+                        lab[i][j] = lab[i - 1][j];
+                    }
+                } else if ((lab[i][j - 1] != 0) && (lab[i - 1][j] != 0)) {
+                    if (lab[i][j - 1] == lab[i - 1][j]) {
+                        lab[i][j] = lab[i][j - 1];
+                    } else {
+                        int minim = std::min(lab[i][j - 1], lab[i - 1][j]);
+                        lab[i][j] = lab[i - 1][j] = lab[i][j - 1] = minim;
+                    }
+                }
+            }
+        }
+    }
+    #pragma omp barrier
+    #pragma omp for schedule(static, chunk1)
+        for (int i = 1; i < rows; i += 2) {
+            for (int j = 0; j < cols; j++) {
+                if (arr[i][j] != 0) {
+                    if (j == 0) {
+                        if (lab[i - 1][j] != 0) {
+                            lab[i][j] = lab[i - 1][j];
+                        } else {
+                            #pragma omp critical
+                            {
+                                label++;
+                                lab[i][j] = label;
+                            }
+                        }
+                    } else if ((lab[i][j - 1] == 0) && (lab[i - 1][j] == 0)) {
+                        #pragma omp critical
+                        {
+                            label++;
+                            lab[i][j] = label;
+                        }
+                    } else if ((lab[i][j - 1] != 0) ^ (lab[i - 1][j] != 0)) {
+                        if (lab[i][j - 1] != 0) {
+                            lab[i][j] = lab[i][j - 1];
+                        } else {
+                            lab[i][j] = lab[i - 1][j];
+                        }
+                    } else if ((lab[i][j - 1] != 0) && (lab[i - 1][j] != 0)) {
+                        if (lab[i][j - 1] == lab[i - 1][j]) {
+                            lab[i][j] = lab[i][j - 1];
+                        } else {
+                            int minim = std::min(lab[i][j - 1], lab[i - 1][j]);
+                            lab[i][j] = lab[i - 1][j] = lab[i][j - 1] = minim;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    bool rep = true;
+    while (rep) {
+        #pragma omp parallel
+        {
+            #pragma omp for schedule(static, chunk1)
+            for (int i = rows - 1; i >= 0; i -= 2) {
+            for (int j = cols - 1; j >= 0; j--) {
+            if (arr[i][j] != 0) {
+            if ((i == 0) && (j != 0)) {
+            if (lab[i][j] != lab[i][j - 1]) {
+            if (lab[i][j - 1] != 0) {
+            int minim = std::min(lab[i][j], lab[i][j - 1]);
+            lab[i][j] = lab[i][j - 1] = minim;
+            }
+            }
+            } else if ((i != 0) && (j == 0)) {
+            if (lab[i][j] != lab[i - 1][j]) {
+            if (lab[i - 1][j] != 0) {
+            int minim = std::min(lab[i][j], lab[i - 1][j]);
+            lab[i][j] = lab[i - 1][j] = minim;
+            }
+            }
+            } else if ((i != 0) && (j != 0)) {
+            if ((arr[i - 1][j] == 1) && (arr[i][j - 1] == 1)) {
+            int min1 = std::min(lab[i][j - 1], lab[i - 1][j]);
+            int min2 = std::min(min1, lab[i][j]);
+            lab[i][j] = lab[i][j - 1] = lab[i - 1][j] = min2;
+            } else if ((arr[i][j - 1] != 0) ^ (arr[i - 1][j] != 0)) {
+            if (arr[i][j - 1] != 0) {
+            int minim = std::min(lab[i][j - 1], lab[i][j]);
+            lab[i][j - 1] = lab[i][j] = minim;
+            } else if (arr[i - 1][j] != 0) {
+            int minim = std::min(lab[i - 1][j], lab[i][j]);
+            lab[i - 1][j] = lab[i][j] = minim;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            #pragma omp for schedule(static, chunk1)
+            for (int i = rows - 2; i >= 0; i -= 2) {
+                for (int j = cols - 1; j >= 0; j--) {
+                    if (arr[i][j] != 0) {
+                        if ((i == 0) && (j != 0)) {
+                            if (lab[i][j] != lab[i][j - 1]) {
+                                if (lab[i][j - 1] != 0) {
+                                    int minim = std::min(lab[i][j], lab[i][j - 1]);
+                                    lab[i][j] = lab[i][j - 1] = minim;
+                                }
+                            }
+                        } else if ((i != 0) && (j == 0)) {
+                            if (lab[i][j] != lab[i - 1][j]) {
+                                if (lab[i - 1][j] != 0) {
+                                    int minim = std::min(lab[i][j], lab[i - 1][j]);
+                                    lab[i][j] = lab[i - 1][j] = minim;
+                                }
+                            }
+                        } else if ((i != 0) && (j != 0)) {
+                            if ((arr[i - 1][j] == 1) && (arr[i][j - 1] == 1)) {
+                                int min1 = std::min(lab[i][j - 1], lab[i - 1][j]);
+                                int min2 = std::min(min1, lab[i][j]);
+                                lab[i][j] = lab[i][j - 1] = lab[i - 1][j] = min2;
+                            } else if ((arr[i][j - 1] != 0) ^ (arr[i - 1][j] != 0)) {
+                                if (arr[i][j - 1] != 0) {
+                                    int minim = std::min(lab[i][j - 1], lab[i][j]);
+                                    lab[i][j - 1] = lab[i][j] = minim;
+                                } else if (arr[i - 1][j] != 0) {
+                                    int minim = std::min(lab[i - 1][j], lab[i][j]);
+                                    lab[i - 1][j] = lab[i][j] = minim;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        rep = false;
+        int chunk2 = 0;
+        #pragma omp parallel shared(rep)
+        {
+            thrnum = omp_get_num_threads();
+            double tmp2 = rows / thrnum;
+            chunk2 = ceil(tmp2);
+            #pragma omp for schedule(static, chunk2)
+            for (int i = 0; i < rows; i++) {
+                for (int j = 0; j < cols; j++) {
+                    if (arr[i][j] != 0) {
+                        if (j != 0) {
+                            if (lab[i][j] != lab[i][j - 1]) {
+                                if (lab[i][j - 1] != 0) {
+                                    rep = true;
+                                }
+                            }
+                        }
+                        if (i != 0) {
+                            if (lab[i][j] != lab[i - 1][j]) {
+                                if (lab[i - 1][j] != 0) {
+                                    rep = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return lab;
+}
+
+
+
+
+// main.cpp
+
+
+// Copyright 2021 Novozhilova Ekaterina
+#include <gtest/gtest.h>
+#include <omp.h>
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include "./labeling.h"
+
+TEST(Labeling_OpenMP, Test_150x140) {
+    int rows = 150;
+    int cols = 140;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 9000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    double  t1 = omp_get_wtime();
+    res = ParLabeling(arr, rows, cols);
+    double  t2 = omp_get_wtime();
+    double time_par = t2 - t1;
+    std::cout << "parallel time is " << time_par << std::endl;
+    n_size_par = check_for_par(res, rows, cols);
+
+    double t3 = omp_get_wtime();
+    expected = SeqLabeling(arr, rows, cols);
+    double t4 = omp_get_wtime();
+    double time_seq = t4 - t3;
+    std::cout << "sequential time is " << time_seq << std::endl;
+    n_size_seq = check_for_seq(expected, rows, cols);
+
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_OpenMP, Test_160x160) {
+    int rows = 160;
+    int cols = 160;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 11000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    double  t1 = omp_get_wtime();
+    res = ParLabeling(arr, rows, cols);
+    double  t2 = omp_get_wtime();
+    double time_par = t2 - t1;
+    std::cout << "parallel time is " << time_par << std::endl;
+    n_size_par = check_for_par(res, rows, cols);
+
+    double t3 = omp_get_wtime();
+    expected = SeqLabeling(arr, rows, cols);
+    double t4 = omp_get_wtime();
+    double time_seq = t4 - t3;
+    std::cout << "sequential time is " << time_seq << std::endl;
+    n_size_seq = check_for_seq(expected, rows, cols);
+
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_OpenMP, Test_200x70) {
+    int rows = 200;
+    int cols = 70;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 5000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    double  t1 = omp_get_wtime();
+    res = ParLabeling(arr, rows, cols);
+    double  t2 = omp_get_wtime();
+    double time_par = t2 - t1;
+    std::cout << "parallel time is " << time_par << std::endl;
+    n_size_par = check_for_par(res, rows, cols);
+
+    double t3 = omp_get_wtime();
+    expected = SeqLabeling(arr, rows, cols);
+    double t4 = omp_get_wtime();
+    double time_seq = t4 - t3;
+    std::cout << "sequential time is " << time_seq << std::endl;
+    n_size_seq = check_for_seq(expected, rows, cols);
+
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_OpenMP, Test_300x300) {
+    int rows = 300;
+    int cols = 300;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 45000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    double  t1 = omp_get_wtime();
+    res = ParLabeling(arr, rows, cols);
+    double  t2 = omp_get_wtime();
+    double time_par = t2 - t1;
+    std::cout << "parallel time is " << time_par << std::endl;
+    n_size_par = check_for_par(res, rows, cols);
+
+    double t3 = omp_get_wtime();
+    expected = SeqLabeling(arr, rows, cols);
+    double t4 = omp_get_wtime();
+    double time_seq = t4 - t3;
+    std::cout << "sequential time is " << time_seq << std::endl;
+    n_size_seq = check_for_seq(expected, rows, cols);
+
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_OpenMP, Test_500x535) {
+    int rows = 500;
+    int cols = 535;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 133000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    double  t1 = omp_get_wtime();
+    res = ParLabeling(arr, rows, cols);
+    double  t2 = omp_get_wtime();
+    double time_par = t2 - t1;
+    std::cout << "parallel time is " << time_par << std::endl;
+    n_size_par = check_for_par(res, rows, cols);
+
+    double t3 = omp_get_wtime();
+    expected = SeqLabeling(arr, rows, cols);
+    double t4 = omp_get_wtime();
+    double time_seq = t4 - t3;
+    std::cout << "sequential time is " << time_seq << std::endl;
+    n_size_seq = check_for_seq(expected, rows, cols);
+
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_OpenMP, Test_1000x1000) {
+    int rows = 1000;
+    int cols = 1000;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 300000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    double  t1 = omp_get_wtime();
+    res = ParLabeling(arr, rows, cols);
+    double  t2 = omp_get_wtime();
+    double time_par = t2 - t1;
+    std::cout << "parallel time is " << time_par << std::endl;
+    n_size_par = check_for_par(res, rows, cols);
+
+    double t3 = omp_get_wtime();
+    expected = SeqLabeling(arr, rows, cols);
+    double t4 = omp_get_wtime();
+    double time_seq = t4 - t3;
+    std::cout << "sequential time is " << time_seq << std::endl;
+    n_size_seq = check_for_seq(expected, rows, cols);
+
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\subsection{TBB версия}
+
+\begin{lstlisting}
+
+// labeling.h
+
+
+// Copyright 2021 Novozhilova Ekaterina
+#ifndef MODULES_TASK_3_NOVOZHILOVA_E_LABELING_LABELING_TBB_H_
+#define MODULES_TASK_3_NOVOZHILOVA_E_LABELING_LABELING_TBB_H_
+
+#include <vector>
+#include <algorithm>
+#include <cmath>
+
+int check_for_par(std::vector<std::vector<int>> lab, int rows, int cols);
+int check_for_seq(std::vector<std::vector<int>> lab, int rows, int cols);
+std::vector<std::vector<int>> myrand(int n, int m, int nz);
+std::vector<std::vector<int>> SeqLabeling(std::vector<std::vector<int>> arr,
+int rows, int cols);
+std::vector<std::vector<int>> ParLabeling(std::vector<std::vector<int>> arr,
+int rows, int cols);
+
+#endif  // MODULES_TASK_3_NOVOZHILOVA_E_LABELING_LABELING_TBB_H_
+
+
+
+
+// labeling.cpp
+
+
+//  Copyright 2021 Novozhilova Ekaterina
+#define NOMINMAX
+#include <tbb/tbb.h>
+#include <vector>
+#include <algorithm>
+#include <random>
+#include <iostream>
+#include <cmath>
+#include "../../../modules/task_3/novozhilova_e_labeling/labeling_tbb.h"
+
+int check_for_par(std::vector<std::vector<int>> lab, int rows, int cols) {
+    bool equality = true;
+    for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+        if (lab[i][j] != 0) {
+            if (j != 0) {
+                if (lab[i][j] != lab[i][j - 1]) {
+                    if (lab[i][j - 1] != 0) {
+                        equality = false;
+                    }
+                }
+            }
+            if (i != 0) {
+                if (lab[i][j] != lab[i - 1][j]) {
+                    if (lab[i - 1][j] != 0) {
+                        equality = false;
+                    }
+                }
+            }
+        }
+    }
+    }
+    if (equality) {
+        std::vector<int> nums;
+        for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            if (lab[i][j] != 0) {
+                if (nums.empty()) {
+                    nums.push_back(lab[i][j]);
+                } else {
+                    bool clicker = true;
+                    for (size_t k = 0; k < nums.size(); k++) {
+                        if (lab[i][j] == nums[k]) {
+                            clicker = false;
+                        }
+                    }
+                    if (clicker) {
+                        nums.push_back(lab[i][j]);
+                    }
+                }
+            }
+        }
+        }
+        return nums.size();
+    } else {
+        return 0;
+    }
+}
+
+int check_for_seq(std::vector<std::vector<int>> lab, int rows, int cols) {
+    std::vector<int> nums;
+    for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+        if (lab[i][j] != 0) {
+            if (nums.empty()) {
+                nums.push_back(lab[i][j]);
+            } else {
+                bool clicker = true;
+                for (size_t k = 0; k < nums.size(); k++) {
+                    if (lab[i][j] == nums[k]) {
+                        clicker = false;
+                    }
+                }
+                if (clicker) {
+                    nums.push_back(lab[i][j]);
+                }
+            }
+        }
+    }
+    }
+    return nums.size();
+}
+
+std::vector<std::vector<int>> myrand(int rows, int cols, int bl_pix_quant) {
+    std::vector<int> vec;
+    std::vector<std::vector<int>> pic;
+    pic.resize(rows);
+    for (int i = 0; i < rows; i++) {
+        pic[i].resize(cols);
+    }
+    std::vector<int> tmp;
+    std::vector<int> num;
+    for (int i = 0; i < rows * cols; i++) {
+        tmp.push_back(i);
+    }
+    std::random_device rd;
+    std::mt19937 g(rd());
+    shuffle(tmp.begin(), tmp.end(), g);
+    for (int i = 0; i < bl_pix_quant; i++) {
+        num.push_back(tmp[i]);
+    }
+    for (int i = 0; i < rows * cols; i++) {
+        int pix = 0;
+        for (int j = 0; j < bl_pix_quant; j++) {
+            if (i == num[j]) {
+                pix = 1;
+            }
+        }
+        if (pix == 0) {
+            vec.push_back(0);
+        } else {
+            vec.push_back(1);
+        }
+    }
+    int k = 0;
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            pic[i][j] = vec[k];
+            k++;
+        }
+    }
+    return pic;
+}
+
+std::vector<std::vector<int>> SeqLabeling(std::vector<std::vector<int>> arr,
+int rows, int cols) {
+    std::vector<std::vector<int>> lab;
+    lab.resize(rows);
+    for (int i = 0; i < rows; i++) {
+        lab[i].resize(cols);
+    }
+    int label = 0;
+    if (arr[0][0] == 1) {
+        label = 1;
+        if ((arr[1][0] == 1) && (arr[0][1] == 1)) {
+            lab[0][0] = lab[1][0] = lab[0][1] = 1;
+        } else if ((arr[1][0] == 1) || (arr[0][1] == 1)) {
+            if (arr[1][0] != 1) {
+                lab[0][0] = lab[0][1] = 1;
+            } else {
+                lab[0][0] = lab[1][0] = 1;
+            }
+        } else if ((arr[1][0] == 0) || (arr[0][1] == 0)) {
+            lab[0][0] = 1;
+        }
+    }
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            if (arr[i][j] != 0) {
+                if (i == 0) {
+                    if (j != 0) {
+                        if (lab[i][j - 1] != 0) {
+                            lab[i][j] = lab[i][j - 1];
+                        } else {
+                            label++;
+                            lab[i][j] = label;
+                        }
+                    }
+                } else if (j == 0) {
+                    if (i != 0) {
+                        if (lab[i - 1][j] != 0) {
+                            lab[i][j] = lab[i - 1][j];
+                        } else {
+                            label++;
+                            lab[i][j] = label;
+                        }
+                    }
+                } else if ((lab[i][j - 1] == 0) && (lab[i - 1][j] == 0)) {
+                    label++;
+                    lab[i][j] = label;
+                } else if ((lab[i][j - 1] != 0) ^ (lab[i - 1][j] != 0)) {
+                    if (lab[i][j - 1] != 0) {
+                        lab[i][j] = lab[i][j - 1];
+                    } else {
+                        lab[i][j] = lab[i - 1][j];
+                    }
+                } else if ((lab[i][j - 1] != 0) && (lab[i - 1][j] != 0)) {
+                    if (lab[i][j - 1] == lab[i - 1][j]) {
+                        lab[i][j] = lab[i][j - 1];
+                    } else {
+                        int minim = std::min(lab[i][j - 1], lab[i - 1][j]);
+                        lab[i][j] = lab[i - 1][j] = lab[i][j - 1] = minim;
+                    }
+                }
+            }
+        }
+    }
+    bool rep = true;
+    while (rep) {
+        for (int i = rows - 1; i >= 0; i--) {
+            for (int j = cols - 1; j >= 0; j--) {
+                if (arr[i][j] != 0) {
+                    if ((i == 0) && (j != 0)) {
+                        if (lab[i][j] != lab[i][j - 1]) {
+                            if (lab[i][j - 1] != 0) {
+                                int minim = std::min(lab[i][j], lab[i][j - 1]);
+                                lab[i][j] = lab[i][j - 1] = minim;
+                            }
+                        }
+                    } else if ((i != 0) && (j == 0)) {
+                        if (lab[i][j] != lab[i - 1][j]) {
+                            if (lab[i - 1][j] != 0) {
+                                int minim = std::min(lab[i][j], lab[i - 1][j]);
+                                lab[i][j] = lab[i - 1][j] = minim;
+                            }
+                        }
+                    } else if ((i != 0) && (j != 0)) {
+                        if ((arr[i - 1][j] == 1) && (arr[i][j - 1] == 1)) {
+                            int min1 = std::min(lab[i][j - 1], lab[i - 1][j]);
+                            int min2 = std::min(min1, lab[i][j]);
+                            lab[i][j] = lab[i][j - 1] = lab[i - 1][j] = min2;
+                        } else if ((arr[i][j - 1] != 0) ^ (arr[i - 1][j] != 0)) {
+                            if (arr[i][j - 1] != 0) {
+                                int minim = std::min(lab[i][j - 1], lab[i][j]);
+                                lab[i][j - 1] = lab[i][j] = minim;
+                            } else if (arr[i - 1][j] != 0) {
+                                int minim = std::min(lab[i - 1][j], lab[i][j]);
+                                lab[i - 1][j] = lab[i][j] = minim;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        rep = false;
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                if (arr[i][j] != 0) {
+                    if (j != 0) {
+                        if (lab[i][j] != lab[i][j - 1]) {
+                            if (lab[i][j - 1] != 0) {
+                                rep = true;
+                            }
+                        }
+                    }
+                    if (i != 0) {
+                        if (lab[i][j] != lab[i - 1][j]) {
+                            if (lab[i - 1][j] != 0) {
+                                rep = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return lab;
+}
+
+std::vector<std::vector<int>> ParLabeling(std::vector<std::vector<int>> arr,
+int rows, int cols) {
+    int num_threads = 4;
+    tbb::task_scheduler_init init(num_threads);
+    std::vector<std::vector<int>> lab;
+    lab.resize(rows);
+    for (int i = 0; i < rows; i++) {
+        lab[i].resize(cols);
+    }
+    int label = 0;
+    if (arr[0][0] == 1) {
+        label = 1;
+        if ((arr[1][0] == 1) && (arr[0][1] == 1)) {
+            lab[0][0] = lab[1][0] = lab[0][1] = 1;
+        } else if ((arr[1][0] == 1) ^ (arr[0][1] == 1)) {
+            if (arr[1][0] != 1) {
+                lab[0][0] = lab[0][1] = 1;
+            } else {
+                lab[0][0] = lab[1][0] = 1;
+            }
+        } else if ((arr[1][0] == 0) || (arr[0][1] == 0)) {
+            lab[0][0] = 1;
+        }
+    }
+    tbb::spin_mutex mtx;
+    tbb::parallel_for(tbb::blocked_range<int>(0, rows, rows/4), [&](const tbb::blocked_range<int>& Range) {
+        for (int i = Range.begin(); i < Range.end(); i++) {
+            for (int j = 0; j < cols; j++) {
+                if ((i % 2 == 0) || (i == 0)) {
+                    if (arr[i][j] != 0) {
+                        if (i == 0) {
+                            if (j != 0) {
+                                if (lab[i][j - 1] != 0) {
+                                    lab[i][j] = lab[i][j - 1];
+                                } else {
+                                    tbb::spin_mutex::scoped_lock lock;
+                                    lock.acquire(mtx);
+                                    label++;
+                                    lab[i][j] = label;
+                                    lock.release();
+                                }
+                            }
+                        } else if (j == 0) {
+                            if (i != 0) {
+                                if (lab[i - 1][j] != 0) {
+                                    lab[i][j] = lab[i - 1][j];
+                                } else {
+                                    tbb::spin_mutex::scoped_lock lock;
+                                    lock.acquire(mtx);
+                                    label++;
+                                    lab[i][j] = label;
+                                    lock.release();
+                                }
+                            }
+                        } else if ((lab[i][j - 1] == 0) && (lab[i - 1][j] == 0)) {
+                            tbb::spin_mutex::scoped_lock lock;
+                            lock.acquire(mtx);
+                            label++;
+                            lab[i][j] = label;
+                            lock.release();
+                        } else if ((lab[i][j - 1] != 0) ^ (lab[i - 1][j] != 0)) {
+                            if (lab[i][j - 1] != 0) {
+                                lab[i][j] = lab[i][j - 1];
+                            } else {
+                                lab[i][j] = lab[i - 1][j];
+                            }
+                        } else if ((lab[i][j - 1] != 0) && (lab[i - 1][j] != 0)) {
+                            if (lab[i][j - 1] == lab[i - 1][j]) {
+                                lab[i][j] = lab[i][j - 1];
+                            } else {
+                                int minim = std::min(lab[i][j - 1], lab[i - 1][j]);
+                                lab[i][j] = lab[i - 1][j] = lab[i][j - 1] = minim;
+                            }
+                        }
+                    } 
+                }  
+            }
+        }
+    });
+    tbb::parallel_for(tbb::blocked_range<int>(1, rows, (rows-1)/4), [&](const tbb::blocked_range<int>& Range) {
+        for (int i = Range.begin(); i < Range.end(); i++) {
+            for (int j = 0; j < cols; j++) {
+                if (i % 2 != 0) {
+                    if (arr[i][j] != 0) {
+                        if (j == 0) {
+                            if (lab[i - 1][j] != 0) {
+                                lab[i][j] = lab[i - 1][j];
+                            } else {
+                                tbb::spin_mutex::scoped_lock lock;
+                                lock.acquire(mtx);
+                                label++;
+                                lab[i][j] = label;
+                                lock.release();
+                            }
+                        } else if ((lab[i][j - 1] == 0) && (lab[i - 1][j] == 0)) {
+                            tbb::spin_mutex::scoped_lock lock;
+                            lock.acquire(mtx);
+                            label++;
+                            lab[i][j] = label;
+                            lock.release();
+                        } else if ((lab[i][j - 1] != 0) ^ (lab[i - 1][j] != 0)) {
+                            if (lab[i][j - 1] != 0) {
+                                lab[i][j] = lab[i][j - 1];
+                            } else {
+                                lab[i][j] = lab[i - 1][j];
+                            }
+                        } else if ((lab[i][j - 1] != 0) && (lab[i - 1][j] != 0)) {
+                            if (lab[i][j - 1] == lab[i - 1][j]) {
+                                lab[i][j] = lab[i][j - 1];
+                            } else {
+                                int minim = std::min(lab[i][j - 1], lab[i - 1][j]);
+                                lab[i][j] = lab[i - 1][j] = lab[i][j - 1] = minim;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+    bool rep = true;
+    while (rep) {
+        tbb::parallel_for(tbb::blocked_range<int>(0, rows - 1, (rows-1)/4), [&](const tbb::blocked_range<int>& Range) {
+            for (int i = Range.end(); i >= Range.begin(); i--) {
+                for (int j = cols - 1; j >= 0; j--) {
+                    if ((i % 2 == 0) || (i == 0)) {
+                        if (arr[i][j] != 0) {
+                            if ((i == 0) && (j != 0)) {
+                                if (lab[i][j] != lab[i][j - 1]) {
+                                    if (lab[i][j - 1] != 0) {
+                                        int minim = std::min(lab[i][j], lab[i][j - 1]);
+                                        lab[i][j] = lab[i][j - 1] = minim;
+                                    }
+                                }
+                            } else if ((i != 0) && (j == 0)) {
+                                if (lab[i][j] != lab[i - 1][j]) {
+                                    if (lab[i - 1][j] != 0) {
+                                        int minim = std::min(lab[i][j], lab[i - 1][j]);
+                                        lab[i][j] = lab[i - 1][j] = minim;
+                                    }
+                                }
+                            } else if ((i != 0) && (j != 0)) {
+                                if ((arr[i - 1][j] == 1) && (arr[i][j - 1] == 1)) {
+                                    int min1 = std::min(lab[i][j - 1], lab[i - 1][j]);
+                                    int min2 = std::min(min1, lab[i][j]);
+                                    lab[i][j] = lab[i][j - 1] = lab[i - 1][j] = min2;
+                                } else if ((arr[i][j - 1] != 0) ^ (arr[i - 1][j] != 0)) {
+                                    if (arr[i][j - 1] != 0) {
+                                        int minim = std::min(lab[i][j - 1], lab[i][j]);
+                                        lab[i][j - 1] = lab[i][j] = minim;
+                                    } else if (arr[i - 1][j] != 0) {
+                                        int minim = std::min(lab[i - 1][j], lab[i][j]);
+                                        lab[i - 1][j] = lab[i][j] = minim;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        tbb::parallel_for(tbb::blocked_range<int>(0, rows - 1, (rows - 1) / 4), [&](const tbb::blocked_range<int>& Range) {
+            for (int i = Range.end(); i >= Range.begin(); i--) {
+                for (int j = cols - 1; j >= 0; j--) {
+                    if (i % 2 != 0) {
+                        if (arr[i][j] != 0) {
+                            if ((i == 0) && (j != 0)) {
+                                if (lab[i][j] != lab[i][j - 1]) {
+                                    if (lab[i][j - 1] != 0) {
+                                        int minim = std::min(lab[i][j], lab[i][j - 1]);
+                                        lab[i][j] = lab[i][j - 1] = minim;
+                                    }
+                                }
+                            } else if ((i != 0) && (j == 0)) {
+                                if (lab[i][j] != lab[i - 1][j]) {
+                                    if (lab[i - 1][j] != 0) {
+                                        int minim = std::min(lab[i][j], lab[i - 1][j]);
+                                        lab[i][j] = lab[i - 1][j] = minim;
+                                    }
+                                }
+                            } else if ((i != 0) && (j != 0)) {
+                                if ((arr[i - 1][j] == 1) && (arr[i][j - 1] == 1)) {
+                                    int min1 = std::min(lab[i][j - 1], lab[i - 1][j]);
+                                    int min2 = std::min(min1, lab[i][j]);
+                                    lab[i][j] = lab[i][j - 1] = lab[i - 1][j] = min2;
+                                } else if ((arr[i][j - 1] != 0) ^ (arr[i - 1][j] != 0)) {
+                                    if (arr[i][j - 1] != 0) {
+                                        int minim = std::min(lab[i][j - 1], lab[i][j]);
+                                        lab[i][j - 1] = lab[i][j] = minim;
+                                    } else if (arr[i - 1][j] != 0) {
+                                        int minim = std::min(lab[i - 1][j], lab[i][j]);
+                                        lab[i - 1][j] = lab[i][j] = minim;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        rep = false;
+        tbb::parallel_for(tbb::blocked_range<int>(0, rows, rows / 4), [&](const tbb::blocked_range<int>& Range) {
+            for (int i = Range.begin(); i < Range.end(); i++) {
+                for (int j = 0; j < cols; j++) {
+                    if (arr[i][j] != 0) {
+                        if (j != 0) {
+                            if (lab[i][j] != lab[i][j - 1]) {
+                                if (lab[i][j - 1] != 0) {
+                                    rep = true;
+                                }   
+                            }
+                        }
+                        if (i != 0) {
+                            if (lab[i][j] != lab[i - 1][j]) {
+                                if (lab[i - 1][j] != 0) {
+                                    rep = true;
+                                }   
+                            } 
+                        }
+                    }
+                }
+            }
+        });
+    }
+    return lab;
+}
+
+
+
+
+// main.cpp
+
+
+// Copyright 2021 Novozhilova Ekaterina
+#include <gtest/gtest.h>
+#include <tbb/tbb.h>
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include "./labeling_tbb.h"
+
+TEST(Labeling_TBB, Test_234x53) {
+    int rows = 234;
+    int cols = 243;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 28000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    tbb::tick_count t1, t2, t3, t4;
+    t1 = tbb::tick_count::now();
+    res = ParLabeling(arr, rows, cols);
+    t2 = tbb::tick_count::now();
+    n_size_par = check_for_par(res, rows, cols);
+
+    t3 = tbb::tick_count::now();
+    expected = SeqLabeling(arr, rows, cols);
+    t4 = tbb::tick_count::now();
+    n_size_seq = check_for_seq(expected, rows, cols);
+
+    printf("\tParallel  = %f\n", (t2 - t1).seconds());
+    printf("\tPosled  = %f\n", (t4 - t3).seconds());
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_TBB, Test_160x160) {
+    int rows = 160;
+    int cols = 160;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 11000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    tbb::tick_count t1 = tbb::tick_count::now();
+    res = ParLabeling(arr, rows, cols);
+    tbb::tick_count t2 = tbb::tick_count::now();
+    n_size_par = check_for_par(res, rows, cols);
+
+    tbb::tick_count t3 = tbb::tick_count::now();
+    expected = SeqLabeling(arr, rows, cols);
+    tbb::tick_count t4 = tbb::tick_count::now();
+    n_size_seq = check_for_seq(expected, rows, cols);
+    printf("\tParallel  = %f\n", (t2 - t1).seconds());
+    printf("\tPosled  = %f\n", (t4 - t3).seconds());
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_TBB, Test_200x70) {
+    int rows = 200;
+    int cols = 70;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 5000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    tbb::tick_count t1 = tbb::tick_count::now();
+    res = ParLabeling(arr, rows, cols);
+    tbb::tick_count t2 = tbb::tick_count::now();
+    n_size_par = check_for_par(res, rows, cols);
+
+    tbb::tick_count t3 = tbb::tick_count::now();
+    expected = SeqLabeling(arr, rows, cols);
+    tbb::tick_count t4 = tbb::tick_count::now();
+    n_size_seq = check_for_seq(expected, rows, cols);
+    printf("\tParallel  = %f\n", (t2 - t1).seconds());
+    printf("\tPosled  = %f\n", (t4 - t3).seconds());
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_TBB, Test_300x300) {
+    int rows = 300;
+    int cols = 300;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 45000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    tbb::tick_count t1 = tbb::tick_count::now();
+    res = ParLabeling(arr, rows, cols);
+    tbb::tick_count t2 = tbb::tick_count::now();
+    n_size_par = check_for_par(res, rows, cols);
+
+    tbb::tick_count t3 = tbb::tick_count::now();
+    expected = SeqLabeling(arr, rows, cols);
+    tbb::tick_count t4 = tbb::tick_count::now();
+    n_size_seq = check_for_seq(expected, rows, cols);
+    printf("\tParallel  = %f\n", (t2 - t1).seconds());
+    printf("\tPosled  = %f\n", (t4 - t3).seconds());
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_TBB, Test_55x85) {
+    int rows = 55;
+    int cols = 85;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 2200);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    tbb::tick_count t1 = tbb::tick_count::now();
+    res = ParLabeling(arr, rows, cols);
+    tbb::tick_count t2 = tbb::tick_count::now();
+    n_size_par = check_for_par(res, rows, cols);
+
+    tbb::tick_count t3 = tbb::tick_count::now();
+    expected = SeqLabeling(arr, rows, cols);
+    tbb::tick_count t4 = tbb::tick_count::now();
+    n_size_seq = check_for_seq(expected, rows, cols);
+    printf("\tParallel  = %f\n", (t2 - t1).seconds());
+    printf("\tPosled  = %f\n", (t4 - t3).seconds());
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+TEST(Labeling_TBB, Test_500x535) {
+    int rows = 500;
+    int cols = 535;
+    std::vector<std::vector<int>> arr = myrand(rows, cols, 133000);
+    std::vector<std::vector<int>> res;
+    std::vector<std::vector<int>> expected;
+    int n_size_seq = 0;
+    int n_size_par = 0;
+    tbb::tick_count t1 = tbb::tick_count::now();
+    res = ParLabeling(arr, rows, cols);
+    tbb::tick_count t2 = tbb::tick_count::now();
+    n_size_par = check_for_par(res, rows, cols);
+
+    tbb::tick_count t3 = tbb::tick_count::now();
+    expected = SeqLabeling(arr, rows, cols);
+    tbb::tick_count t4 = tbb::tick_count::now();
+    n_size_seq = check_for_seq(expected, rows, cols);
+    printf("\tParallel  = %f\n", (t2 - t1).seconds());
+    printf("\tPosled  = %f\n", (t4 - t3).seconds());
+    bool check_passed = false;
+    if ((n_size_par == n_size_seq) && (n_size_par != 0)) {
+        check_passed = true;
+    }
+
+    ASSERT_TRUE(check_passed);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\end{document}
