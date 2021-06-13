@@ -1,0 +1,434 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\newenvironment{pseudocode}[1][htb]
+  {\renewcommand{\algorithmcfname}{Алгоритм}
+   \begin{algorithm}[#1]%
+  }{\end{algorithm}}
+
+
+\lstset{language=C++,
+		basicstyle=\footnotesize,
+		keywordstyle=\color{blue}\ttfamily,
+		stringstyle=\color{red}\ttfamily,
+		commentstyle=\color{green}\ttfamily,
+		morecomment=[l][\color{magenta}]{\#}, 
+		tabsize=4,
+		breaklines=true,
+  		breakatwhitespace=true,
+  		title=\lstname,       
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\LargeВычисление многомерных интегралов с использованием многошаговой схемы (метод Симпсона)} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-3 \\ Гущин А.А.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.
+}
+
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+Задача нахождения точного значения определенного интеграла не всегда имеет решение. Действительно, первообразную подынтегральной функции во многих случаях не удается представить в виде элементарной функции. В этом случае мы не можем точно вычислить определенный интеграл по формуле Ньютона-Лейбница. Однако есть методы численного интегрирования, позволяющие получить значение определенного интеграла с требуемой степенью точности. Одним из таких методов является метод Симпсона.
+\par Суть метода Симпсона заключается в приближении подынтегральной функции на отрезке \([a,b]\) интерполяционным многочленом второй степени \(p_{2}(x)\), то есть приближение графика функции на отрезке параболой. Метод Симпсона имеет порядок погрешности 4 и алгебраический порядок точности 3.
+\par В лабораторной работе рассматривается параллельная реализация метода Симпсона для вычисления многомерных интегралов. В качестве технологий распараллеливания вычислений используются OpenMP, TBB и C++11 Thread support library.
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы поставлена задача разработки несколько версий библиотек, производящих вычисление многомерных интегралов при помощи метода Симпсона.
+\par Версии библиотек, реализующиеся в данной лабораторной работе:
+\begin{itemize}
+\item Последовательная версия метода Симсона. Необходима для определения корректности результата работы параллельных версий и для сравнения времени работы различных реализаций
+\item Параллельные реализации метода Симпсона при помощи следующих технологий:
+    \begin{itemize}
+    \item OpenMP
+    \item Threading Building Blocks (TBB)
+    \item C++11 Thread support library
+    \end{itemize}
+\end{itemize}
+\par Каждая из версий представляет из себя отдельную библиотеку, состоящую собственно из реализации метода и набора юнит-тестов, написанных с использованием фреймворка Google C++ Testing Framework. Они позволяют автоматизировать тестирование корректности реализации. Также, в виде отдельного теста представлено измерение времени работы конкретной реализации.
+\newpage
+
+\section*{Метод решения}
+\addcontentsline{toc}{section}{Метод решения}
+В методе Симпсона подынтегральная функция на частичном отрезке $\left[x_{j-1}, x_{j}\right]$ аппроксимируется параболой, проходящей через три точки $x_{j-1}$, $x_{j-0.5}$, $x_{j}$, то есть интерполяционным многочленом Лагранжа второй степени:
+\begin{equation}
+\begin{array}{l}
+f(x)=L_{2, j}(x)=\frac{2}{h^{2}}\left[\left(x-x_{j-0.5}\right)\left(x-x_{j}\right) f\left(x_{j-1}\right)-\right. \\
+\left.-2 \cdot\left(x-x_{j-1}\right)\left(x-x_{j}\right) f\left(x_{j-0.5}\right)+\left(x-x_{j-1}\right)\left(x-x_{j-0.5}\right) f\left(x_{j}\right)\right]
+\end{array}
+\end{equation}
+\par Проведя интегрирование, получим:
+\begin{equation}
+\int_{x_{j-1}}^{x_{j}} f(x) d x \approx \frac{h}{6}\left(f_{j-1}+4 f_{j-0.5}+f_{j}\right)
+\end{equation}
+\par Это и есть формула Симпсона или формула парабол. На отрезке $[a,b]$ формула Симпсона примет вид:
+\begin{equation}
+\begin{array}{l}
+\int_{a}^{b} f(x) d x \approx \\
+\approx\frac{h}{6}\left[f_{0}+f_{N}+2\left(f_{1}+f_{2}+\ldots+f_{N-1}\right)+4\left(f_{0.5}+f_{1.5}+f_{2.5}+\ldots+f_{N-0.5}\right)\right]= \\
+=\frac{h}{6}\left[f_{0}+f_{N}+2 \cdot \sum_{j=1}^{N-1} f_{j}+4 \cdot \sum_{j=0.5}^{N-0.5} f_{j}\right]
+\end{array}
+\end{equation}
+\par Если разбить отрезок интегрирования $[a,b]$ на четное количество $2N$ равных частей с шагом $h=\frac{b-a}{2 N}$, то можно построить параболу на каждом сдвоенном частичном отрезке $\left[x_{j-1}, x_{j}\right]$ и переписать выражения (1)-(3) без дробных индексов. Тогда формула Симпсона примет вид:
+\begin{equation}
+\begin{array}{l}
+\int_{a}^{b} f(x) d x \approx \\
+\approx\frac{h}{3}\left[f_{0}+f_{2 N}+2\left(f_{2}+f_{4}+\ldots+f_{2 N-2}\right)+4\left(f_{1}+f_{3}+f_{5}+\ldots+f_{2 N-1}\right)\right]= \\
+=\frac{h}{3}\left[f_{0}+f_{2 N}+2 \cdot \sum_{j=2,2}^{2 N-2} f_{j}+4 \cdot \sum_{j=1,2}^{2 N-1} f_{j}\right]
+\end{array}
+\end{equation}
+\newpage
+
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+В методе Симпсона поддается хорошему распараллеливанию подсчет значений функции в четных и нечетных узлах. В формуле это значения $f_j$, находящиеся в суммах $\sum_{j=2,2}^{2 N-2} f_{j}$ и $\sum_{j=1,2}^{2 N-1} f_{j}$:
+\begin{equation}
+\begin{array}{l}
+\int_{a}^{b} f(x) d x = \frac{h}{3}\left[f_{0}+f_{2 N}+2 \cdot \sum_{j=2,2}^{2 N-2} f_{j}+4 \cdot \sum_{j=1,2}^{2 N-1} f_{j}\right]
+\end{array}
+\end{equation}
+\par Пользователем библиотеки задается число $2N$ - число шагов (отрезков) интегрирования. В программной реализации подсчет значений в четных и нечетных узлах производится при помощи цикла. На каждой итерации цикла подсчитывается значение функции и накапливается в соответствующую переменную.
+\par Так как все итерации цикла являются одинаковыми по алгоритмической сложности, то подойдет простая схема распределения итераций на блоки для параллельного вычисления. Блоки в самом простом случае могут быть непрерывным отрезком итераций, которые каждое вычислительное устройство будет выполнять параллельно. По окончании вычислений результаты из каждого блока необходимо объединить друг с другом. В OpenMP и TBB для этого предусмотрены специальные циклы for с редукцией.
+\newpage
+
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+Метод Симпсона для подсчета многомерных интегралов реализован в виде функции, принимающей на вход интегрируемую функцию; сегменты, по котором будет вестить интегрирование; число шагов интегрирования.
+\begin{lstlisting}
+double simpsonsMethod(
+    const std::function<double(const std::vector<double>&)>& func,
+    const std::vector<std::pair<double, double>>& segments,
+    int stepsCount) {
+    if (segments.empty())
+        throw "Segments vector should contain positive number of segments";
+    if (stepsCount < 1)
+        throw "Steps count should be a positive value";
+    if (!func)
+        throw "Function is incorrect";
+
+    if (stepsCount % 2 == 1)
+        ++stepsCount;
+
+    std::vector<double> segmentsDiffs(segments.size());
+    std::vector<double> segmentsSteps(segments.size());
+    std::vector<double> firstPoint(segments.size());
+    std::vector<double> lastPoint(segments.size());
+    double diffsProduct = 1;
+
+    for (size_t i = 0; i < segments.size(); ++i) {
+        firstPoint[i] = segments[i].first;
+        lastPoint[i] = segments[i].second;
+        segmentsDiffs[i] = segments[i].second - segments[i].first;
+        segmentsSteps[i] = segmentsDiffs[i] / stepsCount;
+        diffsProduct *= segmentsDiffs[i];
+    }
+
+    diffsProduct /= stepsCount;
+
+    double evenValues = 0, oddValues = 0;
+    std::vector<double> currentPoint = firstPoint;
+
+    for (int i = 1; i < stepsCount; ++i) {
+        for (int i = 0; i < static_cast<int>(segments.size()); ++i)
+            currentPoint[i] += segmentsSteps[i];
+
+        if (i % 2 == 0)
+            evenValues += func(currentPoint);
+        else
+            oddValues += func(currentPoint);
+    }
+
+    double coeff = diffsProduct / 3.0;
+    double result = coeff * (func(firstPoint) + 2 * evenValues
+                    + 4 * oddValues + func(lastPoint));
+
+    return result;
+}
+\end{lstlisting}
+\par Параллельные реализации реализованы также в виде отдельной функции. Сигнатуры всех версий различаются только названием, параметры и возвращаемое значение совпадают.
+\begin{lstlisting}
+double parallelSimpsonsMethod(
+    const std::function<double(const std::vector<double>&)>& func,
+    const std::vector<std::pair<double, double>>& segments,
+    int stepsCount);
+\end{lstlisting}
+
+\subsection*{OpenMP}
+\addcontentsline{toc}{subsection}{OpenMP}
+В реализации метода Симсона поддается хорошему распараллеливанию цикл подсчета значений функции в четных и нечетных узлах. Остальную часть реализации метода можно считать константной по сложности, так как она не зависит от числа шагов интегрирования.
+\begin{lstlisting}
+for (int i = 1; i < stepsCount; ++i) {
+    for (int j = 0; j < static_cast<int>(segments.size()); ++j)
+        currentPoint[j] = firstPoint[j] + i * segmentsSteps[j];
+
+    if (i % 2 == 0)
+        evenValues += func(currentPoint);
+    else
+        oddValues += func(currentPoint);
+}
+\end{lstlisting}
+\par Данный цикл возможно распараллелить при помощи следующий директивы OpenMP:
+\par \verb|#pragma omp parallel for firstprivate(currentPoint)|\\
+\verb|reduction(+: evenValues, oddValues) schedule(static)|
+\par Так как необходимо сумма всех значений функции в четных и нечетных узлах, то для данной задачи подходит использование цикла с редукцией. Конструкция \verb|reduction(+: evenValues, oddValues)| означает, что OpenMP должен применить редукцию после окончания работы цикла, а именно просуммировать все значения по потокам в соответствующие переменные evenValues и oddValues. Таким образом, после параллельного блока в переменных окажутся корректные значения.
+\par Конструкция \verb|schedule(static)| задает статическое планирование. В данном случае такая схема подходит, так как все итерацию имеют примерно одинаковую алгоритмическую сложность.
+
+\subsection*{TBB}
+\addcontentsline{toc}{subsection}{TBB}
+Технология TBB также как и OpenMP предоставляет возможность распараллеливания цикла с последующей редукцией. Такая возможность достигается при помощи функции \verb|tbb::parallel_reduce| В реализации данная функция используется следующим образом:
+\begin{lstlisting}
+tbb::parallel_reduce(tbb::blocked_range<int>(1, stepsCount), sum);
+\end{lstlisting}
+\par\verb|tbb::blocked_range| представляет собой одномерное итерационное пространство. Это полуинтервал $[begin, end)$, который затем рекурсивно делится - расщепляется. В данном случае \verb|tbb::blocked_range<int>(1, stepsCount)| задает целочисленный полуинтервал $[1, stepsCount)$, где stepsCount - число шагов интегрирования.
+\par sum - объект класса \verb|pointsSum|, который объявляется следующим образом:
+\begin{lstlisting}
+class pointsSum {
+    int segmentsSize;
+    const std::function<double(const std::vector<double>&)>& func;
+    const std::vector<double>& firstPoint;
+    const std::vector<double>& segmentsSteps;
+
+ public:
+    double evenValues = 0;
+    double oddValues = 0;
+
+    void operator()(const tbb::blocked_range<int>& r);
+
+    pointsSum(const pointsSum& x, tbb::split) :
+        segmentsSize(x.segmentsSize), func(x.func),
+        firstPoint(x.firstPoint), segmentsSteps(x.segmentsSteps) {}
+
+    void join(const pointsSum& y);
+
+    pointsSum(int segmentsSize,
+        const std::function<double(const std::vector<double>&)>& func,
+        const std::vector<double>& firstPoint,
+        const std::vector<double>& segmentsSteps) :
+        segmentsSize(segmentsSize), func(func),
+        firstPoint(firstPoint), segmentsSteps(segmentsSteps)
+    {}
+};
+\end{lstlisting}
+\par И имеет следующую реализацию методов:
+\begin{lstlisting}
+void pointsSum::operator()(const tbb::blocked_range<int>& r) {
+    std::vector<double> currentPoint(segmentsSize);
+    auto end = r.end();
+
+    for (auto i = r.begin(); i != end; ++i) {
+        for (int j = 0; j < segmentsSize; ++j)
+            currentPoint[j] = firstPoint[j] + i * segmentsSteps[j];
+
+        if (i % 2 == 0)
+            evenValues += func(currentPoint);
+        else
+            oddValues += func(currentPoint);
+    }
+}
+
+void pointsSum::join(const pointsSum& y) {
+    evenValues += y.evenValues;
+    oddValues += y.oddValues;
+}
+\end{lstlisting}
+\subsection*{C++11 Thread support library}
+\addcontentsline{toc}{subsection}{C++11 Thread support library}
+C++11 Thread support library не предоставляет высокоуровневых средств распараллеливания, в частности цикла с редукцией, поэтому необходимо вручную распределять итерации цикла по потокам.
+\begin{lstlisting}
+using valuesPair = std::pair<double, double>;
+
+auto sum = [&](const int begin, const int end) {
+    std::vector<double> currentPoint(segmentsSize);
+    valuesPair values = { 0, 0 };
+
+    for (auto i = begin; i < end; ++i) {
+        for (size_t j = 0; j < segmentsSize; ++j)
+            currentPoint[j] = firstPoint[j] + i * segmentsSteps[j];
+
+        if (i % 2 == 0)
+            values.first += func(currentPoint);
+        else
+            values.second += func(currentPoint);
+    }
+
+    return values;
+};
+
+std::vector<std::future<valuesPair>> results(numOfThreads);
+
+const int delta = (stepsCount - 1) / numOfThreads;
+const int remainder = (stepsCount - 1) % numOfThreads;
+
+int currentBegin = 1, currentEnd = 0;
+int rootBegin = 1, rootEnd = 0;
+
+for (int i = 0; i < numOfThreads; ++i) {
+    if (i < remainder) {
+        currentEnd = currentBegin + delta + 1;
+    } else {
+        currentEnd = currentBegin + delta;
+    }
+
+    if (i == 0) {
+        rootBegin = currentBegin;
+        rootEnd = currentEnd;
+    } else {
+        results[i] = std::async(std::launch::async,
+                                sum, currentBegin,
+                                currentEnd);
+    }
+
+    currentBegin = currentEnd;
+}
+
+auto values = sum(rootBegin, rootEnd);
+double evenValues = values.first, oddValues = values.second;
+
+for (int i = 1; i < numOfThreads; ++i) {
+    results[i].wait();
+
+    auto taskResult = results[i].get();
+    evenValues += taskResult.first;
+    oddValues += taskResult.second;
+}
+\end{lstlisting}
+\par В качестве обертки над \verb|std::thread| используется \verb|std::async|. \verb|std::async| позволяет в автоматическом режиме связывать результат работы с \verb|std::future|, возвращая его при своем вызове. Сохраняя их по окончанию выполнения потоковой функции можно получить результирующее значение. Затем в цикле ожидается, когда результат будет готов. Вызов \verb|wait()| является блокирующим. Когда управление вернется, результат будет готов и его можно будет забрать из \verb|std::future| при помощи вызова \verb|get()|.
+
+\newpage
+
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+В библиотеке содержится набор юнит-тестов, разработанных при помощи фреймворка тестирования Google C++ Testing Framework. Данные тесты позволяют подтвердить корректность каждой из реализаций метода Симпсона. Успешное прохождение тестов означает, что версия реализована правильно.
+\par Набор включает в себя тестирование вычисления определенного интеграла от одномерных и многомерных функций с заранее подсчитанным результатом интегрирования. Функции, используемые при тестировании:
+\begin{itemize}
+\item $f(x)=8$ - константная функция
+\item $f(x)=x^3 + cos(x)$ - одномерная функция
+\item $f(x,y)=x^2 + y^2$ - двумерная функция
+\item $f(x,y,z)=x + y + cos(z)$ - трехмерная функция
+\end{itemize}
+
+\par Набор содержит в себе также нагрузочный тест. В нем содержатся измерения времени работы последовательной и параллельных версий. Данный тест позволяет измерить действительное ускорение времени работы параллельной версии по сравнению с последовательной.
+\par В наборе также присутствуют тесты на некорректные данные. Такие тесты позволяют протестировать корректность поведения реализации, если поданы некорректные данные. Добавлен тесты, проверяющие невозможность работы системы если сегменты интегрирования пусты, а также случай, когда количество шагов интегрирования равно нулю.
+
+\newpage
+
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности метода Симпсона для вычисления многомерного интеграла проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item ЦП: Intel(R) Core(TM) i3-4000M CPU @ 2.40GHz. 2 ядра, 4 логических процессора
+\item ОЗУ: 8,0 ГБ DDR3, 1333 МГц
+\end{itemize}
+
+\par Для определения времени работы каждой из реализации была выбрана функция $f(x,y,z)=x + y + cos(z)$, количество шагов интегрирования равно 50000000. 
+\par Результаты проведенных экспериментов представлены в Таблице 1.
+
+\begin{table}[!h]
+\caption{Результаты нагрузочных экспериментов}
+\centering
+\begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+\multirow{3}{*}
+	{\begin{tabular}[c]{@{}c@{}}Кол-во\\ потоков\end{tabular}} & 
+\multirow{2}{*}
+	{\begin{tabular}[c]{@{}c@{}}Последовательный\\ алгоритм\end{tabular}} & 
+\multicolumn{6}{c|}
+	{Параллельный алгоритм}	\\ 
+	\cline{3-8} & & 
+	\multicolumn{2}{c|}{OpenMP} & 
+	\multicolumn{2}{c|}{TBB} & 
+	\multicolumn{2}{c|}{std::threads} 
+	\\ \cline{2-8}
+	& t, с	    & t, с & speedup	& t, с & speedup		& t, с & speedup		\\ \hline
+2   & 17.38     & 11.07 & 1.57      & 9.79 & 1.77        	& 9.93 & 1.75           \\ \hline
+3   & 17.38     & 8.37 & 2.08       & 7.85 & 2.21        	& 7.72 & 2.25           \\ \hline
+4   & 17.38     & 7.26 & 2.39       & 6.78 & 2.56         	& 6.51  & 2.67         \\ \hline
+\end{tabular}
+\end{table}
+\par Видно, что каждая из параллельных реализаций имеет ускорение относительно последовательной версии. Версии, использующие технологии Threading Building Blocks и C++11 Thread support library, показали относительно одинаковые результаты времени работы. При большем числе потоков реализация на C++11 Thread support library оказалась немного быстрее, чем TBB. OpenMP при любом количестве потоков показала худшие результаты. Вероятнее всего OpenMP требует больше ресурсов при работе с циклами с редукцией.
+\parДля данной реализации метода Симпсона по моему мнению более предпочтительна технология TBB, так как она показывает лучшие результаты по сравнению с TBB, а также более удобна в работе по сравнению с C++11 Thread support library. C++11 Thread support library не имеет высокоуровневых конструкций, позволяющих относительно легко распараллеливать алгоритмы. Необходимо вручную распределять работу по потокам, управлять их созданием и собирать результат. OpenMP обладает самым <<дружелюбным>> интерфейсом, но результаты экспериментов неудовлетворительны.
+\newpage
+
+
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате выполнения данной лабораторной работы были разработаны библиотеки, производящие вычисления многомерных интегралов при помощи метода Симпсона. Для параллельный реализаций использованы технологии OpenMP, Threading Building Blocks и C++11 Thread support library. Были проведены измерения производительности каждой из версий.
+\par Для подтверждения корректности работы каждой из реализаций был разработан набор юнит-тестов, использующих фреймворк Google C++ Testing Framework. Успешное прохождение всех тестов подтверждает, что параллельные реализации реализованы корректно.
+\newpage
+
+
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Sysoev} Сысоев А.В., Мееров И.Б., Свистунов А.Н., Курылев А.Л., Сенин А.В., Шишков А.В., Корняков К.В., Сиднев А.А. «Параллельное программирование в системах с общей памятью. Инструментальная поддержка». Учебно-методические материалы по программе повышения квалификации «Технологии высокопроизводительных вычислений для обеспечения учебного процесса и научных исследований». Нижний Новгород, 2007, 110 с.
+\bibitem{Wiki1} Учебное пособие по курсу "Численные методы в оптике" - Университет ИТМО // URL: http://aco.ifmo.ru/el\_books/numerical\_methods/lectures/glava2\_2.html
+\bibitem{TBB} Intel® Threading Building Blocks Documentation [Электронный ресурс] // URL: https://software.intel.com/en-us/tbb-documentation
+\bibitem{Wikipedia} Wikipedia: the free encyclopedia [Электронный ресурс] // URL: https://en.wikipedia.org/wiki/
+\end{thebibliography}
+\newpage
+
+\end{document}
