@@ -1,0 +1,787 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{indentfirst}
+\usepackage{enumitem}
+
+\geometry{a4paper,top=2cm,bottom=2cm,left=2.5cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+
+\lstset{language=C++,
+        basicstyle=\footnotesize,
+        keywordstyle=\color{blue}\ttfamily,
+        stringstyle=\color{green}\ttfamily,
+        commentstyle=\color{green}\ttfamily,
+        morecomment=[l][\color{red}]{\#}, 
+        tabsize=2,
+        breaklines=true,
+        breakatwhitespace=true,
+        title=\lstname,
+}
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство образования и науки Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского(ННГУ)
+\end{center}
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+\begin{center}
+Направление подготовки: «Фундаментальная информатика и информационные технологии»
+\end{center}
+
+\vspace{2em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} 
+\end{center}
+\begin{center}
+\textbf{\Large«Вычисление многомерных интегралов \\
+с использованием многошаговой схемы \\
+(метод прямоугольников)»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\textbf{Выполнил(а):} \\ студент(ка) группы 381806-2 \\ Волкова А. Д.\\
+\\
+\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А. В.\\
+}
+
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Оглавление
+\tableofcontents
+\newpage
+
+\section*{Введение}
+\addcontentsline{toc}{section}{Введение}
+На практике достаточно большое число задач сводится к вычислению значения
+определенного интеграла некоторой функции, например, для установления площадей или объемов различных фигур и тел, пути, пройденного точкой в условиях неравномерного движения, определения центров тяжести и инерции тел, работы произведенной некоторыми силами и т.д.
+\par Если решение той или иной практической задачи привело к определенному интегралу, то, естественно, возникает вопрос вычисления этого интеграла. 
+\par Но не всегда имеется возможность вычисления интегралов по формуле Ньютона-Лейбница. Не все подынтегральные функции имеют первообразные элементарных функций, поэтому нахождение точного числа становится нереальным. При решении таких задач не всегда необходимо получать на выходе точные ответы. Существует понятие приближенного значения интеграла, которое задается методом числового интегрирования типа метода прямоугольников, трапеций, Симпсона и другие.
+\par Метод прямоугольников является простейшим методом численного интегрирования. Суть этого метода выражается в том, что приближенное значение считается интегральной суммой.
+
+\newpage
+
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы требуется реализовать вычисление многомерных интегралов с использованием метода прямоугольников. 
+\par Необходимо выполнить работу для вычисления тройных интегралов:
+$$\int\limits_a^b 
+\int\limits_c^d 
+\int\limits_e^f \,f(x,y,z)\,dx\,dy\,dz
+$$
+\par Требуется реализовать последовательную и параллельные версии при помощи технологий OpenMP, TBB и std::threads. Необходимо провести анализ по времени работы. А также подтвердить корректность(Google Testing Framework), объяснить полученные результаты и сделать выводы. 
+\newpage
+
+\section*{Описание алгоритм}
+\addcontentsline{toc}{section}{Описание алгоритм}
+Суть метода прямоугольников заключается в том, что в качестве приближенного значения определенного интеграла берут интегральную сумму.
+\par Алгоритм вычисления многомерных интегралов с использованием многошаговой схемы (метод прямоугольников):
+\par Пусть имеется интеграл:
+$$\int\limits_a^b 
+\int\limits_c^d 
+\int\limits_e^f \,f(x,y,z)\,dx\,dy\,dz
+$$
+\par где 
+$$ a\le x \le b $$
+$$ c \le y \le d $$
+$$ e \le z \le f $$
+\par и f(x,y,z) является непрерывной функцией
+\begin{enumerate}
+\item Разбиваем интервалы интегрирования на равные части: отрезок [a,b] на n равных частей длины hx, отрезок [c,d] на m равных частей длины hy, отрезок [e,f] на k равных частей длины hz. Чем больше n,m и k, тем точнее приближение.
+\par Шаги разбиения определяются следующим образом:
+$$ hx=\frac{b-a}{n} $$
+$$ hy=\frac{d-c}{m} $$
+$$ hz=\frac{f-e}{k} $$
+\item Посчитав шаги разбиения отрезков, вычисляем интеграл по формуле:
+$$\int\limits_a^b 
+\int\limits_c^d 
+\int\limits_e^f \,f(x,y,z)\,dx\,dy\,dz=$$
+$$ = hx*hy*hz*
+\sum\limits_{i=0}^{n-1}
+\sum\limits_{j=0}^{m-1}
+\sum\limits_{q=0}^{k-1}
+f(a+i*hx+\frac{hx}{2}, c+j*hy+\frac{hy}{2},e+q*hz+\frac{hz}{2})
+$$
+\end{enumerate}
+\par
+\par 
+\newpage
+
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+Идея распараллеливания алгоритма вычисления многомерного интеграла с помощью метода средних прямоугольников состоит в распараллеливании итераций цикла между потоками. Каждый поток получит одинаковое число итераций, а результаты вычислений суммируются.
+\par Каждая реализация распределяет итерации по-разному. Например, для std::thread требуются предварительные вычисления для распределения итераций между потоками.
+\newpage
+
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Приведем алгоритм последовательного вычисления интеграла методом средних прямоугольников вызывается с помощью функции:
+\begin{lstlisting}
+double integralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k);
+\end{lstlisting}
+\par Первым аргументом передается указатель на используемую функцию, которая была выбрана для вычисления интеграла. Следующие шесть аргументов - это границы отрезков [a,b], [c,d] и [e,f] соответственно. Последние три аргумента задают, на сколько частей надо разбивать каждый отрезок. Функция возвращает значение интеграла.
+\par Все функции реализаций параллельной схемы вычисления интеграла методом средних прямоугольников вызываются с помощью функции:
+\begin{lstlisting}
+double getCalculatedIntegral( double (*f)(double, double, double),
+                              double ax, double bx,
+                              double ay, double by,
+                              double az, double bz,
+                              int n, int m, int k);
+\end{lstlisting}
+\par Входные параметры как и в последовательной реализации. И функция тоже возвращает значение интеграла.
+\newpage
+
+\subsection*{OpenMP}
+\addcontentsline{toc}{subsection}{OpenMP}
+Для распараллеливания алгоритма была использована директива:
+\par \verb|#pragma omp parallel for private(X, Y, Z, sum1, sum2)|
+\par \verb|reduction(+ : ans)|
+\par В sum2 записываются вычисления по внутреннему фору, в sum1 по двум внутренним, а операция редукции происходит в переменную ans в самом внешнем цикле.
+\subsection*{TBB}
+\addcontentsline{toc}{subsection}{TBB}
+
+Для распараллеливания был использован следующий инструмент:
+\par\verb| tbb::parallel_reduce| 
+\par- операция редукции. На входе передается: \par\verb|tbb::blocked_range2d<int>(0, n, 0, m)| 
+\par- двумерное итерационное пространство, которое задает двумерный полуинтервал. n и m это размеры двух внешних циклов. Далее идет лямбда-функция, которая вычисляет суммы, записывая их в ans. 
+\subsection*{std::threads}
+\addcontentsline{toc}{subsection}{std::threads}
+Итерации делятся между потоками. Каждый поток вычисляет сумму, и прибавляет ее к общему ответу. В функции использован мьютекс: \par\verb|std::lock_guard<std::mutex> my_lock(my_mutex)| 
+\par - обеспечивает взаимное исключение исполнения критического участка кода. После вычислений с помощью функции join() ожидаем завершения работы всех потоков и затем возвращаем результат.
+\newpage
+
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности в программе представлен набор тестов, разработанных с помощью использования Google C++ Testing Framework.
+\par Набор представляет из себя тесты, которые проверяют:
+\begin{itemize}
+\item корректность входных данных (подынтегральную функцию, пределы интегрирования по каждой переменной, количество отрезков для разбиения);
+\item корректность вычислений (сравнивается полученный благодаря параллельной или последовательной реализации значение интеграла со значением, вычисленным с помощью онлайн-калькулятора);
+\item эффективность (определение времени, занимаемого последовательным и параллельным вычислением интеграла, и сравнение полученных данных).
+\end{itemize}
+\par Успешное прохождение всех тестов доказывает корректность работы программы.
+\newpage
+
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Вычислительные эксперименты для оценки эффективности параллельного вычисления интеграла методом средних прямоугольников проводились на оборудовании со следующей аппаратной конфигурацией:
+
+\begin{itemize}
+\item Процессор: Intel(R) Core(TM) i7-8550U 1.8GHz with Turbo Boost up to 4.0GHz, ядер: 4, логических процессоров: 8;
+\item Оперативная память: 12 ГБ DDR3;
+\item ОС: Microsoft Windows 10;
+\end{itemize}
+
+\par Эксперименты проводились при размерах 10, $10^2$, $10^3$, $10^4$, $10^5$, $10^6$ и $10^9$. Результаты некоторых экспериментов при размере представлены в Таблицах ниже.
+
+\begin{table}[!h]
+\centering
+\begin{tabular}{lllll}
+Тест & Последовательно,сек & OpenMP,сек & Ускорение  \\
+$10^6$ & 0.002754 & 0.001551 & 1.78  \\
+$10^6$ & 0.0030106 & 0.0007681 & 3.92  \\
+$10^9$ & 1.63548 & 0.358191 & 4.6  \\
+$10^9$ & 1.57244 & 0.402739 & 3.9 
+\end{tabular}
+\caption{Результаты вычислительных экспериментов OpenMP}
+\end{table}
+
+\begin{table}[!h]
+\centering
+\begin{tabular}{lllll}
+Тест & Последовательно,сек & TBB,сек & Ускорение  \\
+$10^6$ & 0.0023386 & 0.0010431 & 2.24  \\
+$10^6$ & 0.0017694 & 0.0008104 & 2.2  \\
+$10^9$ & 1.60583 & 0.658008 & 2.44  \\
+$10^9$ & 1.82764 & 0.650104 & 2.81
+\end{tabular}
+\caption{Результаты вычислительных экспериментов TBB}
+\end{table}
+
+\begin{table}[!h]
+\centering
+\begin{tabular}{lllll}
+Тест & Последовательно,сек & std::threads,сек & Ускорение  \\
+$10^6$ & 0.0019943 & 0.0018126 & 1.1  \\
+$10^6$ & 0.0021142 & 0.0018713 & 1.13  \\
+$10^9$ & 1.33327 & 0.688207 & 1.9  \\
+$10^9$ & 1.38297 & 0.862063 & 1.6 
+\end{tabular}
+\caption{Результаты вычислительных экспериментов std::threads}
+\end{table}
+
+\par По данным, полученным в результате экспериментов, можно сделать вывод о том, что параллельный случай с использованием OpenMP дает наибольшее ускорение.
+\par Процессор имеет 4 ядра, следовательно, максимальное ускорение, которое может быть достигнуто - в 4 раза. Из Таблицы 1 видно, что ускорение превосходит это значение. Это связано с аппаратной и алгоритмической составляющими.
+\par Таким образом, для данной задичи технология OpenMP оказалась эффективнее TBB и std::thread.
+
+
+\newpage
+
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В результате лабораторной работы были разработаны последовательная и параллельные реализации вычисления тройного интеграла методом средних прямоугольников.
+\par Основной задачей данной лабораторной работы была реализация параллельных версий, которые должна была быть эффективнее последовательной. Эта задача была успешно достигнута, о чем говорят результаты экспериментов, проведенных в ходе работы. Они показывают, что параллельные варианты работают действительно быстрее, чем последовательный. Самой эффективной оказалась технология OpenMP, менее эффективной оказалась TBB, ускорение на std::thread было самое маленькое.
+\par Кроме того, были разработаны и доведены до успешного выполнения тесты, созданные для данной программы с использованием Google C++ Testing Framework и необходимые для подтверждения корректности работы программы.
+\newpage
+
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem{Gergel} Гергель В.П. Параллельное программирование с использованием
+OpenMP, 2007, 33 с. 
+\bibitem{Sidnev} А.А. Сиднев, А.В. Сысоев, И.Б. Мееров Библиотека Intel Threading Building Blocks – краткое описание, 2007, 29 с. 
+\bibitem{Lvovsky} Львовский С.М. Набор и вёрстка в системе LATEX, 3-е издание, исправленное и дополненное, 2003, 448 с. 
+\bibitem{Verzhbitsky} Вержбицкий, В.М. Основы численных методов / В.М. Вержбицкий. – М.:
+Высшая школа, 2002. – 840 с.
+\bibitem{Piskunov} Пискунов Н. С. Дифференциальное и интегральное исчисления для
+втузов.-13-е изд.-М.: Наука. Гл. ред. физ-мат. лит., 1985. — 432 с.
+\bibitem{Samarsky} Самарский А.А., Гулин А.В. Численные методы. М.: Наука,1989. 432 с.
+\end{thebibliography}
+\newpage
+
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+
+\par 1. Последовательная реализация.
+\begin{lstlisting}
+// rectangle_method.h
+
+// Copyright 2021 Volkova Anastasia
+#ifndef MODULES_TASK_1_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_H_
+#define MODULES_TASK_1_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_H_
+
+double function1(double x, double y, double z);
+double function2(double x, double y, double z);
+double function3(double x, double y, double z);
+double function4(double x, double y, double z);
+
+double integralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k);
+
+#endif  // MODULES_TASK_1_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// rectangle_method.cpp
+
+// Copyright 2021 Volkova Anastasia
+#include <iostream>
+#include "../../../modules/task_1/volkova_a_rectangle_method/rectangle_method.h"
+
+double function1(double x, double y, double z) {
+    return x*y*z;
+}
+double function2(double x, double y, double z) {
+    return x * x * x * y + 2 * z * z * y + 10 * x * y * z;
+}
+double function3(double x, double y, double z) {
+    return (5 * x + 2 * y) * z;
+}
+double function4(double x, double y, double z) {
+    return x * x + x * y * z - 10*z * z;
+}
+
+double integralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k) {
+    const double hx = (bx - ax) / static_cast<double>(n);
+    const double hy = (by - ay) / static_cast<double>(m);
+    const double hz = (bz - az) / static_cast<double>(k);
+
+    double ans = 0;
+    double X, Y, Z;
+    for (int i = 0; i < n; ++i) {
+        X = ax + static_cast<double>(i) * hx + 0.5 * hx;
+        for (int j = 0; j < m; ++j) {
+            Y = ay + static_cast<double>(j) * hy + 0.5 * hy;
+            for (int q = 0; q < k;  ++q) {
+                Z = az + static_cast<double>(q) * hz + 0.5 * hz;
+                ans += f(X, Y, Z);
+            }
+        }
+    }
+    ans *= hx * hy * hz;
+    return ans;
+}
+
+\end{lstlisting}
+\begin{lstlisting}
+// main.cpp
+
+// Copyright 2021 Volkova Anastasia
+#include <gtest/gtest.h>
+#include <random>
+#include <vector>
+#include "./rectangle_method.h"
+
+TEST(Integral, Test1_10) {
+    double integral = integralFunction(function1, 0, 17, -1, 2, 4, 10, 10, 10, 10);
+    double value = 9103.5;
+    ASSERT_LE(std::abs(integral - value), 1e-3);
+    std::cout << "value: " << value << std::endl;
+    std::cout << "integral: " << integral << std::endl;
+}
+
+TEST(Integral, Test1_100) {
+    double integral = integralFunction(function1, 0, 17, -1, 2, 4, 10, 100, 100, 100);
+    double value = 9103.5;
+    ASSERT_LE(std::abs(integral - value), 1e-3);
+    std::cout << "value: " << value << std::endl;
+    std::cout << "integral: " << integral << std::endl;
+}
+
+TEST(Integral, Test2_100) {
+    double integral = integralFunction(function1, -1, 1.9, -1.3, 2, 2, 6.5, 10, 10, 100);
+    double value = 28.826634375;
+    ASSERT_LE(std::abs(integral - value), 1e-3);
+    std::cout << "value: " << value << std::endl;
+    std::cout << "integral: " << integral << std::endl;
+}
+
+TEST(Integral, Test3_1000) {
+    double integral = integralFunction(function3, 0, 1.8, -1.2, 1.1, -1, 2.9, 20, 2000, 2000);
+    double value = 67.49028;
+    ASSERT_LE(std::abs(integral - value), 1e-3);
+    std::cout << "value: " << value << std::endl;
+    std::cout << "integral: " << integral << std::endl;
+}
+
+TEST(Integral, Test4_1000) {
+    double integral = integralFunction(function3, 0.5, 1.7, -1, 2, -4, 1.9, 1000, 10, 1000);
+    double value = -144.963;
+    ASSERT_LE(std::abs(integral - value), 1e-3);
+    std::cout << "value: " << value << std::endl;
+    std::cout << "integral: " << integral << std::endl;
+}
+
+TEST(Integral, Test5_100000) {
+    double integral = integralFunction(function1, 0.1, 1, -1, 2, 4.2, 6, 10, 10, 100000);
+    double value = 6.81615;
+    ASSERT_LE(std::abs(integral - value), 1e-3);
+    std::cout << "value: " << value << std::endl;
+    std::cout << "integral: " << integral << std::endl;
+}
+
+TEST(Integral, Test6_90) {
+    double integral = integralFunction(function1, 0.1, 1, -1.1, 2, -1, 5, 90, 90, 90);
+    double value = 8.2863;
+    ASSERT_LE(std::abs(integral - value), 1e-3);
+    std::cout << "value: " << value << std::endl;
+    std::cout << "integral: " << integral << std::endl;
+}
+
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+
+\end{lstlisting}
+
+\par 2. Реализация на OpenMP.
+\begin{lstlisting}
+// rectangle_method_omp.h
+
+// Copyright 2021 Volkova Anastasia
+#ifndef MODULES_TASK_2_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_OMP_H_
+#define MODULES_TASK_2_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_OMP_H_
+
+double function1(double x, double y, double z);
+double function2(double x, double y, double z);
+double function3(double x, double y, double z);
+double function4(double x, double y, double z);
+
+double integralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k);
+double ParallelIntegralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k);
+
+#endif  // MODULES_TASK_2_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_OMP_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// rectangle_method_omp.cpp
+
+// Copyright 2021 Volkova Anastasia
+#include <omp.h>
+#include <iostream>
+#include "../../../modules/task_2/volkova_a_rectangle_method/rectangle_method_omp.h"
+
+double function1(double x, double y, double z) {
+    return x*y*z;
+}
+double function2(double x, double y, double z) {
+    return x * x * x * y + 2 * z * z * y + 10 * x * y * z;
+}
+double function3(double x, double y, double z) {
+    return (5 * x + 2 * y) * z;
+}
+double function4(double x, double y, double z) {
+    return x * x + x * y * z - 10*z * z;
+}
+
+double integralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k) {
+    double start_calc = omp_get_wtime();
+    const double hx = (bx - ax) / static_cast<double>(n);
+    const double hy = (by - ay) / static_cast<double>(m);
+    const double hz = (bz - az) / static_cast<double>(k);
+
+    double ans = 0;
+    double X, Y, Z;
+    for (int i = 0; i < n; ++i) {
+        X = ax + static_cast<double>(i) * hx + 0.5 * hx;
+        for (int j = 0; j < m; ++j) {
+            Y = ay + static_cast<double>(j) * hy + 0.5 * hy;
+            for (int q = 0; q < k;  ++q) {
+                Z = az + static_cast<double>(q) * hz + 0.5 * hz;
+                ans += f(X, Y, Z);
+            }
+        }
+    }
+    ans *= hx * hy * hz;
+    double end_calc = omp_get_wtime();
+    std::cout << "Runtime: " << end_calc - start_calc << std::endl;
+    return ans;
+}
+
+double ParallelIntegralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k) {
+    double start = omp_get_wtime();
+    const double hx = (bx - ax) / static_cast<double>(n);
+    const double hy = (by - ay) / static_cast<double>(m);
+    const double hz = (bz - az) / static_cast<double>(k);
+
+    double ans = 0;
+    double X, Y, Z, sum1, sum2;
+    /*#pragma omp parallel
+    #pragma omp master
+    {
+        int size = omp_get_num_threads();
+        std::cout << "omp num threads: " << size << std::endl;
+    }*/
+    #pragma omp parallel for private(X, Y, Z, sum1, sum2) reduction(+ : ans)
+    for (int i = 0; i < n; ++i) {
+        sum1 = 0;
+        X = ax + static_cast<double>(i) * hx + 0.5 * hx;
+        for (int j = 0; j < m; ++j) {
+            sum2 = 0;
+            Y = ay + static_cast<double>(j) * hy + 0.5 * hy;
+            for (int q = 0; q < k;  ++q) {
+                Z = az + static_cast<double>(q) * hz + 0.5 * hz;
+                sum2 += f(X, Y, Z);
+            }
+            sum1 += sum2;
+        }
+        ans += sum1;
+    }
+    ans *= hx * hy * hz;
+    double end = omp_get_wtime();
+    std::cout << "Runtime using OpenMP: " << end - start << std::endl;
+    return ans;
+}
+
+\end{lstlisting}
+
+\par 3. Реализация на TBB.
+\begin{lstlisting}
+// rectangle_method_tbb.h
+
+// Copyright 2021 Volkova Anastasia
+#ifndef MODULES_TASK_3_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_TBB_H_
+#define MODULES_TASK_3_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_TBB_H_
+
+double function1(double x, double y, double z);
+double function2(double x, double y, double z);
+double function3(double x, double y, double z);
+double function4(double x, double y, double z);
+
+double integralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k);
+double ParallelIntegralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k);
+
+#endif  // MODULES_TASK_3_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_TBB_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// rectangle_method_tbb.cpp
+
+// Copyright 2021 Volkova Anastasia
+#include <tbb/tbb.h>
+#include <tbb/tick_count.h>
+#include <iostream>
+#include "../../../modules/task_3/volkova_a_rectangle_method/rectangle_method_tbb.h"
+
+double function1(double x, double y, double z) {
+    return x*y*z;
+}
+double function2(double x, double y, double z) {
+    return x * x * x * y + 2 * z * z * y + 10 * x * y * z;
+}
+double function3(double x, double y, double z) {
+    return (5 * x + 2 * y) * z;
+}
+double function4(double x, double y, double z) {
+    return x * x + x * y * z - 10*z * z;
+}
+
+double integralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k) {
+    tbb::tick_count start_calc = tbb::tick_count::now();
+    const double hx = (bx - ax) / static_cast<double>(n);
+    const double hy = (by - ay) / static_cast<double>(m);
+    const double hz = (bz - az) / static_cast<double>(k);
+
+    double ans = 0;
+    double X, Y, Z;
+    for (int i = 0; i < n; ++i) {
+        X = ax + static_cast<double>(i) * hx + 0.5 * hx;
+        for (int j = 0; j < m; ++j) {
+            Y = ay + static_cast<double>(j) * hy + 0.5 * hy;
+            for (int q = 0; q < k;  ++q) {
+                Z = az + static_cast<double>(q) * hz + 0.5 * hz;
+                ans += f(X, Y, Z);
+            }
+        }
+    }
+    ans *= hx * hy * hz;
+    tbb::tick_count end_calc = tbb::tick_count::now();
+    std::cout << "Runtime: " << static_cast<double>((end_calc - start_calc).seconds()) << std::endl;
+    return ans;
+}
+
+double ParallelIntegralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k) {
+    tbb::tick_count start = tbb::tick_count::now();
+    const double hx = (bx - ax) / static_cast<double>(n);
+    const double hy = (by - ay) / static_cast<double>(m);
+    const double hz = (bz - az) / static_cast<double>(k);
+
+    auto integral = tbb::parallel_reduce(
+        tbb::blocked_range2d<int>(0, n, 0, m), 0.0,
+        [&](tbb::blocked_range2d<int> r, double ans) -> double {
+            for (int i = r.rows().begin(); i != r.rows().end(); ++i) {
+                double X = ax + (i) * hx + 0.5 * hx;
+                for (int j = r.cols().begin(); j != r.cols().end(); ++j) {
+                    double Y = ay + (j) * hy + 0.5 * hy;
+                    double sum = 0;
+                    for (int q = 0; q < k;  ++q) {
+                        double Z = az + (q) * hz + 0.5 * hz;
+                        sum  += f(X, Y, Z) * hx * hy * hz;
+                    }
+                    ans += sum;
+                }
+            }
+            return ans;
+        }, std::plus<double>());
+    tbb::tick_count end = tbb::tick_count::now();
+    std::cout << "Runtime using TBB: " << static_cast<double>((end - start).seconds()) << std::endl;
+    return integral;
+}
+
+\end{lstlisting}
+
+\par 4. Реализация на std::thread.
+\begin{lstlisting}
+// rectangle_method_std.h
+
+// Copyright 2021 Volkova Anastasia
+#ifndef MODULES_TASK_4_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_STD_H_
+#define MODULES_TASK_4_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_STD_H_
+
+#include <vector>
+
+double function1(double x, double y, double z);
+double function2(double x, double y, double z);
+double function3(double x, double y, double z);
+double function4(double x, double y, double z);
+
+double integralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k);
+double ParallelIntegralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k);
+#endif  // MODULES_TASK_4_VOLKOVA_A_RECTANGLE_METHOD_RECTANGLE_METHOD_STD_H_
+
+\end{lstlisting}
+\begin{lstlisting}
+// rectangle_method_std.cpp
+
+// Copyright 2021 Volkova Anastasia
+#include <iostream>
+#include "../../../modules/task_4/volkova_a_rectangle_method/rectangle_method_std.h"
+#include "../../../3rdparty/unapproved/unapproved.h"
+
+double function1(double x, double y, double z) {
+    return x*y*z;
+}
+double function2(double x, double y, double z) {
+    return x * x * x * y + 2 * z * z * y + 10 * x * y * z;
+}
+double function3(double x, double y, double z) {
+    return (5 * x + 2 * y) * z;
+}
+double function4(double x, double y, double z) {
+    return x * x + x * y * z - 10*z * z;
+}
+
+double integralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k) {
+    auto start_calc = std::chrono::high_resolution_clock::now();
+    const double hx = (bx - ax) / static_cast<double>(n);
+    const double hy = (by - ay) / static_cast<double>(m);
+    const double hz = (bz - az) / static_cast<double>(k);
+
+    double ans = 0;
+    double X, Y, Z;
+    for (int i = 0; i < n; ++i) {
+        X = ax + static_cast<double>(i) * hx + 0.5 * hx;
+        for (int j = 0; j < m; ++j) {
+            Y = ay + static_cast<double>(j) * hy + 0.5 * hy;
+            for (int q = 0; q < k;  ++q) {
+                Z = az + static_cast<double>(q) * hz + 0.5 * hz;
+                ans += f(X, Y, Z);
+            }
+        }
+    }
+    ans *= hx * hy * hz;
+    auto end_calc = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> runtime = end_calc - start_calc;
+    std::cout << "Runtime: " << runtime.count() << std::endl;
+    return ans;
+}
+
+std::mutex my_mutex;
+
+double ParallelIntegralFunction(double (*f)(double, double, double),
+                        double ax, double bx,
+                        double ay, double by,
+                        double az, double bz,
+                        int n, int m, int k) {
+    double SUMMA = 0;
+    auto start = std::chrono::high_resolution_clock::now();
+
+    const double hx = (bx - ax) / static_cast<double>(n);
+    const double hy = (by - ay) / static_cast<double>(m);
+    const double hz = (bz - az) / static_cast<double>(k);
+
+    int thread_numb = std::thread::hardware_concurrency();
+    std::vector<std::thread> THREADS;
+    int div = n / thread_numb;
+    int rem = n % thread_numb;
+    std::vector<int> end_x(thread_numb);
+
+    for (int i = 0; i < thread_numb; ++i) {
+        end_x[i] = div;
+        if (rem) {
+            rem--;
+            end_x[i]++;
+        }
+    }
+    int start_x = 0;
+
+    auto calc_function = [&](int start_x, int end_x){
+        double sum = 0;
+        double X, Y, Z;
+        for (int i = start_x; i < end_x; ++i) {
+            X = ax + static_cast<double>(i) * hx + 0.5 * hx;
+            for (int j = 0; j < m; ++j) {
+                Y = ay + static_cast<double>(j) * hy + 0.5 * hy;
+                for (int q = 0; q < k;  ++q) {
+                    Z = az + static_cast<double>(q) * hz + 0.5 * hz;
+                    sum += f(X, Y, Z);
+                }
+            }
+        }
+        std::lock_guard<std::mutex> my_lock(my_mutex);
+        SUMMA += sum;
+    };
+
+    for (int thread = 0; thread < thread_numb; ++thread) {
+        THREADS.emplace_back(std::thread(calc_function,
+                            start_x,
+                            start_x + end_x[thread]));
+        start_x += end_x[thread];
+    }
+    for (int i = 0; i < thread_numb; ++i) {
+        THREADS[i].join();
+    }
+    SUMMA *= hx * hy * hz;
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> runtime = end - start;
+    std::cout << "Runtime using std::thread : " << runtime.count() << std::endl;
+    return SUMMA;
+}
+
+\end{lstlisting}
+\end{document}
