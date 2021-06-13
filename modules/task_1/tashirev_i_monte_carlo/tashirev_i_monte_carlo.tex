@@ -1,0 +1,1031 @@
+\documentclass{report}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage[english, russian]{babel}
+\usepackage[pdftex]{hyperref}
+\usepackage[14pt]{extsizes}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{indentfirst}
+
+\geometry{a4paper,top=2cm,bottom=3cm,left=2cm,right=1.5cm}
+\setlength{\parskip}{0.5cm}
+\setlist{nolistsep, itemsep=0.3cm,parsep=0pt}
+
+\lstset{language=C++,
+basicstyle=\footnotesize,
+keywordstyle=\color{blue}\ttfamily,
+stringstyle=\color{red}\ttfamily,
+commentstyle=\color{green}\ttfamily,
+morecomment=[l][\color{magenta}]{\#},
+tabsize=4,
+breaklines=true,
+breakatwhitespace=true,
+title=\lstname,
+}
+
+\makeatletter
+\renewcommand\@biblabel[1]{#1.\hfil}
+\makeatother
+
+\begin{document}
+
+\begin{titlepage}
+
+\begin{center}
+Министерство науки и высшего образования Российской Федерации
+\end{center}
+
+\begin{center}
+Федеральное государственное автономное образовательное учреждение высшего образования \\
+Национальный исследовательский Нижегородский государственный университет им. Н.И. Лобачевского
+\end{center}
+
+\begin{center}
+Институт информационных технологий, математики и механики
+\end{center}
+
+\vspace{4em}
+
+\begin{center}
+\textbf{\LargeОтчет по лабораторной работе} \\
+\end{center}
+\begin{center}
+\textbf{\Large«Интегрирование многомерных интеграллов методом Монте-Карло»} \\
+\end{center}
+
+\vspace{4em}
+
+\newbox{\lbox}
+\savebox{\lbox}{\hbox{text}}
+\newlength{\maxl}
+\setlength{\maxl}{\wd\lbox}
+\hfill\parbox{7cm}{
+\hspace*{5cm}\hspace*{-5cm}\textbf{Выполнил:} \\ студент группы 381806-3 \\ Таширев И.Э.\\
+\\
+\hspace*{5cm}\hspace*{-5cm}\textbf{Проверил:}\\ доцент кафедры МОСТ, \\ кандидат технических наук \\ Сысоев А.В.\\
+}
+\vspace{\fill}
+
+\begin{center} Нижний Новгород \\ 2021 \end{center}
+
+\end{titlepage}
+
+\setcounter{page}{2}
+
+% Содержание
+\tableofcontents
+\newpage
+
+% Введение
+\section*{Введение}
+Метод Монте-Карло — это группа численных методов, основанных на
+получении большого количества реализаций случайного процесса, который
+формируется таким образом, чтобы его вероятностные характеристики
+совпадали с аналогичными величинами решаемой задачи.
+\par Для вычисления интегралов на компьютере используются так называемые численные методы, позволяющие находить решение задачи с заданной точностью.
+\par Моделирование по методу Монте-Карло дает гораздо более полное
+представление о возможных событиях. Оно позволяет судить не только о том,
+что может произойти, но и о том, какова вероятность того или иного исхода.
+Характер полученных данных при использовании метода позволяет создавать
+графики различных последствий, а также вероятностей их наступления.
+Преимущество метода в том, что после финальных расчетов можно
+увидеть, какие факторы оказывают наибольшее воздействие на итоговые
+результаты.
+\addcontentsline{toc}{section}{Введение}
+
+\newpage
+
+% Постановка задачи
+\section*{Постановка задачи}
+\addcontentsline{toc}{section}{Постановка задачи}
+В рамках лабораторной работы необходимо:
+\begin{enumerate}
+\item Изучить теоретические основы метода Монте-Карло.
+\item Реализовать последовательную и параллельные реализации алгоритма. вычисления многомерных интегралов методом Монте-Карло.
+\item Проверить корректность работы алгоритмов.
+\item Провести эксперименты для оценки эффективности параллелизации.
+\item Сделать соответвующие выводы на основе полученных результатов.
+\end{enumerate}
+\par Для реализации параллельных версий необходимо использовать библиотеки OpenMP, Intel Threading Building Blocks и std::threads. Для проверки корректности работы использовать Google Testing Framework.
+\newpage
+
+% Описание алгоритмов
+\section*{Описание алгоритмов}
+\addcontentsline{toc}{section}{Описание алгоритмов}
+Предположим, необходимо взять интеграл от некоторой функции. Воспользуемся неформальным геометрическим описанием интеграла и будем понимать его как площадь под графиком этой функции.
+\par Пусть имеется интеграл: $\int\limits_a^b f(x)dx$ , где $$ a\le x \le b $$
+
+Рассмотрим случайную величину u, равномерно распределённую на отрезке интегрирования [a,b]. Тогда $f(u)$ также будет случайной величиной, причём её математическое ожидание выражается как
+$$E f(u)=\int\limits_{a}^{b}f(x)\varphi(x)dx$$
+где $\varphi(x)$ — плотность распределения случайной величины u, равная 
+$\frac {1} {b-a}$ на участке [a,b]. Таким образом, искомый интеграл выражается как
+$$\int\limits_a^b f(x)dx = (b-a) E f(u),$$
+но математическое ожидание случайной величины $f(u)$ можно легко оценить, смоделировав эту случайную величину и посчитав выборочное среднее.
+
+Далее случайно выбираются N точек, равномерно распределённых на [a,b], для каждой точки $u_i$ вычисляем $f(u_i)$. Затем вычисляем выборочное среднее: 
+$$\frac{1}{N}\sum _{{i=1}}^{{N}}f(u_{i})$$
+
+В итоге получаем оценку интеграла:
+
+$$\int \limits _a^bf(x)\,dx\approx \frac {b-a}{N}\sum _{i=1}^{N}f(u_{i})$$
+
+Точность оценки зависит только от количества точек N.
+\par В случае вычисления многомерных интегралов формула никак не изменяется, просто вместо одномерного интеграла используется многомерный. Тогда проход проводится по параллелепипедам или другим многомерным объектам.
+\newpage
+
+% Схема распараллеливания
+\section*{Схема распараллеливания}
+\addcontentsline{toc}{section}{Схема распараллеливания}
+\par Идея параллельной функции метода Монте-Карло состоит в том, что итерации цикла делятся между потоками, после разбиения интеграла каждый поток получает одинаковое количество итераций, эти потоки проводят вычисления в своём диапазоне, далее складывается результат их работы.
+\newpage
+
+% Описание программной реализации
+\section*{Описание программной реализации}
+\addcontentsline{toc}{section}{Описание программной реализации}
+\par Последовательный алгоритм многомерного интегрирования методом Монте-Карло вызывается функцией:
+\begin{lstlisting}
+double seqMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps);
+\end{lstlisting}
+\par Где входными параметрами функции являются: интегрируемая функция, которая выбрана для вычисления интеграла, следующими параметрами являются границы отрезков a и b, последним параметром является частота разбиения.
+\subsection*{OpenMP}
+\addcontentsline{toc}{subsection}{OpenMP}
+\par Параллельный алгоритм OpenMP вызывается функцией:
+\begin{lstlisting}
+double ompMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps);
+\end{lstlisting}
+\par Распараллеливание с помощью директивы:
+\par\verb|#pragma omp parallel shared(r) reduction(+ : res)|
+\subsection*{TBB}
+\addcontentsline{toc}{subsection}{TBB}
+\par Параллельный алгоритм TBB:
+\begin{lstlisting}
+double tbbMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps);
+\end{lstlisting}
+\par Распараллеливание ведётся через операцию редукии: \verb| tbb::parallel_reduce|
+\par На вход поступает \verb|tbb::blocked_range<size_t>(0, steps)|
+\subsection*{std::threads}
+\addcontentsline{toc}{subsection}{std::threads}
+\begin{lstlisting}
+double stdMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps)
+\end{lstlisting}
+\par \verb|std::thread::hardware_concurrency();| - возвращает количество параллельных потоков, поддерживаемых реализацией. Итерации делятся между потоками. 
+\par В \verb|threads.emplace_back([&,range,i]();| генерируется случайное разбиение фунции. Далее функция join() ожидает завершения работы всех потоков и возвращает результат.
+
+\par Входные параметры функции для всех параллельных реализаций идентичны последовательной.
+
+\newpage
+
+% Подтверждение корректности
+\section*{Подтверждение корректности}
+\addcontentsline{toc}{section}{Подтверждение корректности}
+Для подтверждения корректности программы представлен набор тестов, разработанных с использованием Google Testing Framework.
+\par Тесты подразумевают вычисление интеграла для заранее заданной функции параллельным и последовательным способом, также проводится замер времени затраченного на получение результата.
+\par Также представлен тест для определения отрицательных значений разбиений в интеграле.
+\par Для успешного прохождения теста требуется, чтобы отклонение между последовательной и параллельной версиями находилось в заданных тестом рамках. \par Успешное прохождение всех тестов доказывает корректность работы данных реализаций.
+\newpage
+
+% Результаты экспериментов
+\section*{Результаты экспериментов}
+\addcontentsline{toc}{section}{Результаты экспериментов}
+Эксперименты для оценки эффективности проводились на ПК со следующими характеристиками:
+
+\begin{itemize}
+\item Процессор: AMD Ryzen 5 3500U 2.10 Ггц, ядер: 4, логических процессоров: 8;
+\item Оперативная память: 8 ГБ DDR4 2400 МГц;
+\item ОС: Microsoft Windows 10 Pro Build 19042.985.
+\end{itemize}
+\par Замеры параллельных версий производились на 4 потоках.
+\begin{table}[!h]
+\caption{Результаты экспериментов}
+\centering
+\begin{tabular}{lllll}
+Частота разбиения & Последовательная & OpenMP & TBB & std::threads     \\
+100000    & 0.07                    & 0.02       & 0.004    & 0.03     \\
+150000    & 0.11                    & 0.03       & 0.007    & 0.04     \\
+200000   & 0.15                    & 0.04       & 0.01      & 0.04     \\
+250000   & 0.17                   & 0.05       & 0.01       & 0.05     \\
+\end{tabular}
+\end{table}
+
+\par Можно сделать вывод о том, что параллельная реализация работает быстрее, чем последовательная, причём ускорение более заметно на большем числе разбиений.
+\par Самой эффективной оказалась реализация с использованием TBB технологий.
+\newpage
+
+% Заключение
+\section*{Заключение}
+\addcontentsline{toc}{section}{Заключение}
+В ходе выполнения данной лабораторной работы были реализованы последовательная и параллельная реализации алгоритма вычисления многомерных интегралов методом Монте-Карло.
+\par Параллельные реализации доказали свою эффективность, благодаря использованию тестов, созданных для данной программы с использованием Google C++ TestingFramework.
+\newpage
+
+% Список литературы
+\begin{thebibliography}{1}
+\addcontentsline{toc}{section}{Список литературы}
+\bibitem {wikishell} Википедия:https://ru.wikipedia.org/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%9C%D0%BE%D0%BD%D1%82%D0%B5-%D0%9A%D0%B0%D1%80%D0%BB%D0%BE
+\bibitem {Sobol} Соболь И.М. Популярные лекции по математике 1968. Выпуск 46.
+Метод Монте-Карло. М.: Наука, 1968. — 64 с.
+\end{thebibliography}
+\newpage
+
+% Приложение
+\section*{Приложение}
+\addcontentsline{toc}{section}{Приложение}
+\par Последовательная версия
+\par \verb|1.monte_carlo.cpp|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#include <vector>
+#include <string>
+#include <random>
+#include <algorithm>
+#include <ctime>
+#include "../../modules/task_1/tashirev_i_monte_carlo/monte_carlo.h"
+
+double seqMonteCarlo(double(*f)(std::vector<double>), const std::vector<double>& a,
+    const std::vector<double>& b, int s) {
+    double res = 0.0;
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+    if (s <= 0)
+        throw "integral is negative";
+    int mult = a.size();
+    double S = 1;
+    for (int i = 0; i < mult; i++)
+        S *= (b[i] - a[i]);
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    std::vector<double> r1(mult);
+    for (int i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+    for (int i = 0; i < s; i++) {
+        for (int j = 0; j < mult; j++)
+            r1[j] = r[j](gen);
+        res += f(r1);
+    }
+    res *= S / s;
+    return res;
+}
+\end{lstlisting}
+\par \verb|2.monte_carlo.h|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#ifndef MODULES_TASK_1_TASHIREV_I_MONTE_CARLO_MONTE_CARLO_H_
+#define MODULES_TASK_1_TASHIREV_I_MONTE_CARLO_MONTE_CARLO_H_
+
+#include <vector>
+#include <string>
+
+double seqMonteCarlo(double(*f)(std::vector<double>), const std::vector<double>&a,
+    const std::vector<double>&b, int s);
+
+#endif  // MODULES_TASK_1_TASHIREV_I_MONTE_CARLO_MONTE_CARLO_H_
+\end{lstlisting}
+\par \verb|3.main.cpp|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#include <gtest/gtest.h>
+#include <vector>
+#include <cmath>
+#include "./monte_carlo.h"
+
+double seqIntegral_1(std::vector<double> x) {
+    return x[0] * x[0];
+}
+
+double seqIntegral_2(std::vector<double> x) {
+    return 3 * x[0] * x[0] * x[0] + 2 * x[1] * x[1];
+}
+
+double seqIntegral_3(std::vector<double> x) {
+    return sin(x[0]) + 2 * x[1] + x[2] * x[2];
+}
+
+double seqIntegral_4(std::vector<double> x) {
+    return x[0] * x[0] + 2 * x[1] - cos(x[2]) + 2 * x[3] * x[3] * x[3] - 3 * x[4];
+}
+
+
+TEST(Monte_carlo_integral_test, test_result_of_integral) {
+    double a = 0.0, b = 1.0;
+    double res = seqMonteCarlo(seqIntegral_1, { a }, { b }, 1000000);
+    ASSERT_NEAR(res, 0.333, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_1) {
+    std::vector<double>a = { 0.0, 2.5 };
+    std::vector<double>b = { 1.534, 3.12 };
+    double res = seqMonteCarlo(seqIntegral_2, a, b, 1000000);
+    ASSERT_NEAR(res, 17.660, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_2) {
+    std::vector<double>a = { 0.0, 2.5, 1.234 };
+    std::vector<double>b = { 1.534, 3.12, 1.555 };
+    double res = seqMonteCarlo(seqIntegral_3, a, b, 1000000);
+    ASSERT_NEAR(res, 2.503, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_3) {
+    std::vector<double>a = { 0.3, 3.5, 1.234 };
+    std::vector<double>b = { 3.534, 1.32, 1.435 };
+    double res = seqMonteCarlo(seqIntegral_3, a, b, 1000000);
+    ASSERT_NEAR(res, -10.181, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_n_is_negative) {
+    double a = 0.0, b = 3.0;
+    ASSERT_ANY_THROW(seqMonteCarlo(seqIntegral_1, { a }, { b }, -1000));
+}
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\par OpenMP Версия
+\par \verb|1.monte_carlo.cpp|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#include <omp.h>
+#include <ctime>
+#include <random>
+#include <string>
+#include <algorithm>
+#include <vector>
+#include "../../../modules/task_2/tashirev_i_monte_carlo/monte_carlo.h"
+
+double seqMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps) {
+    if (steps <= 0)
+        throw "integral is negative";
+    double res = 0.0;
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+
+    int mult = a.size();
+    double S = 1;
+    for (int i = 0; i < mult; i++)
+        S *= (b[i] - a[i]);
+
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    std::vector<double> r1(mult);
+    for (int i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+
+    for (int i = 0; i < steps; ++i) {
+        for (int j = 0; j < mult; ++j)
+            r1[j] = r[j](gen);
+        res += f(r1);
+    }
+
+    res *= S / steps;
+    return res;
+}
+
+double ompMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps) {
+    if (steps <= 0)
+        throw "integral is negative";
+    double res = 0.0;
+    int mult = a.size();
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    for (int i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+    int num_th;
+    #pragma omp parallel shared(r) reduction(+ : res)
+    {
+        num_th = omp_get_num_threads();
+        std::mt19937 gen;
+        gen.seed(static_cast<unsigned int>(time(0)));
+        std::vector<double> r1(mult);
+        for (int i = 0; i < steps; ++i) {
+            for (int j = 0; j < mult; ++j)
+                r1[j] = r[j](gen);
+            res += f(r1);
+        }
+    }
+    #pragma omp master
+    {
+        double S = 1;
+        for (int i = 0; i < mult; i++)
+            S *= (b[i] - a[i]);
+        res *= S / (num_th * steps);
+    }
+    return res;
+}
+\end{lstlisting}
+\par \verb|2.monte_carlo.h|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#ifndef MODULES_TASK_2_TASHIREV_I_MONTE_CARLO_MONTE_CARLO_H_
+#define MODULES_TASK_2_TASHIREV_I_MONTE_CARLO_MONTE_CARLO_H_
+
+#include <vector>
+#include <string>
+
+double seqMonteCarlo(double(*f)(const std::vector<double>&),
+                     const std::vector<double>& a,
+                     const std::vector<double>& b, int s);
+
+double ompMonteCarlo(double(*f)(const std::vector<double>&),
+                     const std::vector<double>& a,
+                     const std::vector<double>& b, int s);
+
+#endif  // MODULES_TASK_2_TASHIREV_I_MONTE_CARLO_MONTE_CARLO_H_|
+\end{lstlisting}
+\par \verb|3.main.cpp|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#include <gtest/gtest.h>
+#include <omp.h>
+#include <cmath>
+#include <vector>
+#include "../../../modules/task_2/tashirev_i_monte_carlo/monte_carlo.h"
+
+double Integral_1(const std::vector<double>& x) {
+    return x[0] * x[0];
+}
+
+double Integral_2(const std::vector<double>& x) {
+    return 3 * x[0] * x[0] * x[0] + 2 * x[1] * x[1];
+}
+
+double Integral_3(const std::vector<double>& x) {
+    return sin(x[0]) + 2 * x[1] + x[2] * x[2];
+}
+
+double Integral_4(const std::vector<double>& x) {
+    return x[0] * x[0] + 2 * x[1] - cos(x[2]) + 2 * x[3] * x[3] * x[3] - 3 * x[4];
+}
+
+
+TEST(Monte_carlo_integral_test, test_result_of_integral) {
+    double a = 0.0, b = 1.0;
+    double t1, t2;
+    int num_th = 4;
+    const int N = 250000;
+    omp_set_num_threads(num_th);
+
+    t1 = omp_get_wtime();
+    double res_seq = seqMonteCarlo(Integral_1, { a }, { b }, N * num_th);
+    t2 = omp_get_wtime();
+    std::cout << "Sequential time: " << t2 - t1 << std::endl;
+
+    t1 = omp_get_wtime();
+    double res_omp = ompMonteCarlo(Integral_1, { a }, { b }, N);
+    t2 = omp_get_wtime();
+    std::cout << "OpenMP time: " << t2 - t1 << std::endl;
+
+    ASSERT_NEAR(res_seq, res_omp, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_1) {
+    std::vector<double> a = { 0.0, 2.5 };
+    std::vector<double> b = { 1.534, 3.12 };
+    double t1, t2;
+    int num_th = 4;
+    const int N = 250000;
+    omp_set_num_threads(num_th);
+
+    t1 = omp_get_wtime();
+    double res_seq = seqMonteCarlo(Integral_2, a, b, N * num_th);
+    t2 = omp_get_wtime();
+    std::cout << "Sequential time: " << t2 - t1 << std::endl;
+
+    t1 = omp_get_wtime();
+    double res_omp = ompMonteCarlo(Integral_2, a, b, N);
+    t2 = omp_get_wtime();
+    std::cout << "OpenMP time: " << t2 - t1 << std::endl;
+
+    ASSERT_NEAR(res_seq, res_omp, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_2) {
+    std::vector<double> a = { 0.0, 2.5, 1.234 };
+    std::vector<double> b = { 1.534, 3.12, 1.555 };
+    double t1, t2;
+    int num_th = 4;
+    const int N = 250000;
+    omp_set_num_threads(num_th);
+
+    t1 = omp_get_wtime();
+    double res_seq = seqMonteCarlo(Integral_3, a, b, N * num_th);
+    t2 = omp_get_wtime();
+    std::cout << "Sequential time: " << t2 - t1 << std::endl;
+
+    t1 = omp_get_wtime();
+    double res_omp = ompMonteCarlo(Integral_3, a, b, N);
+    t2 = omp_get_wtime();
+    std::cout << "OpenMP time: " << t2 - t1 << std::endl;
+
+    ASSERT_NEAR(res_seq, res_omp, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_3) {
+    std::vector<double>a = { 0.3, 1.32, 1.234 };
+    std::vector<double>b = { 3.534, 3.5, 1.435 };
+    double t1, t2;
+    int num_th = 4;
+    const int N = 250000;
+    omp_set_num_threads(num_th);
+
+    t1 = omp_get_wtime();
+    double res_seq = seqMonteCarlo(Integral_3, a, b, N * num_th);
+    t2 = omp_get_wtime();
+    std::cout << "Sequential time: " << t2 - t1 << std::endl;
+
+    t1 = omp_get_wtime();
+    double res_omp = ompMonteCarlo(Integral_3, a, b, N);
+    t2 = omp_get_wtime();
+    std::cout << "OpenMP time: " << t2 - t1 << std::endl;
+
+    ASSERT_NEAR(res_seq, res_omp, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_n_is_negative) {
+    double a = 0.0, b = 3.0;
+    ASSERT_ANY_THROW(ompMonteCarlo(Integral_1, { a }, { b }, -1000));
+}
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\par Intel TBB версия
+\par \verb|1.monte_carlo.cpp|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#include <tbb/tbb.h>
+#include <functional>
+#include <ctime>
+#include <random>
+#include <string>
+#include <algorithm>
+#include <vector>
+#include "../../../modules/task_3/tashirev_i_monte_carlo/tashirev_i_monte_carlo.h"
+
+double seqMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps) {
+    if (steps <= 0)
+        throw "integral is negative";
+    double res = 0.0;
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+
+    int mult = a.size();
+    double S = 1;
+    for (int i = 0; i < mult; i++)
+        S *= (b[i] - a[i]);
+
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    std::vector<double> r1(mult);
+    for (int i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+
+    for (int i = 0; i < steps; ++i) {
+        for (int j = 0; j < mult; ++j)
+            r1[j] = r[j](gen);
+        res += f(r1);
+    }
+
+    res *= S / steps;
+    return res;
+}
+
+double tbbMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps) {
+    if (steps <= 0)
+        throw "integral is negative";
+    double res = 0.0;
+    int mult = a.size();
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    for (int i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+
+    res = tbb::parallel_reduce(
+                tbb::blocked_range<size_t>(0, steps), 0.0,
+                [&](tbb::blocked_range<size_t> range, double running_total) {
+                    std::mt19937 gen;
+                    gen.seed(static_cast<unsigned int>(time(0)));
+                    std::vector<double> r1(mult);
+                    for (size_t i = range.begin(); i != range.end(); ++i) {
+                        for (int j = 0; j < mult; ++j)
+                            r1[j] = r[j](gen);
+                        running_total += f(r1);
+                    }
+
+                    return running_total;
+                }, std::plus<double>() );
+
+    double S = 1;
+    for (int i = 0; i < mult; i++)
+        S *= (b[i] - a[i]);
+    res *= S / steps;
+
+    return res;
+}
+\end{lstlisting}
+\par \verb|2.monte_carlo.h|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#ifndef MODULES_TASK_3_TASHIREV_I_MONTE_CARLO_TASHIREV_I_MONTE_CARLO_H_
+#define MODULES_TASK_3_TASHIREV_I_MONTE_CARLO_TASHIREV_I_MONTE_CARLO_H_
+
+#include <vector>
+#include <string>
+
+double seqMonteCarlo(double(*f)(const std::vector<double>&),
+                     const std::vector<double>& a,
+                     const std::vector<double>& b, int s);
+
+double tbbMonteCarlo(double(*f)(const std::vector<double>&),
+                     const std::vector<double>& a,
+                     const std::vector<double>& b, int s);
+
+#endif  // MODULES_TASK_3_TASHIREV_I_MONTE_CARLO_TASHIREV_I_MONTE_CARLO_H_
+\end{lstlisting}
+\par \verb|3.main.cpp|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#include <gtest/gtest.h>
+#include <tbb/tick_count.h>
+#include <cmath>
+#include <vector>
+#include "../../../modules/task_3/tashirev_i_monte_carlo/tashirev_i_monte_carlo.h"
+
+double Integral_1(const std::vector<double>& x) {
+    return x[0] * x[0];
+}
+
+double Integral_2(const std::vector<double>& x) {
+    return 3 * x[0] * x[0] * x[0] + 2 * x[1] * x[1];
+}
+
+double Integral_3(const std::vector<double>& x) {
+    return sin(x[0]) + 2 * x[1] + x[2] * x[2];
+}
+
+double Integral_4(const std::vector<double>& x) {
+    return x[0] * x[0] + 2 * x[1] - cos(x[2]) +
+            2 * x[3] * x[3] * x[3] - 3 * x[4];
+}
+
+
+TEST(Monte_carlo_integral_test, test_result_of_integral) {
+    double a = 0.0, b = 1.0;
+    tbb::tick_count t1, t2;
+    int num_th = 4;
+    const int N = 250000;
+    t1 = tbb::tick_count::now();
+    double res_seq = seqMonteCarlo(Integral_1, { a }, { b }, N * num_th);
+    t2 = tbb::tick_count::now();
+    std::cout << " Seq_Time = " << (t2 - t1).seconds() << std::endl;
+    t1 = tbb::tick_count::now();
+    double res_tbb = tbbMonteCarlo(Integral_1, { a }, { b }, N);
+    t2 = tbb::tick_count::now();
+    std::cout << " Paral_Time = " << (t2 - t1).seconds() << std::endl;
+
+    ASSERT_NEAR(res_seq, res_tbb, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_1) {
+    std::vector<double> a = { 0.0, 2.5 };
+    std::vector<double> b = { 1.534, 3.12 };
+    tbb::tick_count t1, t2;
+    int num_th = 4;
+    const int N = 250000;
+
+    t1 = tbb::tick_count::now();
+    double res_seq = seqMonteCarlo(Integral_2, a, b, N * num_th);
+    t2 = tbb::tick_count::now();
+    std::cout << " Seq_Time = " << (t2 - t1).seconds() << std::endl;
+    t1 = tbb::tick_count::now();
+    double res_tbb = tbbMonteCarlo(Integral_2, a, b, N);
+    t2 = tbb::tick_count::now();
+    std::cout << " Paral_Time = " << (t2 - t1).seconds() << std::endl;
+
+    ASSERT_NEAR(res_seq, res_tbb, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_2) {
+    std::vector<double> a = { 0.0, 2.5, 1.234 };
+    std::vector<double> b = { 1.534, 3.12, 1.555 };
+    tbb::tick_count t1, t2;
+    int num_th = 4;
+    const int N = 250000;
+
+    t1 = tbb::tick_count::now();
+    double res_seq = seqMonteCarlo(Integral_3, a, b, N * num_th);
+    t2 = tbb::tick_count::now();
+    std::cout << " Seq_Time = " << (t2 - t1).seconds() << std::endl;
+    t1 = tbb::tick_count::now();
+    double res_tbb = tbbMonteCarlo(Integral_3, a, b, N);
+    t2 = tbb::tick_count::now();
+    std::cout << " Paral_Time = " << (t2 - t1).seconds() << std::endl;
+
+    ASSERT_NEAR(res_seq, res_tbb, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_3) {
+    std::vector<double>a = { 0.3, 1.32, 1.234 };
+    std::vector<double>b = { 3.534, 3.5, 1.435 };
+    tbb::tick_count t1, t2;
+    int num_th = 4;
+    const int N = 250000;
+
+    t1 = tbb::tick_count::now();
+    double res_seq = seqMonteCarlo(Integral_3, a, b, N * num_th);
+    t2 = tbb::tick_count::now();
+    std::cout << " Seq_Time = " << (t2 - t1).seconds() << std::endl;
+    t1 = tbb::tick_count::now();
+    double res_tbb = tbbMonteCarlo(Integral_3, a, b, N);
+    t2 = tbb::tick_count::now();
+    std::cout << " Paral_Time = " << (t2 - t1).seconds() << std::endl;
+
+    ASSERT_NEAR(res_seq, res_tbb, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_n_is_negative) {
+    double a = 0.0, b = 3.0;
+    ASSERT_ANY_THROW(tbbMonteCarlo(Integral_1, { a }, { b }, -1000));
+}
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+
+\par std::threads версия
+\par \verb|1.monte_carlo.cpp|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#include <functional>
+#include <ctime>
+#include <random>
+#include <string>
+#include <algorithm>
+#include <iostream>
+#include <vector>
+#include "../../3rdparty/unapproved/unapproved.h"
+#include "../../../modules/task_4/tashirev_i_monte_carlo/tashirev_i_monte_carlo.h"
+
+double seqMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps) {
+    if (steps <= 0)
+        throw "integral is negative";
+    double res = 0.0;
+    std::mt19937 gen;
+    gen.seed(static_cast<unsigned int>(time(0)));
+
+    int mult = a.size();
+    double S = 1;
+    for (int i = 0; i < mult; i++)
+        S *= (b[i] - a[i]);
+
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    std::vector<double> r1(mult);
+    for (int i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+
+    for (int i = 0; i < steps; ++i) {
+        for (int j = 0; j < mult; ++j)
+            r1[j] = r[j](gen);
+        res += f(r1);
+    }
+
+    res *= S / steps;
+    return res;
+}
+
+double stdMonteCarlo(double(*f)(const std::vector<double>&),
+                                const std::vector<double>& a,
+                                const std::vector<double>& b, int steps) {
+    if (steps <= 0)
+        throw "integral is negative";
+    double res = 0.0;
+    auto mult = a.size();
+    std::vector<std::uniform_real_distribution<double>> r(mult);
+    for (size_t i = 0; i < mult; i++)
+        r[i] = std::uniform_real_distribution<double>(a[i], b[i]);
+
+    auto num_threads = std::thread::hardware_concurrency();
+    std::vector<std::thread> threads;
+    std::vector<double> local_res(num_threads);
+    auto start = 0;
+    size_t k = steps % num_threads;
+
+    for (size_t i = 0; i < num_threads; ++i) {
+        my_range range;
+        if (k > i) {
+            range.start = start;
+            range.end = start + (steps / num_threads) + 1;
+            start += (steps / num_threads) + 1;
+        } else {
+            range.start = start;
+            range.end = start + (steps / num_threads);
+            start += (steps / num_threads);
+        }
+        threads.emplace_back([&, range, i]() {
+            std::mt19937 gen;
+            gen.seed(static_cast<unsigned int>(time(0)));
+            std::vector<double> r1(mult);
+            local_res[i] = 0;
+            for (int k = range.start; k < range.end; ++k) {
+                for (size_t j = 0; j < mult; ++j)
+                    r1[j] = r[j](gen);
+                local_res[i] += f(r1);
+            }
+        });
+    }
+
+    for (auto &thread : threads) {
+        thread.join();
+    }
+
+    for (size_t i = 0; i < num_threads; ++i) {
+        res += local_res[i];
+    }
+
+    double S = 1;
+    for (size_t i = 0; i < mult; i++)
+        S *= (b[i] - a[i]);
+    res *= S / steps;
+
+    return res;
+}
+\end{lstlisting}
+\par \verb|2.monte_carlo.h|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#ifndef MODULES_TASK_4_TASHIREV_I_MONTE_CARLO_TASHIREV_I_MONTE_CARLO_H_
+#define MODULES_TASK_4_TASHIREV_I_MONTE_CARLO_TASHIREV_I_MONTE_CARLO_H_
+
+#include <vector>
+#include <string>
+
+struct my_range{
+    int start;
+    int end;
+};
+
+double seqMonteCarlo(double(*f)(const std::vector<double>&),
+                     const std::vector<double>& a,
+                     const std::vector<double>& b, int s);
+
+double stdMonteCarlo(double(*f)(const std::vector<double>&),
+                     const std::vector<double>& a,
+                     const std::vector<double>& b, int s);
+
+#endif  // MODULES_TASK_4_TASHIREV_I_MONTE_CARLO_TASHIREV_I_MONTE_CARLO_H_
+\end{lstlisting}
+\par \verb|3.main.cpp|
+\begin{lstlisting}
+// Copyright 2021 Tashirev Ivan
+#include <gtest/gtest.h>
+#include <cmath>
+#include <vector>
+#include <chrono>
+#include "../../../modules/task_4/tashirev_i_monte_carlo/tashirev_i_monte_carlo.h"
+
+double Integral_1(const std::vector<double>& x) {
+    return x[0] * x[0];
+}
+
+double Integral_2(const std::vector<double>& x) {
+    return 3 * x[0] * x[0] * x[0] + 2 * x[1] * x[1];
+}
+
+double Integral_3(const std::vector<double>& x) {
+    return sin(x[0]) + 2 * x[1] + x[2] * x[2];
+}
+
+double Integral_4(const std::vector<double>& x) {
+    return x[0] * x[0] + 2 * x[1] - cos(x[2]) +
+            2 * x[3] * x[3] * x[3] - 3 * x[4];
+}
+
+
+TEST(Monte_carlo_integral_test, test_result_of_integral) {
+    double a = 0.0, b = 1.0;
+    int num_th = 4;
+    const int N = 250000;
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    double res_seq = seqMonteCarlo(Integral_1, { a }, { b }, N * num_th);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto timeSeq = std::chrono::duration_cast<std::chrono::milliseconds>
+        (t2 - t1).count();
+    std::cout << "Sequential time: " << timeSeq << std::endl;
+
+    t1 = std::chrono::high_resolution_clock::now();
+    double res_std = stdMonteCarlo(Integral_1, { a }, { b }, N);
+    t2 = std::chrono::high_resolution_clock::now();
+    auto timePar = std::chrono::duration_cast<std::chrono::milliseconds>
+        (t2 - t1).count();
+    std::cout << "std time: " << timePar << std::endl;
+
+    ASSERT_NEAR(res_seq, res_std, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_1) {
+    std::vector<double> a = { 0.0, 2.5 };
+    std::vector<double> b = { 1.534, 3.12 };
+    int num_th = 4;
+    const int N = 2500000;
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    double res_seq = seqMonteCarlo(Integral_2, a, b, N * num_th);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto timeSeq = std::chrono::duration_cast<std::chrono::milliseconds>
+        (t2 - t1).count();
+    std::cout << "Sequential time: " << timeSeq << std::endl;
+
+    t1 = std::chrono::high_resolution_clock::now();
+    double res_std = stdMonteCarlo(Integral_2, a, b, N);
+    t2 = std::chrono::high_resolution_clock::now();
+    auto timePar = std::chrono::duration_cast<std::chrono::milliseconds>
+        (t2 - t1).count();
+    std::cout << "std time: " << timePar << std::endl;
+
+    ASSERT_NEAR(res_seq, res_std, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_2) {
+    std::vector<double> a = { 0.0, 2.5, 1.234 };
+    std::vector<double> b = { 1.534, 3.12, 1.555 };
+    int num_th = 4;
+    const int N = 2500000;
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    double res_seq = seqMonteCarlo(Integral_3, a, b, N * num_th);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto timeSeq = std::chrono::duration_cast<std::chrono::milliseconds>
+        (t2 - t1).count();
+    std::cout << "Sequential time: " << timeSeq << std::endl;
+
+    t1 = std::chrono::high_resolution_clock::now();
+    double res_std = stdMonteCarlo(Integral_3, a, b, N);
+    t2 = std::chrono::high_resolution_clock::now();
+    auto timePar = std::chrono::duration_cast<std::chrono::milliseconds>
+        (t2 - t1).count();
+    std::cout << "std time:" << timePar << std::endl;
+
+    ASSERT_NEAR(res_seq, res_std, 0.005);
+}
+
+TEST(Monte_carlo_integral_test, test_result_of_integral_3) {
+    std::vector<double>a = { 0.3, 1.32, 1.234 };
+    std::vector<double>b = { 3.534, 3.5, 1.435 };
+    int num_th = 4;
+    const int N = 250000;
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    double res_seq = seqMonteCarlo(Integral_3, a, b, N * num_th);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto timeSeq = std::chrono::duration_cast<std::chrono::milliseconds>
+        (t2 - t1).count();
+    std::cout << "Sequential time: " << timeSeq << std::endl;
+
+    t1 = std::chrono::high_resolution_clock::now();
+    double res_std = stdMonteCarlo(Integral_3, a, b, N);
+    t2 = std::chrono::high_resolution_clock::now();
+    auto timePar = std::chrono::duration_cast<std::chrono::milliseconds>
+        (t2 - t1).count();
+    std::cout << "std time: " << timePar << std::endl;
+
+    ASSERT_NEAR(res_seq, res_std, 0.5);
+}
+
+TEST(Monte_carlo_integral_test, test_n_is_negative) {
+    double a = 0.0, b = 3.0;
+    ASSERT_ANY_THROW(stdMonteCarlo(Integral_1, { a }, { b }, -1000));
+}
+
+int main(int argc, char** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+\end{lstlisting}
+\end{document}
